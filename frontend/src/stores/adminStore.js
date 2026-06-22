@@ -8,6 +8,7 @@ export const useAdminStore = defineStore('admin', {
     currentMember: null,   // NEU: Hält die Detaildaten des aktuell ausgewählten/zu editierenden Mitarbeiters
     calendarEvents: [],    
     employeesCount: 0,     
+    activeEmployees: 0,
     onLeaveTodayCount: 0,  
     pendingRequests: [],   
     leaveRequests: [],     
@@ -84,9 +85,10 @@ export const useAdminStore = defineStore('admin', {
         })
 
         this.teamMembers = res.data.employees
+        this.activeEmployees = res.data.active_employees
         this.employeesCount = res.data.employees_count 
         this.onLeaveTodayCount = res.data.on_leave_today
-        this.pendingRequests = res.data.pending_requests // Korrigiert für echtes Array (Weg A aus vorigem Schritt)
+        this.pendingRequests = res.data.pending_requests
 
       } catch (error) {
         console.error('Fehler beim Laden der Dashboard-Daten:', error)
@@ -159,10 +161,6 @@ export const useAdminStore = defineStore('admin', {
       this.isLoading = true
       try {
         const token = localStorage.getItem('access_token')
-        // PUT oder PATCH an /api/mgmt/team/<id>/
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/mgmt/team/${userId}/`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
         await axios.patch(`${import.meta.env.VITE_API_URL}/api/mgmt/team/${userId}/`, updatedData, {
           headers: { Authorization: `Bearer ${token}` }
         })

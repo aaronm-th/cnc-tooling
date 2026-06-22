@@ -4,8 +4,8 @@ from django.db import transaction
 from datetime import timedelta
 
 class WorkSessionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'employee', 'check_in', 'check_out', 'old_ver_exists')
-    list_filter = ('work_day__employee', 'check_in', 'old_ver_exists')
+    list_display = ('id', 'employee', 'check_in', 'check_out')
+    list_filter = ('work_day__employee', 'check_in')
 
     def employee(self, obj):
         return obj.work_day.employee
@@ -29,16 +29,6 @@ class ChangeRequestAdmin(admin.ModelAdmin):
 admin.site.register(md.WSChangeRequest, ChangeRequestAdmin)
 
 
-class WSHistoryAdmin(admin.ModelAdmin):
-    list_display = ('get_employee', 'original_checkin', 'original_checkout')
-    list_filter = ('original_checkin', 'original_checkout')
-
-    def get_employee(self, obj):
-        return obj.worksession.work_day.employee
-    get_employee.short_description = 'Employee'
-
-
-admin.site.register(md.WorkSessionHistory, WSHistoryAdmin)
 
 
 class WorkDayAdmin(admin.ModelAdmin):

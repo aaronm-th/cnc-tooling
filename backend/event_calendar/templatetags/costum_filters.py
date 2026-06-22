@@ -1,5 +1,5 @@
 from django import template
-from attendance.models import WSChangeRequest, WorkSessionHistory
+from attendance.models import WSChangeRequest
 
 register = template.Library()
 
@@ -15,9 +15,3 @@ def get_item2(queryset, worksession_id):
     except WSChangeRequest.DoesNotExist:
         return None
     
-@register.filter
-def get_item3(queryset, worksession_id):
-    try:
-        return queryset.get(worksession_id=worksession_id)
-    except WorkSessionHistory.DoesNotExist:
-        return None

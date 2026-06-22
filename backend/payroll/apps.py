@@ -1,9 +1,0 @@
-from django.apps import AppConfig
-
-class PayrollConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'payroll'
-
-    def ready(self):
-        # Optional: Signale laden, falls du später z. B. auto-checkout für Payroll willst
-        pass

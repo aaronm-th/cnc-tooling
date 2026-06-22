@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
-    LoginView, RegisterView, EmployeeListView, 
+    LoginView, EmployeeListView, 
     UserProfileView, UserStatsView, NotificationViewSet, ScratchpadView, TodoView
 )
 
@@ -12,7 +12,6 @@ router.register(r'notifications', NotificationViewSet, basename='notification')
 
 urlpatterns = [
     # AUTHENTIFIZIERUNG
-    path('api/register/', RegisterView.as_view(), name='api_register'),
     path('api/login/', LoginView.as_view(), name='api_login'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 

@@ -1,29 +1,9 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import Employee, VacationQuota, Department, MonthlyBalance, Notification, Scratchpad, TodoItem
+from . import models as md
 from django.utils.html import format_html
 
 from django import forms
-
-@admin.register(Department)
-class DepartmentAdmin(admin.ModelAdmin):
-    # 'display_members' ist unsere neue Funktion
-    list_display = ('name', 'display_members', 'member_count')
-
-    def display_members(self, obj):
-        # Wir holen alle Namen der Mitarbeiter
-        members = obj.members.all()
-        if not members:
-            return "-"
-        
-        # Wir erstellen eine Liste von Namen (z.B. "Max Mustermann")
-        member_names = [f"{m.first_name} {m.last_name}" for m in members]
-        
-        # Schön formatiert als Text (oder mit HTML-Tags für Badges)
-        return ", ".join(member_names)
-
-    # Optional: Ein schöner Titel für die Spalte im Admin
-    display_members.short_description = 'Mitarbeiter'
 
 
 
@@ -38,7 +18,7 @@ class EmployeeAdminForm(forms.ModelForm):
     so = forms.FloatField(label="Sonntag", min_value=0, max_value=0)
 
     class Meta:
-        model = Employee
+        model = md.Employee
         fields = '__all__'
 
     def __init__(self, *args, **kwargs):
@@ -58,19 +38,18 @@ class EmployeeAdminForm(forms.ModelForm):
         return super().save(commit=commit)
 
 
-@admin.register(Employee)
+@admin.register(md.Employee)
 class EmployeeAdmin(UserAdmin):
     form = EmployeeAdminForm
-    list_display = ('id','first_name', 'last_name', 'work_days_schema', 'display_groups', 'phone', 'photo')
-    list_filter = ('work_days_schema','groups')
+    list_display = ('id','first_name', 'last_name', 'work_days_schema', 'phone', 'photo')
     search_fields = ('first_name', 'last_name')
     ordering = ('last_name',)
 
     fieldsets = (
             (None, {'fields': ('username', 'password')}),
-            ('Persönliche Informationen', {'fields': ('first_name', 'last_name', 'email', 'phone', 'department', 'photo', 'joined_at')}), # Hier 'phone' und 'photo' hinzugefügt
+            ('Persönliche Informationen', {'fields': ('first_name', 'last_name', 'email', 'phone', 'photo', 'joined_at')}), # Hier 'phone' und 'photo' hinzugefügt
             ('Berechtigungen', {
-                'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions', 'supervisor'),
+                'fields': ('is_active', 'is_staff', 'is_superuser', 'user_permissions'),
             }),
             ('Zusatzinformationen', {'fields': ('last_login', 'date_joined', 'vacation_days_per_year')}),
             ('Arbeitszeiten (Soll)', {'fields': ('hours_per_day', 'mo', 'di', 'mi', 'do', 'fr', 'sa', 'so')}),
@@ -82,7 +61,7 @@ class EmployeeAdmin(UserAdmin):
     
     display_groups.short_description = 'Groups'
 
-@admin.register(VacationQuota)
+@admin.register(md.VacationQuota)
 class VacationQuotaAdmin(admin.ModelAdmin):
     list_display = ('employee', 'year', 'total_days', 'carried_over')
     list_filter = ('employee', 'year')
@@ -92,15 +71,8 @@ class VacationQuotaAdmin(admin.ModelAdmin):
 
     
 
-@admin.register(MonthlyBalance)
-class MonthlyBalanceAdmin(admin.ModelAdmin):
-    list_display = ('employee', 'year', 'month', 'overtime_at_end')
-    list_filter = ('employee', 'year', 'month')
-    search_fields = ('employee__first_name', 'employee__last_name', 'year', 'month')
-    ordering = ('employee__last_name', 'year', 'month')
 
-
-@admin.register(Scratchpad)
+@admin.register(md.Scratchpad)
 class EmployeeScratchpadAdmin(admin.ModelAdmin):
     # Zeige die formatierte Vorschau in der Detailansicht an
     fields = ('employee', 'formatted_content', 'updated_at')
@@ -118,7 +90,7 @@ class EmployeeScratchpadAdmin(admin.ModelAdmin):
     # Gibt der Spalte im Admin einen schönen Namen
     formatted_content.short_description = "Inhalt (Formatiert)"
 
-@admin.register(TodoItem)
+@admin.register(md.TodoItem)
 class TodoItemAdmin(admin.ModelAdmin):
     list_display = ('employee', 'text', 'completed', 'created_at')
     list_filter = ('employee', 'completed', 'created_at')
@@ -126,9 +98,9 @@ class TodoItemAdmin(admin.ModelAdmin):
     ordering = ('-created_at',)
 
 
-@admin.register(Notification)
+@admin.register(md.Notification)
 class NotificationAdmin(admin.ModelAdmin):
-    list_display = ('recipient', 'title', 'notification_type', 'read', 'is_deleted_by_user', 'created_at', 'link_to')
-    list_filter = ('recipient', 'notification_type', 'read', 'is_deleted_by_user', 'created_at', 'link_to')
+    list_display = ('recipient', 'title', 'notification_type', 'read', 'created_at', 'link_to')
+    list_filter = ('recipient', 'notification_type', 'read', 'created_at', 'link_to')
     search_fields = ('recipient__first_name', 'recipient__last_name', 'title', 'message')
     ordering = ('-created_at',)

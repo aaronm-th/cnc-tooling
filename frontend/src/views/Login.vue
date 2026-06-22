@@ -5,7 +5,7 @@ import axios from 'axios' // Axios importieren
 import { LayoutDashboard, Mail, Lock, ArrowRight, AlertCircle, Clock } from 'lucide-vue-next'
 
 const router = useRouter()
-const email = ref('')
+const username = ref('')
 const password = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('') // Für Feedback bei Fehlern
@@ -18,7 +18,7 @@ const handleLogin = async () => {
     // 1. POST Request an dein Django Backend
     // Nutze die IP 127.0.0.1 wegen des Safari/CORS-Themas
     const response = await axios.post('http://127.0.0.1:8000/api/login/', {
-      email: email.value,
+      username: username.value,
       password: password.value
     })
 
@@ -63,14 +63,14 @@ const handleLogin = async () => {
 
         <form @submit.prevent="handleLogin" class="space-y-6">
           <div class="space-y-2">
-            <label class="text-sm font-semibold text-slate-700 ml-1">Email Addresse</label>
+            <label class="text-sm font-semibold text-slate-700 ml-1">Nutzername</label>
             <div class="relative group">
               <Mail class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
               <input 
-                v-model="email"
-                type="email" 
+                v-model="username"
+                type="text" 
                 required
-                placeholder="name@company.com"
+                placeholder="Nutzername"
                 class="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
               />
             </div>
@@ -79,7 +79,6 @@ const handleLogin = async () => {
           <div class="space-y-2">
             <div class="flex items-center justify-between ml-1">
               <label class="text-sm font-semibold text-slate-700">Passwort</label>
-              <a href="#" class="text-xs font-semibold text-blue-600 hover:underline">Passwort vergessen?</a>
             </div>
             <div class="relative group">
               <Lock class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
@@ -104,12 +103,6 @@ const handleLogin = async () => {
           </button>
         </form>
 
-        <div class="mt-8 pt-8 border-t border-slate-100 text-center">
-          <p class="text-sm text-slate-500">
-            Sie haben noch keinen Account? 
-            <router-link to="/register" class="font-bold text-blue-600 hover:underline">Account erstellen</router-link>
-          </p>
-        </div>
       </div>
 
       <!-- Footer -->

@@ -2,6 +2,7 @@
 import { ref, onMounted, watch, onUnmounted } from 'vue'
 import { Bell, Palmtree, Zap, User, Settings, LogOut, ShieldCheck } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/authStore' 
+import { useAdminStore } from '@/stores/adminStore'
 import { storeToRefs } from 'pinia'
 import NotificationDropdown from '@/components/tooltips/NotificationDropdown.vue'
 
@@ -15,7 +16,11 @@ const props = defineProps({
 })
 
 const authStore = useAuthStore()
+const adminStore = useAdminStore()
 const { user, userStats } = storeToRefs(authStore)
+const { activeEmployees } = storeToRefs(adminStore)
+
+const { isSupervisor } = storeToRefs(authStore)
 
 const isProfileMenuOpen = ref(false)
 const isNotificationsOpen = ref(false)
@@ -97,40 +102,61 @@ watch(() => authStore.isAuthenticated, (val) => {
   <header class="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8">
     <div class="flex items-center gap-8 flex-1">
       
-
       <!-- Header Stats -->
       <div class="hidden md:flex items-center gap-6">
-        <!-- Status -->
+        <!-- Status (Sichtbar für alle) -->
         <div class="flex items-center gap-2.5">
-            <div :class="['w-2 h-2 rounded-full', getStatusColor(userStats?.status)]"></div>              
-            <div class="flex flex-col">
+          <div :class="['w-2 h-2 rounded-full', getStatusColor(userStats?.status)]"></div>              
+          <div class="flex flex-col">
             <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Status</span>
             <span class="text-xs font-bold text-slate-700 mt-0.5">{{ userStats?.status }}</span>
+          </div>
+        </div>
+
+        <!-- ================= MITARBEITER-ANSICHT ================= -->
+        <template v-if="!isSupervisor">
+          <div class="h-8 w-px bg-slate-100"></div>
+
+          <!-- Vacation -->
+          <div class="flex items-center gap-2.5">
+            <Palmtree class="w-4 h-4 text-emerald-500" />
+            <div class="flex flex-col">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Vacation</span>
+              <span class="text-xs font-bold text-slate-700 mt-0.5">
+                {{ userStats?.vacation?.used_days }} / {{ userStats?.vacation?.total_available_days }} used
+              </span>
             </div>
-        </div>
-
-        <div class="h-8 w-px bg-slate-100"></div>
-
-        <!-- Vacation -->
-        <div class="flex items-center gap-2.5">
-          <Palmtree class="w-4 h-4 text-emerald-500" />
-          <div class="flex flex-col">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Vacation</span>
-            <span class="text-xs font-bold text-slate-700 mt-0.5">{{ userStats?.vacation?.used_days }} / {{ userStats?.vacation?.total_available_days }} used</span>
           </div>
-        </div>
 
-        <div class="h-8 w-px bg-slate-100"></div>
+          <div class="h-8 w-px bg-slate-100"></div>
 
-        <!-- Overtime -->
-        <div class="flex items-center gap-2.5">
-          <Zap class="w-4 h-4 text-orange-500" />
-          <div class="flex flex-col">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Overtime</span>
-            <span class="text-xs font-bold text-slate-700 mt-0.5">{{ userStats?.overtime?.balance }}h</span>
+          <!-- Overtime -->
+          <div class="flex items-center gap-2.5">
+            <Zap class="w-4 h-4 text-orange-500" />
+            <div class="flex flex-col">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Overtime</span>
+              <span class="text-xs font-bold text-slate-700 mt-0.5">{{ userStats?.overtime?.balance }}h</span>
+            </div>
           </div>
-        </div>
+        </template>
+
+        <!-- ================= CHEF-ANSICHT (SUPERVISOR) ================= -->
+        <template v-else>
+          <div class="h-8 w-px bg-slate-100"></div>
+
+          <!-- Aktive Mitarbeiter im Team -->
+          <div class="flex items-center gap-2.5">
+            <User class="w-4 h-4 text-blue-500" />
+            <div class="flex flex-col">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Team</span>
+              <span class="text-xs font-bold text-slate-700 mt-0.5">
+                {{ activeEmployees }} Mitarbeiter aktiv
+              </span>
+            </div>
+          </div>
+        </template>
       </div>
+
     </div>
     
     <div class="flex items-center gap-4">

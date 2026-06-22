@@ -159,21 +159,3 @@ class ChangeRequestSerializer(serializers.ModelSerializer):
         diff_min = obj.duration_difference / 60
         return f"{'+' if diff_min > 0 else ''}{diff_min:.0f} min"
 
-
-class CreateEditEmployeeSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    first_name = serializers.CharField(max_length=150)
-    last_name = serializers.CharField(max_length=150)
-    work_days_schema = serializers.JSONField(required=False, default=dict)
-    vacation_days_per_year = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, default=30.0)
-    joined_at = serializers.DateField(required=False)
-
-    def validate_email(self, value):
-        if Employee.objects.filter(email=value).exists():
-            raise serializers.ValidationError("Ein Benutzer mit dieser E-Mail existiert bereits.")
-        return value
-
-    def validate_work_days_schema(self, value):
-        if isinstance(value, dict):
-            return {str(k): v for k, v in value.items()}
-        return value

@@ -11,7 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
-from core.models import Employee, Invitation, VacationQuota
+from core.models import Employee, VacationQuota
 from core.services.vacation_service import VacationService
 from attendance.models import WorkDay, LeaveRequest, WSChangeRequest
 from .permissions import IsSupervisor
@@ -20,73 +20,11 @@ from .permissions import IsSupervisor
 from .serializers import (
     LeaveRequestSerializer, 
     ChangeRequestSerializer, 
-    CreateEditEmployeeSerializer,
     TeamMemberSummarySerializer,
     TeamMemberDetailSerializer
 )
 from core.utils import create_notification
 
-
-class CreateAndInviteEmployeeView(APIView):
-    permission_classes = [IsSupervisor]
-
-    def post(self, request):
-        serializer = CreateEditEmployeeSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        validated_data = serializer.validated_data
-        email = validated_data['email']
-
-        with transaction.atomic():
-            try:
-                user = Employee.objects.create(
-                    username=email,
-                    email=email,
-                    first_name=validated_data['first_name'],
-                    last_name=validated_data['last_name'],
-                    work_days_schema=validated_data['work_days_schema'],
-                    vacation_days_per_year=validated_data['vacation_days_per_year'],
-                    is_active=False,
-                    supervisor=request.user,
-                    joined_at=validated_data['joined_at'],
-                )
-                user.set_unusable_password()
-                user.save()
-                
-                # 💡 FIX 1: Objekt aus der DB aktualisieren, damit 
-                # vacation_days_per_year garantiert als Decimal vorliegt!
-                user.refresh_from_db()
-                
-            except Exception as db_err:
-                return Response({"error": f"Datenbankfehler beim Erstellen: {str(db_err)}"}, status=status.HTTP_400_BAD_REQUEST)
-
-            if user.joined_at:
-                target_year = user.joined_at.year
-                allocated_days = VacationService.calculate_initial_quota(user, target_year)
-                
-                # 💡 FIX 2: Das Ergebnis des Service zur Sicherheit in Decimal konvertieren
-                from decimal import Decimal
-                VacationQuota.objects.update_or_create(
-                    employee=user, 
-                    year=target_year, 
-                    total_days=Decimal(str(allocated_days)), # Schützt das DecimalField vor Float-Ungenauigkeiten
-                    carried_over=Decimal('0.0')
-                )
-
-            invitation = Invitation.objects.create(employee=user)
-            frontend_url = f"http://127.0.0.1:5173/register?token={invitation.token}"
-
-            mail_subject = "Deine Einladung zum Team-Kalender"
-            mail_message = f"Hallo {user.first_name} {user.last_name},\n\nfür dich wurde ein Zugang angelegt. Klicke auf den folgenden Link, um dein Profil einzurichten und dein Passwort festzulegen:\n\n{frontend_url}"
-            
-            try:
-                send_mail(
-                    subject=mail_subject, message=mail_message,
-                    from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=[email], fail_silently=False,
-                )
-            except Exception as e:
-                raise ValidationError(f"Mitarbeiter angelegt, aber E-Mail-Versand fehlgeschlagen: {str(e)}")
-
-        return Response({"success": "Mitarbeiter erfolgreich angelegt und eingeladen."}, status=status.HTTP_201_CREATED)
 
 class SupervisorDashboardStatsView(APIView):
     permission_classes = [IsAuthenticated, IsSupervisor]
@@ -103,6 +41,8 @@ class SupervisorDashboardStatsView(APIView):
             employee__supervisor=request.user, status='pending'
         ).select_related('employee')
 
+        active_employees = Employee.objects.filter(supervisor=request.user, status=True).count()
+
         # REFACTOR: Nutzt den neuen Serializer für die einheitliche, fehlerfreie Karten-Anzeige
         serializer = TeamMemberSummarySerializer(subordinates, many=True, context={'request': request})
 
@@ -111,6 +51,7 @@ class SupervisorDashboardStatsView(APIView):
             "employees_count": subordinates.count(),
             "on_leave_today": on_leave_today,
             "requests_count": pending_requests.count(),
+            "active_employees": active_employees
         })
 
 

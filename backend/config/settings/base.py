@@ -26,7 +26,6 @@ INSTALLED_APPS = [
     'event_calendar.apps.EventCalendarConfig',
     'management.apps.ManagementConfig',
     'attendance.apps.AttendanceConfig',
-    'payroll.apps.PayrollConfig',
     'core.apps.CoreConfig',
     'reports.apps.ReportsConfig',
     'terminal.apps.TerminalConfig',

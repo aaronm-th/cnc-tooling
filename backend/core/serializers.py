@@ -18,11 +18,12 @@ class EmployeeSerializer(serializers.ModelSerializer):
     name = serializers.ReadOnlyField() 
     initials = serializers.ReadOnlyField()
     status_text = serializers.SerializerMethodField()
+    is_supervisor = serializers.SerializerMethodField()
 
     class Meta:
         model = Employee
         fields = ['id', 'first_name', 'last_name', 'name', 'initials', 'email', 'phone', 'status_text', 'avatar', 'is_supervisor']
-        read_only_fields = ['id', 'is_supervisor']
+        read_only_fields = ['id']
 
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_avatar(self, obj):
@@ -34,6 +35,10 @@ class EmployeeSerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.CharField())
     def get_status_text(self, obj):
         return "Anwesend" if obj.status else "Abwesend"
+    
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_supervisor(self, obj):
+        return obj.is_superuser if hasattr(obj, 'is_superuser') else False
 
 
 class VacationQuotaSerializer(serializers.ModelSerializer):
@@ -48,7 +53,7 @@ class VacationQuotaSerializer(serializers.ModelSerializer):
         fields = [
             'year', 'total_days', 'carried_over', 
             'remaining_days', 'total_available_days', 
-            'used_days', 'carry_over_expiry'
+            'used_days'
         ]
 
     @extend_schema_field(serializers.IntegerField())
@@ -93,6 +98,7 @@ class UserStatsSerializer(serializers.Serializer):
     overtime = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
     joined_at = serializers.SerializerMethodField()
+    is_supervisor = serializers.SerializerMethodField()
 
     @extend_schema_field(VacationQuotaSerializer)
     def get_vacation(self, obj):
@@ -112,9 +118,8 @@ class UserStatsSerializer(serializers.Serializer):
     @extend_schema_field(OvertimeInfoSerializer)
     def get_overtime(self, obj):
         return {
-            "balance": float(obj.overtime_balance), 
-            "weekly_hours": float(obj.weekly_hours)
-        }
+            "balance": float(obj.overtime_balance)
+    }
 
     @extend_schema_field(serializers.CharField())
     def get_status(self, obj):
@@ -124,3 +129,7 @@ class UserStatsSerializer(serializers.Serializer):
     def get_joined_at(self, obj):
         # Gibt das ISO-Format zurück (besser für das Frontend zum Parsen) oder formatiert
         return obj.joined_at.strftime("%Y-%m-%d") if obj.joined_at else None
+    
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_supervisor(self, obj):
+        return obj.is_superuser if hasattr(obj, 'is_superuser') else False
