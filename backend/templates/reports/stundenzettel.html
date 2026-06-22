@@ -1,0 +1,76 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ filename }}</title>
+    <title>Stundennachweis - {{ employee }} - {{ period }}</title>
+    <link rel="stylesheet" href="{% static 'css/stundenzettel.css' %}">
+</head>
+<body>
+        <div class="page">
+            <header class="document-header">
+                <img src="file://{{ logo_path }}" alt="Firmenlogo" class="logo">
+                <div class="document-title">
+                    <h2>Stundennachweis</h2>
+                </div>
+            </header>
+
+            <div class="employee-info">
+                <h2>Zeiterfassung – {{ period }}</h2>
+                <p><strong>Mitarbeiter:</strong> {{ employee }}</p>
+                <p><strong>Bericht erstellt am:</strong> {{ report_date }}</p>
+            </div>
+
+            {% for day in work_days %}
+                <h2>{{ day.date|date:"l, d.m.Y" }}</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Check-In</th>
+                            <th>Check-Out</th>
+                            <th>Dauer (h)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for session in day.sessions.all %}
+                        <tr>
+                            <td>{{ session.check_in|time:"H:i" }}</td>
+                            <td>{{ session.check_out|time:"H:i" }}</td>
+                            <td>{{ session.duration_str }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="summary-row">
+                            <td colspan="2">Tagessumme:</td>
+                            <td>{{ day.total_hours|floatformat:2 }}</td>
+                        </tr>
+                        <tr class="summary-row">
+                            <td colspan="2">Überstunden:</td>
+                            <td class="
+                                {% if day.overtime_hours < 0 %}overtime-negative
+                                {% elif day.overtime_hours > 0 %}overtime-positive
+                                {% else %}overtime-zero
+                                {% endif %}">
+                                {{ day.overtime_hours|floatformat:2 }}
+                            </td>
+                        </tr>
+
+                    </tbody>
+                </table>
+            {% endfor %}
+
+            <div class="total-summary">
+                Gesamtstunden im Monat: {{ total_duration |floatformat:2}} h <br>
+                Überstunden im Monat: 
+                    <span class="
+                        {% if total_overtime < 0 %}overtime-negative
+                        {% elif total_overtime > 0 %}overtime-positive
+                        {% else %} overtime-zero
+                        {% endif %}
+                    ">
+                        {{ total_overtime|floatformat:2 }} h
+                    </span> 
+            </div>
+        </div>
+    </body>
+</html>

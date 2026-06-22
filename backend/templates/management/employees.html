@@ -1,0 +1,91 @@
+{% extends 'core/base.html' %}
+
+
+{% block title %} | Mitarbeiter {% endblock %}
+
+
+{% block content %}
+{% load static %}
+<head>
+    <link rel="stylesheet" type="text/css" href="{% static 'css/tables.css' %}">
+
+    <style>
+        .status-anwesend {
+            color: green !important;
+        }
+
+        .status-abwesend {
+            color: red !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <section class="dashboard">
+        <div class="container">
+            <div class="overview">
+                <div class="title">
+                    <ion-icon name="people-outline"></ion-icon>
+                    <span class="text">Mitarbeiter Übersicht</span>
+                </div>
+            </div>
+        </div>
+    
+    
+        <div class="table-wrapper">
+            <table class="fl-table">
+                <thead>
+                    <tr>
+                        <th>Foto</th>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Überstunden</th>
+                        <th>Genommene Urlaubstage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for employee in employees %}
+                    <tr>
+                        <td>
+                            <img src="{{ employee.photo.url }}" alt="Profile Picture" height="60px">
+                        </td>
+
+                        <td>
+                            <a href="{% url 'mgmt_employee_detail' employee.id %}">
+                                {{ employee.last_name }}, {{ employee.first_name }}
+                            </a>
+                        </td>
+
+                        <td>
+                            <p class="{{employee.get_status_class}}">
+                                {{employee.show_status}}
+                            </p>
+                        </td>
+
+                        <td>
+                            {% for summary in employee.all_overtime %}
+                                {{summary.cumulative_overtime_hours|floatformat:2}}
+                            {% empty %}
+                                <span class="text-muted">No overtime recorded</span>
+                            {% endfor %}
+                        </td>
+                        
+                        <td>
+                            {{employee.vacation_days_as_str}}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5">No employees found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    
+    </section>
+
+</body>
+
+{% endblock %}

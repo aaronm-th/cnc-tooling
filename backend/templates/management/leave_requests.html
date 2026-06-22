@@ -1,0 +1,94 @@
+{% extends 'core/base.html' %}
+
+{% block title %} | Anträge {% endblock %}
+
+{% block content %}
+{% load static %}
+
+<body>
+
+    <section class="dashboard">
+        <div class="container">
+            <div class="overview">
+                <div class="title">
+                    <ion-icon name="folder-outline"></ion-icon>
+                    <span class="text">Anträge</span>
+                </div>
+                
+            </div>
+
+            <!-- Recent Activities -->
+            <div class="data-table activityTable">
+                    <div class="table-wrapper">
+                        
+                        {% if errorMsg %}
+                        <span class="message-box" id="danger">{{errorMsg}}</span>
+                        {% endif %}
+                        
+                        <table class="fl-table">
+                            <thead>
+                                <tr>
+                                    {% comment %} <th>Employee</th> {% endcomment %}
+                                    <th>Antragsdatum</th>
+                                    <th>Mitarbeiter</th>
+                                    <th>Zeitraum</th>
+                                    <th>Anzahl Urlaubstage</th>
+                                    <th>Status</th>
+                                    <th>Aktion</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for leave_request in leave_requests %}
+                                    <tr>
+                                        <td>
+                                            {{ leave_request.request_date|date:'d.m.Y' }}
+                                        </td>
+                                        <td>
+                                            {{ leave_request.employee }}
+                                        </td>
+                                        
+                                        <td>
+                                           {{ leave_request.leave_start|date:'d.m.Y' }} <br>
+                                           - <br>
+                                           {{ leave_request.leave_end|date:'d.m.Y' }}
+                                        </td>
+
+                                        <td>
+                                            {{ leave_request.num_vacdays }}
+                                        </td>
+                                        <td>
+                                            {{ leave_request.get_status_display }} 
+                                        </td>
+                                        <td>
+                                            <div style="align-items: center;">
+                                            <form method="post">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="request_id" value="{{ leave_request.id }}">
+                                                <button class="accept-button" type="submit" name="action" value="approve" class="btn btn-success">Annehmen</button>
+                                                <button class="decline-button" type="submit" name="action" value="reject" class="btn btn-danger">Ablehnen</button>
+                                            </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% empty %}
+                                    <tr>
+                                        <td colspan="5" style="text-align: center; padding: 15px; font-weight: bold;">
+                                            Keine offenen Anträge.
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                            
+                        </table>
+                       
+
+                    </div>
+        
+            </div>
+
+        </div>
+    </section>
+    
+</body>
+
+{% endblock %}

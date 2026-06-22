@@ -1,0 +1,88 @@
+{% extends 'core/base.html' %}
+
+
+
+{% block title %} | Dashboard {% endblock %}
+
+{% block content %}
+{% load static %}
+<head>
+    <title>Admin Dashboard</title>
+</head>
+
+<body>
+
+    <section class="dashboard">
+        <div class="container">
+            <div class="overview">
+
+                {% include 'core/includes/messages.html' %}
+
+                <div class="title">
+                    <ion-icon name="home-outline"></ion-icon>
+                    <span class="text">Dashboard</span>
+                </div>
+                <div class="boxes">
+                    <div class="box box1">
+                        <ion-icon name="people-outline"></ion-icon>
+                        <span class="text">Mitarbeiter anwesend</span>
+                        <span class="number">{{active_employees}} / {{employees_count}}</span>
+                    </div>
+                    <div class="box box2">
+                        <ion-icon name="folder-outline"></ion-icon>
+                        <span class="text">Offene Änderungsanträge</span>
+                        <span class="number">{{change_requests}}</span>
+                    </div>
+                     <div class="box box3">
+                        <ion-icon name="folder-outline"></ion-icon>
+                        <span class="text">Offene Abwesenheitsanträge</span>
+                        <span class="number">{{leave_requests}}</span>
+                    </div>
+                 
+                </div> 
+            </div>
+            
+
+          <!-- Recent Activities -->
+    <div class="data-table activityTable">
+        <div class="title">
+            <ion-icon name="time-outline"></ion-icon>
+            <span class="text">Letzte Aktivitäten</span>
+        </div>
+        
+            <div class="table-wrapper">
+
+                <table class="fl-table">
+                    <thead>
+                        <tr>
+                            <th>Datum / Uhrzeit</th>
+                            <th>Mitarbeiter</th>
+                            <th>Aktivität</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for log in activity_logs %}
+                        <tr>
+                            <td>
+                                {{ log.timestamp }}
+                            </td>
+
+                            <td>
+                              {{ log.employee }}
+                            </td>
+
+                            <td>
+                              {{ log.description }}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+    </section>
+
+  
+    
+</body>
+
+{% endblock %}

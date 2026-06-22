@@ -1,0 +1,90 @@
+{% extends 'core/base.html' %}
+
+{% block title %} | Stempelzeit bearbeiten {% endblock %}
+
+
+{% block content %}
+{% load static %}
+
+<style>
+    input[type="datetime-local"]::-webkit-datetime-edit-seconds,
+    input[type="datetime-local"]::-moz-placeholder {
+        display: none;
+    }
+
+</style>
+
+
+<body>
+    <section class="dashboard">
+        <div class="container">
+
+            <div class="employee-detail">
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="table-wrapper" style="flex-direction: column; align-items: center; max-width: 750px; padding: 1px">
+                        
+                        <table class="fl-table" style="margin-right: 20px;">
+                            <thead>
+                                <tr>
+                                    {% comment %} <th>Employee</th> {% endcomment %}
+                                    <th> </th>
+                                    <th>Aktuell</th>
+                                    <th>Änderung</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><strong>Eingestempelt</strong></td>      
+                                    <td>{{worksession.check_in|date:"d.m.Y, H:i"}}</td> 
+                                    <td>{{ form.requested_check_in }}</td>
+                                </tr>
+                                <tr><td><strong>Ausgestempelt</strong></td>
+                                    <td>{{worksession.check_out|date:"d.m.Y, H:i"}}</td> 
+                                    <td>{{ form.requested_check_out }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                         <!-- Specific field error display -->
+                            {% for field in form %}
+                                {% if field.errors %}
+                                    {% for error in field.errors %}
+                                    <div class="error">
+                                        {{ error }}
+                                    </div>
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+
+                    </div>
+                    
+                 
+
+                    <button class="submit-button" type="submit">
+                        Speichern
+                    </button>
+                </form>
+                
+                {% if form.non_field_errors %}
+                <div class="error">
+                    {% for error in form.non_field_errors %}
+                        <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                
+
+                <a href="{% url 'emp_dashboard' %}" class="button-link">
+                    Zurück
+                </a>
+                
+                
+            </div>
+    
+        </div>
+    </section>
+   
+    
+</body>
+
+{% endblock %}

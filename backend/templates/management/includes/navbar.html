@@ -1,0 +1,62 @@
+{% load static %}
+<nav>
+    <div class="logo">
+        <div class="logo-image">
+        </div>
+    </div>
+    <div class="menu-items">
+        <ul class="navLinks">
+            <li 
+                {% if '/management/' == request.path %}
+                    class="navList active"
+                {% else %}
+                    class="navList"
+                {% endif %}>
+                <a href="{% url 'mgmt_dashboard' %}">
+                    <ion-icon name="home-outline"></ion-icon>
+                    <span class="links">Dashboard</span>
+                </a>
+            </li>
+
+            <li 
+                {% if 'management/employees' in request.path %}
+                    class="navList active"
+                {% else %}
+                    class="navList"
+                {% endif %}>
+                <a href="{% url 'mgmt_employees' %}">
+                    <ion-icon name="people-outline"></ion-icon>
+                    <span class="links">Mitarbeiter Übersicht</span>
+                </a>
+            </li>
+
+            <li 
+                {% if 'management/change_requests' in request.path %}
+                    class="navList active"
+                {% else %}
+                    class="navList"
+                {% endif %}>
+                <a href="{% url 'change_requests' %}">
+                    <ion-icon name="folder-outline"></ion-icon>
+                    <span class="links">Änderungsanträge</span>
+                </a>
+            </li>
+
+            <li 
+                {% if 'management/leave_requests' in request.path %}
+                    class="navList active"
+                {% else %}
+                    class="navList"
+                {% endif %}>
+                <a href="{% url 'leave_requests' %}">
+                    <ion-icon name="folder-outline"></ion-icon>
+                    <span class="links">Abwesenheitsanträge</span>
+                </a>
+            </li>
+                         
+        </ul>
+
+        {% include 'core/includes/logout_button.html' %}
+
+    </div>
+</nav>

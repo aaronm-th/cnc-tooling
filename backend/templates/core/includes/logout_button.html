@@ -1,0 +1,15 @@
+{% if user.is_authenticated %}
+
+        <ul class="bottom-link">
+            <li>
+                    <a href="javascript:{document.getElementById('logout').submit()}">
+                        <form id="logout" action="{% url 'logout' %}" method="post">
+                            {% csrf_token %}
+                        <ion-icon name="log-out-outline"></ion-icon>
+                        <span class="links">Logout</span>
+                        </form>
+                    </a>
+
+            </li>
+        </ul>
+{% endif %}

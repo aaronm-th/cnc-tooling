@@ -1,0 +1,44 @@
+# --- System / IDE ---
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Python / Django (Backend) ---
+**/__pycache__/
+*.py[cod]
+*$py.class
+backend/local_settings.py
+backend/db.sqlite3
+backend/db.sqlite3-journal
+backend/media/
+backend/staticfiles/
+backend/data/
+celerybeat-schedule
+*.log
+
+# --- Virtual Environments (Lokal) ---
+env/
+venv/
+ENV/
+.venv/
+
+# --- Node.js / Vue (Frontend) ---
+frontend/node_modules/
+frontend/dist/
+npm-debug.log*
+yarn-error.log*
+.eslintcache
+
+# --- Docker ---
+.dockerignore
+# Wir ignorieren .env Dateien NICHT pauschal, 
+# da du .env.demo und .env.dev aktiv im Repo nutzt.
+# Aber: Private .env (falls du sie hast) sollten hier rein:
+# .env
+
+# --- Verschiedenes ---
+data/
+.cache
+tmp/

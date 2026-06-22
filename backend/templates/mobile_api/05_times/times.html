@@ -1,0 +1,111 @@
+{% extends 'core/base.html' %}
+
+{% block title %} | Zeiten {% endblock %}
+
+
+{% block content %}
+{% load static %}
+{% load costum_filters %}
+{% load calendar_extras %}
+
+<section class="dashboard">
+
+  <h2>Monatsübersicht</h2>
+
+<table class="fl-table">
+  <thead>
+    <tr height="50px">
+      <th>Mo</th>
+      <th>Di</th>
+      <th>Mi</th>
+      <th>Do</th>
+      <th>Fr</th>
+      <th>Sa</th>
+      <th>So</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    {% for week in month_days %}
+      <tr>
+        {% for day in week %}
+
+          {% with wd=workday_map|get_item:day %}
+          {% with leave=leave_map|get_item:day %}
+          {% with holiday=holiday_map|get_item:day %}
+
+          <td
+            class="
+              {% if wd %}clickable{% endif %}
+              {% if holiday %} holiday{% endif %}
+              {% if leave %} vacation{% endif %}
+            ", height="100px"
+            {% if wd %}
+              onclick="location.href='{% url 'workday_detail' wd.id %}'"
+            {% endif %}
+          >
+
+            <!-- Tagesnummer -->
+            <div class="day-number">
+              {{ day|date:"d" }}
+            </div>
+
+            <!-- Feiertag -->
+            {% if holiday %}
+              <div class="holiday-name">
+                {{ holiday }}
+              </div>
+            {% endif %}
+
+            <!-- Urlaub (nur wenn kein Feiertag) -->
+            {% if leave and not holiday %}
+              <div class="leave">
+                {{ leave.get_leave_type_display }}
+              </div>
+            {% endif %}
+
+            <!-- WorkSessions -->
+            {% if wd %}
+              {% for session in wd.sessions.all %}
+                <div class="session">
+                  {{ session.check_in|time:"H:i" }} –
+                  {% if session.check_out %}
+                    {{ session.check_out|time:"H:i" }}
+                  {% else %}
+                    <span class="open-text">offen</span>
+                  {% endif %}
+                </div>
+              {% endfor %}
+
+              <div class="total">
+                {{ wd.total_duration }}
+              </div>
+            {% endif %}
+
+          </td>
+
+          {% endwith %}
+          {% endwith %}
+          {% endwith %}
+
+        {% endfor %}
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+
+<div class="navigation">
+  <a href="{% url 'calendar_month' prev_year prev_month %}">←</a>
+  <strong>{{ month }} / {{ year }}</strong>
+  <a href="{% url 'calendar_month' next_year next_month %}">→</a>
+</div>
+
+<a href="{% url 'generate_pdf' %}?month={{ year }}-{{ month|stringformat:'02d' }}" class="btn btn-primary">
+    Download PDF Report ({{ month }}/{{ year }})
+</a>
+
+</section>
+
+
+{% endblock %}

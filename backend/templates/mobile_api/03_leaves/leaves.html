@@ -1,0 +1,144 @@
+{% extends 'core/base.html' %}
+
+{% block title %} | Anträge {% endblock %}
+
+
+{% block content %}
+{% load static %}
+
+<body>
+    <section class="dashboard">
+        <div class="container">
+            <div class="overview">
+                <div class="title">
+                    <ion-icon name="folder-outline"></ion-icon>
+                    <span class="text">Abwesenheitsanträge</span>
+                </div>
+                
+            </div>
+                <a href="{% url 'create_leaveRequest' %}" class="button-link">+ Neuer Antrag</a>
+            </form>
+
+            <!-- Recent Activities -->
+            <div class="data-table activityTable">
+                    <div class="table-wrapper">
+
+                        <div class="table-headings">
+                            <span class="left">Offene Anträge</span>
+                        </div>
+
+                        <table class="fl-table">
+                            <thead>
+                                <tr>
+                                    <th>Antragsart</th>
+                                    <th>Antragsdatum</th>
+                                    <th>Zeitraum</th>
+                                    <th>Status</th>
+                                    <th>Bearbeiter:in</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for pending_request in pending_requests %}
+                                    <tr class="tr-pending">
+                                        <td>
+                                            {{ pending_request.get_leave_type_display }}
+                                        </td>
+                                        
+                                        <td>
+                                            {{pending_request.request_date|date:'d.m.Y'}}
+                                        </td>
+
+                                        <td>
+                                            {{ pending_request.leave_start|date:'d.m.Y' }} <br>-<br>
+                                            {{ pending_request.leave_end|date:'d.m.Y' }}
+                                        </td>
+                                        <td>
+                                            <strong>{{ pending_request.get_status_display }}</strong>
+                                        </td>
+                                        <td>
+                                            -
+                                        </td>
+                                    </tr>
+                                {% empty %}
+                                    <tr>
+                                        <td colspan="5" style="text-align: center; padding: 15px; font-weight: bold;">
+                                            Keine offenen Anträge.
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+            </div>
+
+
+            <div class="data-table activityTable">
+                <div class="table-wrapper">
+                    
+                    <form style="margin-bottom: 10px; font-size: 18px" method="GET">
+                        {{ filterset.form.as_p }}
+                        <button class="submit-button" type="submit">Filter</button>
+                        <a class="button-link" href="{% url 'emp_leaves' %}">Reset</a>
+                    </form>
+
+                    <div class="table-headings">
+                        <span class="left">Abgeschlossen</span>
+                    </div>
+
+                    <table class="fl-table">
+                        <thead>
+                                <tr>
+                                    <th>Antragsart</th>
+                                    <th>Antragsdatum</th>
+                                    <th>Zeitraum</th>
+                                    <th>Status</th>
+                                    <th>Bearbeiter:in</th>
+                                </tr>
+                            </thead>
+                        <tbody>
+                                {% for finished_request in finished_requests %}
+                                    <tr class="tr-pending">
+                                        <td>
+                                            {{ finished_request.get_leave_type_display }}
+                                        </td>
+                                        
+                                        <td>
+                                            {{finished_request.request_date|date:'d.m.Y'}}
+                                        </td>
+
+                                        <td>
+                                            {{ finished_request.leave_start|date:'d.m.Y' }} <br>-<br>
+                                            {{ finished_request.leave_end|date:'d.m.Y' }}
+                                        </td>
+                                        <td>
+                                            <strong>{{ finished_request.get_status_display }} am {{ finished_request.reviewed_date|date:'d.m.Y' }}</strong>
+                                        </td>
+                                        <td>
+                                            {{ finished_request.reviewed_by }}
+                                        </td>
+                                    </tr>
+                                {% empty %}
+                                    <tr>
+                                        <td colspan="5" style="text-align: center; padding: 15px; font-weight: bold;">
+                                            Keine offenen Anträge.
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        
+                    </table>
+                   
+
+                </div>
+    
+        </div>
+
+
+        </div>
+
+    </section>
+   
+    
+</body>
+
+{% endblock %}

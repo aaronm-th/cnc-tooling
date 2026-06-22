@@ -1,0 +1,71 @@
+{% load static %}
+<nav>
+    <div class="logo">
+        <div class="logo-image">
+        </div>
+    </div>
+    <div class="menu-items">
+        <ul class="navLinks">
+            <li 
+                {% if '/mobile_api/' == request.path %}
+                    class="navList active"
+                {% else %}
+                    class="navList"
+                {% endif %}>
+                <a href="{% url 'emp_dashboard' %}">
+                    <ion-icon name="home-outline"></ion-icon>
+                    <span class="links">Dashboard</span>
+                </a>
+            </li>
+
+            <li 
+                {% if 'mobile_api/emp_info' in request.path %}
+                    class="navList active"
+                {% else %}
+                    class="navList"
+                {% endif %}>
+                <a href="{% url 'emp_info' %}">
+                    <ion-icon name="person-outline"></ion-icon>
+                    <span class="links">Persönliche Informationen</span>
+                </a>
+            </li>
+
+            <li 
+                {% if 'mobile_api/change_requests' in request.path %}
+                    class="navList active"
+                {% else %}
+                    class="navList"
+                {% endif %}>
+                <a href="{% url 'emp_change_requests' %}">
+                    <ion-icon name="folder-outline"></ion-icon>
+                    <span class="links">Änderungsanträge</span>
+                </a>
+            </li>
+            <li 
+                {% if 'mobile_api/leaves' in request.path %}
+                    class="navList active"
+                {% else %}
+                    class="navList"
+                {% endif %}>
+                <a href="{% url 'emp_leaves' %}">
+                    <ion-icon name="folder-outline"></ion-icon>
+                    <span class="links">Abwesenheiten</span>
+                </a>
+            </li>
+            
+            <li 
+                {% if 'calendar' in request.path %}
+                    class="navList active"
+                {% else %}
+                    class="navList"
+                {% endif %}>
+                <a href="{% url 'emp_times' %}">
+                    <ion-icon name="time-outline"></ion-icon>
+                    <span class="links">Zeiten</span>
+                </a>
+            </li>
+                         
+        </ul>
+        {% include 'core/includes/logout_button.html' %}
+    </div>
+</nav>

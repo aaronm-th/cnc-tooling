@@ -1,0 +1,124 @@
+{% extends 'core/base.html' %}
+
+{% block title %} | Zeiten {% endblock %}
+
+
+{% block content %}
+{% load static %}
+{% load costum_filters %}
+
+<body>
+    <section class="dashboard">
+        <div class="container">
+            <div class="data-table activityTable">
+                <div class="title">
+                    <ion-icon name="time-outline"></ion-icon>
+                    <span class="text">Zeiten - Übersicht</span>
+                </div>
+                <div class="text">
+                    <span class="text">Hinweis: Änderungen können bis maximal 12 Stunden nach Arbeitsende beantragt werden.</span>
+                </div>
+
+                <a href="{% url 'employee_report' employee.id %}" class="btn" target="_blank">
+                    Generate PDF Report
+                </a>
+
+
+            {% for work_day in work_days %}
+            <div class="table-wrapper">
+
+                <div class="table-headings">
+                    <span class="left">{{ work_day.date|date:"l, d.m.Y" }}</span>
+                    <span class="right">Total: {{ work_day.total_hours|floatformat:2 }} | Überstunden: 
+                        <span class="{% if work_day.overtime_hours < 0 %}oh_red{% else %}oh_green{% endif %}">
+                            {{ work_day.overtime_hours|floatformat:2 }}
+                        </span>
+                    </span>
+                </div>
+            
+                <table class="fl-table">
+                    <thead>
+                        <tr>
+                            <th>Eingestempelt</th>
+                            <th>Ausgestempelt</th>
+                            <th>Arbeitsdauer</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for worksession in work_day.sessions.all %}
+                        <tr>
+                            <td>
+                                {{ worksession.check_in|date:"H:i" }}
+                                {% with pending_request=pending_requests|get_item2:worksession.id %}
+                                    {% if pending_request and pending_request.requested_check_in|date:"H:i" != worksession.check_in|date:"H:i" %}
+                                        (Antrag: {{ pending_request.requested_check_in|date:"H:i" }})
+                                    {% endif %}
+                                {% endwith %}
+                            </td>
+
+                            <td>
+                                {% if worksession.check_out %}
+                                    {{ worksession.check_out|date:"H:i" }}
+                                    {% with pending_request=pending_requests|get_item2:worksession.id %}
+                                        {% if pending_request and pending_request.requested_check_out|date:"H:i" != worksession.check_out|date:"H:i" %}
+                                            (Antrag: {{ pending_request.requested_check_out|date:"H:i" }})
+                                        {% endif %}
+                                    {% endwith %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                {{ worksession.duration_str }}
+                                {% with pending_request=pending_requests|get_item2:worksession.id %}
+                                    {% if pending_request %}
+                                        ({{ pending_request.duration_str }})
+                                    {% endif %}
+                                {% endwith %}
+                            </td>
+
+                            <td>
+                                {% if worksession.check_out and worksession.is_editable %}
+                                    {% with request=all_requests|get_item2:worksession.id %}
+                                        {% if request.status == 'pending' %}
+                                            <a href="{% url 'create_changeRequest' worksession.id %}" class="links">Antrag {{ request.get_status_display }}</a>
+                                        {% else %}
+                                            <a href="{% url 'create_changeRequest' worksession.id %}" class="links">Änderung beantragen</a>
+                                        {% endif %}
+                                    {% endwith %}
+                                
+                                {% elif worksession.old_ver_exists %}
+                                    {% with request=all_requests|get_item2:worksession.id %}
+                                        {% if request %}
+                                            Antrag {{ request.get_status_display|lower }}
+                                        {% endif %}
+                                    {% endwith %}
+                                
+                                {% elif worksession.check_out is None %}
+                                    -
+                                {% else %}
+                                    keine Änderung mehr möglich
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endfor %}
+
+    </div>
+
+        
+
+
+        </div>
+
+    </section>
+   
+    
+</body>
+
+{% endblock %}

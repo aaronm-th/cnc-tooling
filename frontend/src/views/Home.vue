@@ -1,0 +1,155 @@
+<script setup>
+import { ref, watch, onMounted } from 'vue'
+import { Users, Calendar, FileText, Briefcase } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/authStore'
+import { useAppStore } from '@/stores/appStore'
+import { storeToRefs } from 'pinia'
+
+import AppSidebar from '@/components/navigation/AppSidebar.vue'
+import AppHeader from '@/components/navigation/AppHeader.vue'
+
+import DashboardTab from '@/components/DashboardTab.vue'
+import TeamView from '@/components/TeamView.vue'
+import ScheduleView from '@/components/ScheduleView.vue'
+import RequestsView from '@/components/RequestsView.vue'
+import DocumentsView from '@/components/DocumentsView.vue'
+
+import EditProfileModal from '@/components/modals/EditProfileModal.vue'
+
+import AdminDashboard from '@/components/supervisor/AdminDashboard.vue'
+import AdminTeamView from '@/components/supervisor/AdminTeamView.vue'
+import AdminRequests from '@/components/supervisor/AdminRequests.vue'
+import AdminCalendar from '@/components/supervisor/AdminCalendar.vue'
+
+// Stores initialisieren
+const authStore = useAuthStore()
+const appStore = useAppStore()
+const router = useRouter()
+
+const { user, isSupervisor } = storeToRefs(authStore)
+const { activeTab } = storeToRefs(appStore) // Wir nutzen activeTab aus dem Store
+
+// Lokale Zustände
+const isEditProfileModalOpen = ref(false)
+const isAdminView = ref(true)
+
+// --- Tab-Logik & Persistence ---
+// Beim Laden den gespeicherten Tab aus LocalStorage im Store setzen
+const savedTab = localStorage.getItem('activeTab')
+if (savedTab) {
+  appStore.setTab(savedTab)
+}
+
+watch(activeTab, (newTab) => {
+  localStorage.setItem('activeTab', newTab)
+  console.log("Tab gewechselt zu:", newTab)
+})
+
+// --- Supervisor / Admin-Modus Logik ---
+const applyStoredPreference = () => {
+  if (!user.value || Object.keys(user.value).length === 0) return
+
+  if (isSupervisor.value) {
+    const saved = localStorage.getItem('isAdminView')
+    isAdminView.value = saved !== null ? saved === 'true' : true
+  } else {
+    isAdminView.value = false
+  }
+}
+
+// Beobachte Änderungen am Supervisor-Status
+watch(isSupervisor, (newValue) => {
+  if (newValue !== undefined) applyStoredPreference()
+}, { immediate: true })
+
+// Logik wenn der Admin-Modus umgeschaltet wird
+watch(isAdminView, (newValue) => {
+  if (isSupervisor.value) {
+    localStorage.setItem('isAdminView', newValue.toString())
+  }
+  
+  // Wenn Admin-Modus AUS und wir auf einem Admin-Tab sind -> zurück zum Dashboard
+  if (newValue === false) {
+    const adminTabs = ['admin-dashboard', 'admin-team', 'admin-requests']
+    if (adminTabs.includes(activeTab.value)) {
+      appStore.setTab('dashboard')
+    }
+  }
+})
+
+// --- Lifecycle ---
+onMounted(async () => {
+  if (typeof authStore.fetchUser === 'function') {
+    if (!user.value || Object.keys(user.value).length === 0) {
+      await authStore.fetchUser()
+      applyStoredPreference()
+    }
+  }
+})
+
+// --- Aktionen ---
+const logout = () => {
+  // Store-Logout aufrufen (löscht alle States & LocalStorages)
+  authStore.logout()
+  
+  // Sauber per Vue-Router weiterleiten
+  router.push('/login')
+}
+
+const quickLinks = [
+  { name: 'Adressbuch', icon: Users, color: 'text-blue-600', tab: 'team' },
+  { name: 'Kalender', icon: Calendar, color: 'text-emerald-600', tab: 'schedule' },
+  { name: 'Meine Dokumente', icon: FileText, color: 'text-purple-600', tab: 'documents' },
+]
+
+</script>
+
+<template>
+  <div class="flex h-screen overflow-hidden">
+    <AppSidebar 
+      v-model:currentTab="appStore.activeTab" 
+      v-model:isAdminView="isAdminView"
+    />
+
+    <main class="flex-1 flex flex-col overflow-hidden">
+      <AppHeader 
+        @openEditProfile="isEditProfileModalOpen = true"
+        @logout="logout"
+      />
+
+      <div class="flex-1 overflow-y-auto bg-slate-50">
+        
+        <DashboardTab 
+          v-if="activeTab === 'dashboard'" 
+          :quickLinks="quickLinks"
+          @changeTab="appStore.setTab($event)"
+        />
+
+        <TeamView 
+          v-if="activeTab === 'team'" 
+        />
+        
+        <ScheduleView v-if="activeTab === 'schedule'" />
+
+        <RequestsView v-if="activeTab === 'requests'"/>
+
+        <DocumentsView v-if="activeTab === 'documents'" />
+
+
+        <template v-if="isAdminView">
+          <AdminDashboard v-if="activeTab === 'admin-dashboard'" />
+          <AdminTeamView v-if="activeTab === 'admin-team'" />
+          <AdminRequests v-if="activeTab === 'admin-requests'" />
+          <AdminCalendar v-if="activeTab === 'admin-calendar'" />
+        </template>
+
+      </div>
+    </main>
+
+    <EditProfileModal 
+      :isOpen="isEditProfileModalOpen"
+      @close="isEditProfileModalOpen = false"
+    />
+  </div>
+</template>
