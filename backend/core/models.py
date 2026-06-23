@@ -23,6 +23,11 @@ class Employee(AbstractUser):
     @property
     def name(self) -> str:
         return f"{self.first_name} {self.last_name}".strip() or self.username
+    
+    @property
+    def initials(self) -> str:
+        initials = (self.first_name[:1] + self.last_name[:1]).upper()
+        return initials if initials.strip() else self.username[:2].upper()
 
     @property
     def status(self) -> bool:
@@ -62,25 +67,31 @@ class Employee(AbstractUser):
 
     def save(self, *args, **kwargs):
         # Automatische Username-Generierung beim ersten Speichern
-        if not self.pk and self.last_name:
-            # slugify macht daraus reine Kleinbuchstaben ohne Umlaute/Sonderzeichen (z.B. Müller -> mueller)
-            base_username = slugify(self.last_name)
-            if not base_username: # Fallback, falls kein Nachname eingegeben wurde
-                base_username = slugify(self.first_name) or "mitarbeiter"
+        if not self.pk:
+            # Falls die View bereits einen Usernamen übergeben hat (z.B. E-Mail o.ä.), 
+            # generieren wir nur dann einen, wenn noch keiner gesetzt ist oder er 'admin' o.ä. kollidiert.
+            if not self.username and self.last_name:
+                # Umlaut-Ersetzung vor dem Slugify, um 'müller' -> 'mueller' zu machen
+                clean_last_name = self.last_name.lower().replace('ä', 'ae').replace('ö', 'oe').replace('ü', 'ue').replace('ß', 'ss')
+                base_username = slugify(clean_last_name)
                 
-            username = base_username
-            counter = 1
-            
-            # Falls der Username schon existiert, Nummer anhängen (z.B. mueller, mueller-1, mueller-2)
-            while Employee.objects.filter(username=username).exists():
-                username = f"{base_username}-{counter}"
-                counter += 1
+                if not base_username:
+                    base_username = slugify(self.first_name) or "user"
+                    
+                username = base_username
+                counter = 1  
                 
-            self.username = username
+
+                while Employee.objects.filter(username=username).exists():
+
+                    username = f"{base_username}{counter}"
+                    counter += 1
+                    
+                self.username = username
             
-            # Initialpasswort automatisch auf denselben Usernamen (Nachnamen) setzen
-            if not self.password:
-                self.set_password(base_username)
+            # WICHTIG: Das Initialpasswort entspricht EXAKT dem finalen Usernamen
+            if self.username and not self.password:
+                self.set_password(self.username)
 
         super().save(*args, **kwargs)
 
@@ -118,6 +129,7 @@ class VacationQuota(models.Model):
 
     class Meta:
         unique_together = ('employee', 'year')
+
 
 
 class Notification(models.Model):

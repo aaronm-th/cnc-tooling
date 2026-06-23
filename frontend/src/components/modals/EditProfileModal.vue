@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue'
-import { User, X, Camera, Mail, Phone, Lock, Upload } from 'lucide-vue-next'
+import { User, X, Camera, Mail, Phone, Lock, Upload, Trash2 } from 'lucide-vue-next'
 // 1. Store importieren
 import { useAuthStore } from '@/stores/authStore'
 import { storeToRefs } from 'pinia'
@@ -21,6 +21,7 @@ const editForm = ref({})
 const avatarPreview = ref(null)
 const fileInput = ref(null)
 const selectedFile = ref(null) // Speichert die echte Datei für den Upload
+const avatarDeleted = ref(false)
 
 // Sobald das Modal öffnet, kopieren wir die aktuellen Daten aus Pinia
 watch(() => props.isOpen, (newVal) => {
@@ -31,6 +32,7 @@ watch(() => props.isOpen, (newVal) => {
       password: '' // Passwort immer leer starten
     }
     avatarPreview.value = userProfile.value.avatar
+    avatarDeleted.value = false // Reset beim Öffnen
   }
 })
 
@@ -38,12 +40,22 @@ const handleAvatarUpload = (event) => {
   const file = event.target.files[0]
   if (file) {
     selectedFile.value = file // Datei für später speichern
+    avatarDeleted.value = false // Falls vorher gelöscht, überschreiben
+
     const reader = new FileReader()
+
     reader.onload = (e) => {
       avatarPreview.value = e.target.result // Vorschau im Modal
     }
     reader.readAsDataURL(file)
   }
+}
+
+const removeAvatar = () => {
+  avatarPreview.value = null
+  selectedFile.value = null
+  avatarDeleted.value = true // Flag setzen für das Backend
+  if (fileInput.value) fileInput.value.value = '' // Input-Feld leeren
 }
 
 const triggerFileInput = () => fileInput.value.click()
@@ -60,6 +72,14 @@ const saveProfile = async () => {
       formData.append('password', editForm.value.password)
     }
     if (selectedFile.value) {
+      formData.append('photo', selectedFile.value)
+    }
+
+    if (avatarDeleted.value) {
+      // Wenn gelöscht, senden wir einen Leerstring (Django ImageField/FileField versteht das beim PATCH als "leeren")
+      formData.append('photo', '') 
+    } else if (selectedFile.value) {
+      // Wenn eine neue Datei ausgewählt wurde, hänge sie an
       formData.append('photo', selectedFile.value)
     }
 
@@ -104,18 +124,35 @@ const saveProfile = async () => {
       
       <div class="p-8 overflow-y-auto max-h-[70vh]">
         <!-- Avatar Upload Section -->
+
         <div class="flex flex-col items-center mb-8">
           <div class="relative group">
             <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-slate-50 bg-slate-100 shadow-inner flex items-center justify-center">
               <img v-if="avatarPreview" :src="avatarPreview" class="w-full h-full object-cover" alt="Avatar Preview" referrerPolicy="no-referrer" />
               <User v-else class="w-10 h-10 text-slate-300" />
             </div>
-            <button 
-              @click="triggerFileInput"
-              class="absolute bottom-0 right-0 p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all transform hover:scale-110"
-            >
-              <Camera class="w-4 h-4" />
-            </button>
+            
+            <div class="absolute bottom-0 right-0 flex gap-1">
+              <button 
+                v-if="avatarPreview"
+                @click="removeAvatar"
+                type="button"
+                class="p-2 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-700 transition-all transform hover:scale-110"
+                title="Remove photo"
+              >
+                <Trash2 class="w-4 h-4" />
+              </button>
+
+              <button 
+                @click="triggerFileInput"
+                type="button"
+                class="p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all transform hover:scale-110"
+                title="Change photo"
+              >
+                <Camera class="w-4 h-4" />
+              </button>
+            </div>
+
             <input 
               type="file" 
               ref="fileInput" 
@@ -124,8 +161,11 @@ const saveProfile = async () => {
               @change="handleAvatarUpload"
             />
           </div>
-          <p class="text-xs text-slate-500 mt-3">Click the camera icon to upload a profile picture</p>
+          <p class="text-xs text-slate-500 mt-3">Click the icons to upload or delete your profile picture</p>
         </div>
+
+
+
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="space-y-1.5">

@@ -11,6 +11,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
+import string
+from django.utils.text import slugify
+from decimal import Decimal
+
 from core.models import Employee, VacationQuota
 from core.services.vacation_service import VacationService
 from attendance.models import WorkDay, LeaveRequest, WSChangeRequest
@@ -21,9 +25,14 @@ from .serializers import (
     LeaveRequestSerializer, 
     ChangeRequestSerializer, 
     TeamMemberSummarySerializer,
-    TeamMemberDetailSerializer
+    TeamMemberDetailSerializer,
+    CreateEditEmployeeSerializer
 )
 from core.utils import create_notification
+
+
+
+
 
 
 class SupervisorDashboardStatsView(APIView):
@@ -31,17 +40,17 @@ class SupervisorDashboardStatsView(APIView):
 
     def get(self, request):
         today = timezone.now().date()
-        subordinates = Employee.objects.filter(supervisor=request.user)
+        subordinates = Employee.objects.filter(is_active=True, is_superuser=False)
         
         on_leave_today = WorkDay.objects.filter(
             employee__in=subordinates, date=today, day_type__in=['vacation', 'sick']
         ).count()
 
         pending_requests = LeaveRequest.objects.filter(
-            employee__supervisor=request.user, status='pending'
+            employee__is_superuser=False, status='pending'
         ).select_related('employee')
 
-        active_employees = Employee.objects.filter(supervisor=request.user, status=True).count()
+        active_employees = Employee.objects.filter(is_superuser=False, is_active=True).count()
 
         # REFACTOR: Nutzt den neuen Serializer für die einheitliche, fehlerfreie Karten-Anzeige
         serializer = TeamMemberSummarySerializer(subordinates, many=True, context={'request': request})
@@ -60,7 +69,7 @@ class TeamMemberListView(ListAPIView):
     serializer_class = TeamMemberSummarySerializer
 
     def get_queryset(self):
-        return Employee.objects.filter(supervisor=self.request.user, is_active=True).order_by('last_name')
+        return Employee.objects.filter(is_superuser=False, is_active=True).order_by('last_name')
 
 
 class TeamMemberDetailView(RetrieveUpdateDestroyAPIView):
@@ -72,7 +81,7 @@ class TeamMemberDetailView(RetrieveUpdateDestroyAPIView):
     serializer_class = TeamMemberDetailSerializer # <-- Garantiert korrekte Feldzuordnung
     
     def get_queryset(self):
-        return Employee.objects.filter(supervisor=self.request.user)
+        return Employee.objects.filter(is_superuser=False, is_active=True).order_by('last_name')
 
     def update(self, request, *args, **kwargs):
         # Nutzt die Standard-DRF Update-Logik, die unseren Serializer triggert
@@ -115,9 +124,7 @@ class HandleLeaveRequestView(APIView):
     serializer_class = LeaveRequestSerializer
     
     def get(self, request):
-        leave_requests = LeaveRequest.objects.filter(
-            employee__supervisor=request.user
-        ).exclude(status='cancelled').select_related('employee').order_by('-request_date')
+        leave_requests = LeaveRequest.objects.exclude(status='cancelled').select_related('employee').order_by('-request_date')
         
         serializer = LeaveRequestSerializer(leave_requests, many=True, context={'request': request})
         return Response(serializer.data)
@@ -126,7 +133,7 @@ class HandleLeaveRequestView(APIView):
         request_id = request.data.get('request_id')
         action = request.data.get('action')
         
-        leave_request = get_object_or_404(LeaveRequest, id=request_id, employee__supervisor=request.user)
+        leave_request = get_object_or_404(LeaveRequest, id=request_id)
 
         with transaction.atomic():
             if action == 'approve':
@@ -175,7 +182,7 @@ class HandleChangeRequestView(APIView):
 
     def get(self, request):
         change_requests = WSChangeRequest.objects.filter(
-            requested_by__supervisor=request.user
+            requested_by__is_superuser=False
         ).exclude(status='cancelled').select_related('requested_by', 'work_day').order_by('-request_date')
         
         serializer = ChangeRequestSerializer(change_requests, many=True, context={'request': request})
@@ -185,7 +192,7 @@ class HandleChangeRequestView(APIView):
         request_id = request.data.get('request_id')
         action = request.data.get('action')
         
-        change_req = get_object_or_404(WSChangeRequest, id=request_id, requested_by__supervisor=request.user)
+        change_req = get_object_or_404(WSChangeRequest, id=request_id)
 
         if action == 'approve':
             try:
@@ -216,7 +223,7 @@ class TeamCalendarEventsView(APIView):
     permission_classes = [IsAuthenticated, IsSupervisor]
 
     def get(self, request):
-        subordinates = Employee.objects.filter(supervisor=request.user, is_active=True)
+        subordinates = Employee.objects.filter(is_superuser=False, is_active=True)
 
         calendar_days = WorkDay.objects.filter(
             employee__in=subordinates, day_type__isnull=False
@@ -234,7 +241,7 @@ class TeamCalendarEventsView(APIView):
             })
 
         pending_leaves = LeaveRequest.objects.filter(
-            employee__supervisor=request.user, status='pending', leave_type='vacation'
+            employee__is_superuser=False, status='pending', leave_type='vacation'
         ).select_related('employee')
 
         for leave in pending_leaves:
@@ -252,3 +259,60 @@ class TeamCalendarEventsView(APIView):
                 curr_date += timedelta(days=1)
 
         return Response(events_data, status=status.HTTP_200_OK)
+    
+
+
+
+class CreateEditEmployeeView(APIView):
+    permission_classes = [IsSupervisor]
+
+    def post(self, request):
+        serializer = CreateEditEmployeeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        email = validated_data['email']
+
+        with transaction.atomic():
+            try:
+                # Hier überlassen wir dem Model das Setzen von username und password!
+                user = Employee.objects.create(
+                    email=email,
+                    first_name=validated_data['first_name'],
+                    last_name=validated_data['last_name'],
+                    work_days_schema=validated_data['work_days_schema'],
+                    vacation_days_per_year=validated_data['vacation_days_per_year'],
+                    is_active=True,
+                    is_superuser=False,
+                    joined_at=validated_data['joined_at'],
+                )
+                
+                # Holt das Objekt frisch inklusive dem vom Model generierten Usernamen/Passwort-Hash
+                user.refresh_from_db()
+                
+            except Exception as db_err:
+                return Response({"error": f"Datenbankfehler beim Erstellen: {str(db_err)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Das offizielle Urlaubskontingent zuteilen
+            if user.joined_at:
+                target_year = user.joined_at.year
+                
+                # Hier greift der Service garantiert fehlerfrei, da wir im Scope der View sind!
+                allocated_days = VacationService.calculate_initial_quota(user, target_year)
+                
+                # Quota erstellen oder updaten
+                VacationQuota.objects.update_or_create(
+                    employee=user, 
+                    year=target_year, 
+                    defaults={
+                        'total_days': Decimal(str(allocated_days)),
+                        'carried_over': Decimal('0.0')
+                    }
+                )
+
+        return Response({
+            "success": "Mitarbeiter erfolgreich angelegt.",
+            "credentials": {
+                "username": user.username,
+                "initial_password": user.username  # Da identisch
+            }
+        }, status=status.HTTP_201_CREATED)

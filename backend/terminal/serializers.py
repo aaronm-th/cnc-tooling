@@ -8,6 +8,7 @@ class TerminalUserSerializer(serializers.ModelSerializer):
     avatar = serializers.ImageField(source='photo', read_only=True)
     # Falls 'name' eine Property in deinem Model ist
     name = serializers.ReadOnlyField()
+    initials = serializers.ReadOnlyField()
 
     class Meta:
         model = Employee

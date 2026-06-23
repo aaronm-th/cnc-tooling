@@ -64,8 +64,7 @@ class EmployeeListView(ListAPIView):
 
 
 class UserProfileView(RetrieveUpdateAPIView):
-    """Profil-Ansicht (GET) und Profil-Update (PATCH). 
-    Hier kann der Mitarbeiter sein Initialpasswort ändern."""
+    """Profil-Ansicht (GET) und Profil-Update (PATCH)."""
     permission_classes = [IsAuthenticated]
     serializer_class = EmployeeSerializer
 
@@ -75,14 +74,25 @@ class UserProfileView(RetrieveUpdateAPIView):
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
+        
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         
-        # Foto-Handling
-        if 'photo' in request.FILES:
+        # ==================== KORRIGIERTES FOTO-HANDLING ====================
+        # Fall 1: Das Foto soll gelöscht werden (Vue sendet einen leeren String)
+        if 'photo' in request.data and request.data.get('photo') == '':
+            if instance.photo:
+                instance.photo.delete(save=False)  # Datei von der Festplatte/Volume löschen
+            instance.photo = None  # Feld in der Datenbank leeren
+
+        # Fall 2: Ein neues Foto wurde hochgeladen (befindet sich in FILES)
+        elif 'photo' in request.FILES:
+            if instance.photo:
+                instance.photo.delete(save=False)  # Altes Foto vorher löschen (verhindert Datenmüll)
             instance.photo = request.FILES['photo']
+        # ====================================================================
             
-        # Passwort-Handling (Erlaubt die Änderung des Initialpassworts)
+        # Passwort-Handling
         password = request.data.get('password')
         if password:
             instance.set_password(password)

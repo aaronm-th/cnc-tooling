@@ -137,7 +137,9 @@ const filteredEmployees = computed(() => {
         >
           <div class="flex items-start justify-between">
             <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors">
-              <User v-if="!teamMember.avatar" class="w-8 h-8" />
+              <span v-if="!teamMember.avatar" class="text-xl font-bold tracking-wider uppercase select-none">
+                {{ teamMember.initials }}
+              </span>             
               <img v-else :src="teamMember.avatar" class="w-full h-full object-cover rounded-2xl" />
             </div>
             <div 
