@@ -75,7 +75,14 @@ class UserProfileView(RetrieveUpdateAPIView):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        # ================= KORREKTUR FÜR OPTIONALE E-MAIL =================
+        # Wenn die E-Mail im Request leer ("") ist, wandeln wir sie in None (NULL) um
+        data = request.data.copy() if hasattr(request.data, 'copy') else request.data
+        if 'email' in data and (data.get('email') == '' or data.get('email') is None):
+            data['email'] = None
+        # ==================================================================
+        
+        serializer = self.get_serializer(instance, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
         
         # ==================== KORRIGIERTES FOTO-HANDLING ====================

@@ -27,8 +27,8 @@ const avatarDeleted = ref(false)
 watch(() => props.isOpen, (newVal) => {
   if (newVal && userProfile.value) {
     editForm.value = { 
-      email: userProfile.value.email,
-      phone: userProfile.value.phone,
+      email: userProfile.value.email || '',
+      phone: userProfile.value.phone || '',
       password: '' // Passwort immer leer starten
     }
     avatarPreview.value = userProfile.value.avatar
@@ -173,7 +173,8 @@ const saveProfile = async () => {
             <div class="relative">
               <Mail class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
-                v-model="editForm.email"
+                :value="editForm.email === null ? '' : editForm.email"
+                @input="editForm.email = $event.target.value"
                 type="email" 
                 class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                 placeholder="alex@example.com"

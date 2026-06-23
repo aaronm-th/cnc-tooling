@@ -34,8 +34,6 @@ const defaultSchema = () => ({
 const form = ref({
   first_name: '',
   last_name: '',
-  email: '',
-  role: '',
   joined_at: '', // NEU: Eintrittsdatum (YYYY-MM-DD)
   work_days_schema: defaultSchema(),
   weekly_hours: 40,
@@ -86,8 +84,6 @@ const populateForm = (data) => {
     form.value = {
       first_name: data.first_name ?? '',
       last_name: data.last_name ?? '',
-      email: data.email ?? '',
-      role: data.role ?? '',
       joined_at: data.joined_at ?? '',
       
       // Kopiert das Schema tief oder fällt sauber auf das Standard-Schema zurück
@@ -106,8 +102,6 @@ const populateForm = (data) => {
     form.value = {
       first_name: '',
       last_name: '',
-      email: '',
-      role: '',
       joined_at: todayISO, 
       work_days_schema: defaultSchema(),
       weekly_hours: 40,
@@ -137,7 +131,7 @@ watch(() => props.isOpen, async (newIsOpen) => {
 }, { immediate: true })
 
 const handleSubmit = async () => {
-  if (!form.value.first_name || !form.value.last_name || !form.value.email) return
+  if (!form.value.first_name || !form.value.last_name) return
   
   try {
     const cleanedSchema = {}
@@ -146,7 +140,6 @@ const handleSubmit = async () => {
     })
 
     const profilePayload = {
-      role: form.value.role,
       joined_at: form.value.joined_at, // Übergabe an das Backend
       work_days_schema: cleanedSchema,
       overtime_hours: form.value.overtime_balance,
@@ -161,8 +154,6 @@ const handleSubmit = async () => {
         await adminStore.createTeamMember({
           first_name: form.value.first_name,
           last_name: form.value.last_name,
-          email: form.value.email,
-          role: form.value.role,
           joined_at: form.value.joined_at,
           work_days_schema: cleanedSchema,
           overtime_hours: form.value.overtime_balance,
@@ -231,30 +222,9 @@ const handleSubmit = async () => {
           </div>
         </div>
 
-        <!-- E-Mail Adresse -->
-        <div class="space-y-1">
-          <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">E-Mail</label>
-          <input 
-            v-model="form.email"
-            required
-            :disabled="!!member" 
-            type="email" 
-            class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-          />
-        </div>
 
-        <!-- Rolle & Eintrittsdatum -->
+
         <div class="grid grid-cols-2 gap-4">
-          <div class="space-y-1">
-            <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Rolle / Position</label>
-            <input 
-              v-model="form.role" 
-              type="text" 
-              placeholder="z.B. UI Designer"
-              class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-            />
-          </div>
-
           <div class="space-y-1">
             <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Eintrittsdatum</label>
             <div class="relative">

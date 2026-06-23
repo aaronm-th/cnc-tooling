@@ -20,10 +20,30 @@ class EmployeeSerializer(serializers.ModelSerializer):
     status_text = serializers.SerializerMethodField()
     is_supervisor = serializers.SerializerMethodField()
 
+    email = serializers.CharField(
+        allow_blank=True, 
+        allow_null=True, 
+        required=False,
+        validators=[]
+    )
+
     class Meta:
         model = Employee
-        fields = ['id', 'first_name', 'last_name', 'name', 'initials', 'email', 'phone', 'status_text', 'avatar', 'is_supervisor']
+        fields = [
+            'id', 'first_name', 'last_name', 'name', 'initials', 
+            'email', 'phone', 'status_text', 'avatar', 'is_supervisor'
+        ]
         read_only_fields = ['id']
+
+    def to_representation(self, instance):
+        """Bereinigt die Daten direkt vor dem Senden an das Frontend."""
+        ret = super().to_representation(instance)
+        
+        # Falls die E-Mail None, leer oder fälschlicherweise der String "null" ist
+        if ret.get('email') is None or ret.get('email') == 'null' or ret.get('email') == '':
+            ret['email'] = '' # Sende einen sauberen, leeren String ans Frontend
+            
+        return ret
 
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_avatar(self, obj):
@@ -104,15 +124,20 @@ class UserStatsSerializer(serializers.Serializer):
     def get_vacation(self, obj):
         current_year = timezone.now().year
         
-        # ANPASSUNG: get_or_create nutzt jetzt exakt den zentralen VacationService 
-        # für die ordnungsgemäße Pro-Rata-Berechnung des initialen Quotas!
-        quota, _ = VacationQuota.objects.get_or_create(
-            employee=obj,
-            year=current_year,
-            defaults={
-                'total_days': VacationService.calculate_initial_quota(obj, current_year)
+        # Wir Suchen NUR noch nach der bestehenden Quote in der Datenbank
+        quota = VacationQuota.objects.filter(employee=obj, year=current_year).first()
+        
+        if not quota:
+            # Fallback, falls für das Jahr (noch) keine Quote existiert
+            return {
+                "year": current_year,
+                "total_days": float(obj.vacation_days_per_year),
+                "carried_over": 0.0,
+                "remaining_days": float(obj.vacation_days_per_year),
+                "total_available_days": float(obj.vacation_days_per_year),
+                "used_days": 0
             }
-        )
+            
         return VacationQuotaSerializer(quota, context=self.context).data
 
     @extend_schema_field(OvertimeInfoSerializer)

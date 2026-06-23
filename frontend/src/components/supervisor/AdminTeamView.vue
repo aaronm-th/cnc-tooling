@@ -31,8 +31,8 @@ const selectedMemberForUpload = ref(null)
 const isFutureEmployee = (joinedAt) => {
   if (!joinedAt) return false
   const joinDate = new Date(joinedAt)
+  joinDate.setHours(0, 0, 0, 0)
   const today = new Date()
-  // Setzt die Uhrzeit auf 0, um nur Tage zu vergleichen
   today.setHours(0, 0, 0, 0) 
   return joinDate > today
 }
@@ -69,7 +69,7 @@ const filteredMembers = computed(() => {
   const query = searchQuery.value.toLowerCase()
   return members.filter(member => 
     member.name?.toLowerCase().includes(query) || 
-    member.email?.toLowerCase().includes(query) ||
+    member.username?.toLowerCase().includes(query) ||
     member.role?.toLowerCase().includes(query)
   )
 })
@@ -183,7 +183,7 @@ const handleDeactivateConfirm = async () => {
                     </div>
                     <div>
                       <div class="font-bold text-slate-900 leading-tight">{{ member.name }}</div>
-                      <div class="text-[11px] text-slate-500">{{ member.email }}</div>
+                      <div class="text-[11px] text-slate-500">{{ member.username }}</div>
                     </div>
                   </div>
                 </td>

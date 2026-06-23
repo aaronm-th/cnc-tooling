@@ -16,7 +16,6 @@ from django.utils.text import slugify
 from decimal import Decimal
 
 from core.models import Employee, VacationQuota
-from core.services.vacation_service import VacationService
 from attendance.models import WorkDay, LeaveRequest, WSChangeRequest
 from .permissions import IsSupervisor
 
@@ -261,8 +260,6 @@ class TeamCalendarEventsView(APIView):
         return Response(events_data, status=status.HTTP_200_OK)
     
 
-
-
 class CreateEditEmployeeView(APIView):
     permission_classes = [IsSupervisor]
 
@@ -270,13 +267,11 @@ class CreateEditEmployeeView(APIView):
         serializer = CreateEditEmployeeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
-        email = validated_data['email']
 
         with transaction.atomic():
             try:
-                # Hier überlassen wir dem Model das Setzen von username und password!
+                # 1. Mitarbeiter in der DB anlegen
                 user = Employee.objects.create(
-                    email=email,
                     first_name=validated_data['first_name'],
                     last_name=validated_data['last_name'],
                     work_days_schema=validated_data['work_days_schema'],
@@ -289,30 +284,33 @@ class CreateEditEmployeeView(APIView):
                 # Holt das Objekt frisch inklusive dem vom Model generierten Usernamen/Passwort-Hash
                 user.refresh_from_db()
                 
-            except Exception as db_err:
-                return Response({"error": f"Datenbankfehler beim Erstellen: {str(db_err)}"}, status=status.HTTP_400_BAD_REQUEST)
+                # 2. Das offizielle Urlaubskontingent zuteilen (Jetzt IM try-block)
+                if user.joined_at:
+                    target_year = user.joined_at.year
+                    
+                    from core.services.vacation_service import VacationService
 
-            # Das offizielle Urlaubskontingent zuteilen
-            if user.joined_at:
-                target_year = user.joined_at.year
-                
-                # Hier greift der Service garantiert fehlerfrei, da wir im Scope der View sind!
-                allocated_days = VacationService.calculate_initial_quota(user, target_year)
-                
-                # Quota erstellen oder updaten
-                VacationQuota.objects.update_or_create(
-                    employee=user, 
-                    year=target_year, 
-                    defaults={
-                        'total_days': Decimal(str(allocated_days)),
-                        'carried_over': Decimal('0.0')
-                    }
-                )
+
+                    allocated_days = VacationService.calculate_initial_quota(user, target_year)
+                    
+                    # Quota erstellen oder updaten
+                    VacationQuota.objects.update_or_create(
+                        employee=user, 
+                        year=target_year, 
+                        defaults={
+                            'total_days': Decimal(str(allocated_days)),
+                            'carried_over': Decimal('0.0')
+                        }
+                    )
+
+            except Exception as db_err:
+                # Jetzt fängst du auch Fehler ab, die im VacationService oder beim Quota-Erstellen passieren
+                return Response({"error": f"Fehler beim Erstellen des Mitarbeiters: {str(db_err)}"}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({
             "success": "Mitarbeiter erfolgreich angelegt.",
             "credentials": {
                 "username": user.username,
-                "initial_password": user.username  # Da identisch
+                "initial_password": user.username
             }
         }, status=status.HTTP_201_CREATED)

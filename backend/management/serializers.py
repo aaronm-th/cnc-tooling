@@ -24,6 +24,7 @@ class VacationQuotaSummarySerializer(serializers.ModelSerializer):
 # --- NEU: SERIALIZER FÜR LISTE & DASHBOARD STATS ---
 class TeamMemberSummarySerializer(serializers.ModelSerializer):
     name = serializers.CharField(source='get_full_name', read_only=True)
+    username = serializers.CharField(read_only=True)
     avatar = serializers.SerializerMethodField()
     status_text = serializers.SerializerMethodField()
     vacation_left = serializers.SerializerMethodField()
@@ -33,7 +34,7 @@ class TeamMemberSummarySerializer(serializers.ModelSerializer):
     class Meta:
         model = Employee
         fields = [
-            'id', 'name', 'first_name', 'last_name', 'email', 'initials',
+            'id', 'name', 'username', 'first_name', 'last_name', 'email', 'initials',
             'avatar', 'status_text', 'vacation_left', 'vacation_days_per_year', 
             'overtime_hours', 'weekly_hours', 'joined_at'
         ]
@@ -160,20 +161,30 @@ class ChangeRequestSerializer(serializers.ModelSerializer):
         return f"{'+' if diff_min > 0 else ''}{diff_min:.0f} min"
 
 
-
-
 class CreateEditEmployeeSerializer(serializers.Serializer):
-    email = serializers.EmailField()
     first_name = serializers.CharField(max_length=150)
     last_name = serializers.CharField(max_length=150)
+    email = serializers.EmailField(required=False, allow_null=True, allow_blank=True)
     work_days_schema = serializers.JSONField(required=False, default=dict)
     vacation_days_per_year = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, default=30.0)
     joined_at = serializers.DateField(required=False)
 
-    def validate_email(self, value):
-        if Employee.objects.filter(email=value).exists():
-            raise serializers.ValidationError("Ein Benutzer mit dieser E-Mail existiert bereits.")
-        return value
+    def validate(self, attrs):
+        """
+        Objektübergreifende Validierung: Verhindert, dass ein Mitarbeiter 
+        mit exakt demselben Vor- und Nachnamen doppelt angelegt wird.
+        """
+        first_name = attrs.get('first_name')
+        last_name = attrs.get('last_name')
+
+        # Falls wir im "Edit"-Modus sind, müssen wir die ID ignorieren (falls vorhanden im Kontext)
+        # Für reine Create-Views reicht dieser einfache Check:
+        if Employee.objects.filter(first_name=first_name, last_name=last_name, is_active=True).exists():
+            raise serializers.ValidationError({
+                "last_name": "Ein aktiver Mitarbeiter mit diesem Vor- und Nachnamen existiert bereits."
+            })
+            
+        return attrs
 
     def validate_work_days_schema(self, value):
         if isinstance(value, dict):

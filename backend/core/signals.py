@@ -45,12 +45,20 @@ def auto_classify_day(sender, instance, **kwargs):
 # --- 3. Urlaubsanspruch für das aktuelle Jahr initialisieren ---
 @receiver(post_save, sender=Employee)
 def create_employee_vacation_quota(sender, instance, created, **kwargs):
-    if created:
-        current_year = timezone.now().year
-        quota_days = instance.calculate_initial_quota(current_year)
+    if created and instance.joined_at:
+        from core.services.vacation_service import VacationService
+        from decimal import Decimal
         
-        VacationQuota.objects.create(
+        target_year = instance.joined_at.year
+        
+        # Den Service statt der (nicht existierenden) Model-Methode nutzen
+        allocated_days = VacationService.calculate_initial_quota(instance, target_year)
+        
+        VacationQuota.objects.get_or_create(
             employee=instance,
-            year=current_year,
-            total_days=quota_days
+            year=target_year,
+            defaults={
+                'total_days': Decimal(str(allocated_days)),
+                'carried_over': Decimal('0.0')
+            }
         )

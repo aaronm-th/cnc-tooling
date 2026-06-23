@@ -11,7 +11,6 @@ class Employee(AbstractUser):
     email = models.EmailField(blank=True, null=True, unique=False)
     phone = models.CharField(max_length=50, blank=True)
     photo = models.ImageField(upload_to=user_profile_photo_upload, blank=True, null=True)
-    hours_per_day = models.FloatField(default=8.0)    
     work_days_schema = models.JSONField(
         default=dict, 
         help_text="Format: {'0': 8, '1': 8...} (0=Mo, 6=So). Fehlt ein Tag, gilt hours_per_day als Fallback für Werktage."
@@ -19,6 +18,23 @@ class Employee(AbstractUser):
     
     joined_at = models.DateField(default=timezone.now)
     vacation_days_per_year = models.DecimalField(max_digits=5, decimal_places=2, default=30.0)
+
+    @property
+    def weekly_hours(self) -> float:
+        """
+        Berechnet die wöchentliche Sollarbeitszeit dynamisch aus dem work_days_schema.
+        Fehlen Tage im Schema komplett, fallen Werktage (Mo-Fr) auf ein Standard-Soll von 8.0 Std zurück.
+        """
+        total = 0.0
+        # Wir loopen über alle Wochentage (0=Mo bis 6=So)
+        for i in range(7):
+            weekday_key = str(i)
+            if weekday_key in self.work_days_schema:
+                total += float(self.work_days_schema[weekday_key])
+            elif i < 5:
+                # Fallback für Werktage, falls das Schema für diesen Tag unvollständig ist
+                total += 8.0
+        return round(total, 2)
 
     @property
     def name(self) -> str:
