@@ -1,15 +1,16 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useAdminStore } from '@/stores/adminStore' // Gewechselt auf adminStore
+import { useAdminStore } from '@/stores/adminStore'
 import { useEventStyles } from '@/composables/useEventStyles'
 import EventTooltip from '@/components/tooltips/EventTooltip.vue'
+import { useHolidays } from '@/composables/useHolidays'
+
 import { 
   ChevronLeft, 
   ChevronRight, 
   Calendar as CalendarIcon,
-  Filter,
-  User,
-  Search
+  Search,
+  User
 } from 'lucide-vue-next'
 
 const adminStore = useAdminStore()
@@ -17,10 +18,9 @@ const { getEventClass } = useEventStyles()
 
 const viewDate = ref(new Date())
 const searchQuery = ref('')
+const { getHolidaysForYear } = useHolidays()
 
-// Daten beim Mounten der Komponente direkt aus dem Admin-Backend laden
 onMounted(async () => {
-  // Lädt parallel die Mitarbeiter-Liste und die Kalendereinträge
   await Promise.all([
     adminStore.fetchTeamMembers(),
     adminStore.fetchCalendarEvents()
@@ -32,7 +32,13 @@ const months = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ]
 
-// Kalender-Raster-Berechnung bleibt in der Komponente (reine UI-Logik)
+
+const currentHolidays = computed(() => {
+  if (!viewDate.value) return []
+  const year = viewDate.value.getFullYear()
+  return getHolidaysForYear(year)
+})
+
 const daysInMonth = computed(() => {
   const year = viewDate.value.getFullYear()
   const month = viewDate.value.getMonth()
@@ -49,14 +55,50 @@ const monthDays = computed(() => {
   return days
 })
 
-// Nutzt jetzt den hochgelagerten Getter aus dem adminStore
 const teamMembers = computed(() => {
   return adminStore.filteredTeamMembers(searchQuery.value)
 })
 
-// Greift direkt auf die performante Filter-Funktion des Stores zu
+// Kombiniert echte Backend-Events mit den im Frontend berechneten Feiertagen/Wochenenden
 const getEvents = (member, day) => {
-  return adminStore.getEventsForMemberAndDate(member, day)
+  if (!member || !day) return []
+
+  // 1. Hole echte Events vom Mitarbeiter aus dem Store
+  const backendEvents = adminStore.getEventsForMemberAndDate(member.name, day)
+  if (backendEvents && backendEvents.length > 0) return backendEvents
+
+  // 2. Prüfen, ob der Tag ein Feiertag ist
+  if (currentHolidays.value && currentHolidays.value.length > 0) {
+    const holidayMatch = currentHolidays.value.find(h => {
+      const hDate = new Date(h.date)
+      return hDate.getDate() === day.getDate() &&
+             hDate.getMonth() === day.getMonth()
+    })
+
+    if (holidayMatch) {
+      return [{
+        id: `holiday-${day.getTime()}`,
+        type: 'holiday',
+        title: holidayMatch.name,
+        note: 'Gesetzlicher Feiertag',
+        date: day
+      }]
+    }
+  }
+
+  // 3. Prüfen, ob der Tag ein Wochenende ist
+  if (isWeekend(day)) {
+    const dayName = day.getDay() === 0 ? 'Sonntag' : 'Samstag'
+    return [{
+      id: `weekend-${day.getTime()}`,
+      type: 'weekend',
+      title: dayName,
+      note: '',
+      date: day
+    }]
+  }
+
+  return []
 }
 
 const prevMonth = () => {
@@ -79,7 +121,7 @@ const isWeekend = (date) => {
   return day === 0 || day === 6
 }
 
-// Tooltip State & Position Calculation (Unverändert übernommen)
+// Tooltip-Logik
 const hoveredEvent = ref(null)
 const tooltipStyles = ref({})
 const arrowStyles = ref({})
@@ -99,20 +141,17 @@ const handleMouseEnter = (event, e) => {
   let arrowLeft = targetCenter - tooltipLeft
   arrowLeft = Math.max(16, Math.min(tooltipWidth - 16, arrowLeft))
 
-  const isBelow = isTooCloseToTop
-  const index = isBelow ? 2 : 10
-
   hoveredEvent.value = { 
     ...event, 
     date: new Date(event.date),
-    index 
+    index: isTooCloseToTop ? 2 : 10 
   }
 
   tooltipStyles.value = {
     position: 'fixed',
     top: `${top}px`,
     left: `${tooltipLeft}px`,
-    transform: isBelow ? 'none' : 'translateY(-100%)',
+    transform: isTooCloseToTop ? 'none' : 'translateY(-100%)',
     zIndex: 9999
   }
 
@@ -122,10 +161,9 @@ const handleMouseEnter = (event, e) => {
   }
 }
 
-const handleMouseLeave = () => {
-  hoveredEvent.value = null
-}
+const handleMouseLeave = () => { hoveredEvent.value = null }
 </script>
+
 
 <template>
   <div class="flex-1 flex flex-col min-h-0 bg-slate-50">
@@ -180,33 +218,30 @@ const handleMouseLeave = () => {
     <!-- Calendar Grid -->
     <div class="flex-1 overflow-hidden px-8 pb-8">
       <div class="max-w-7xl mx-auto h-full bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col">
+        
         <!-- Grid Header (Days) -->
         <div class="flex border-b border-slate-100 bg-slate-50/50 sticky top-0 z-20">
           <div class="w-52 shrink-0 p-3 font-bold text-[10px] text-slate-400 uppercase tracking-widest border-r border-slate-100 bg-slate-50 flex items-center">
             Employee
           </div>
+
+          <!-- KORREKTUR: Im Header werden nur die Spalten gezeichnet, keine Events gefiltert! -->
           <div class="flex-1 flex min-w-0">
             <div 
-              v-for="day in monthDays" 
-              :key="day.getTime()"
-              class="flex-1 min-w-0 flex flex-col items-center justify-center py-2 border-r border-slate-100 last:border-r-0"
-              :class="[
-                isToday(day) ? 'bg-blue-50' : '',
-                isWeekend(day) ? 'bg-slate-50/50' : ''
-              ]"
+                v-for="day in monthDays" 
+                :key="day.getTime()"
+                class="flex-1 min-w-0 min-h-[40px] border-r border-slate-100 last:border-r-0 flex flex-col items-center justify-center relative p-1 text-xs font-semibold text-slate-500"
+                :class="[
+                  isToday(day) ? 'bg-blue-50 text-blue-600' : '',
+                  isWeekend(day) ? 'bg-slate-100/50 text-slate-400' : ''
+                ]"
             >
-              <span class="text-[9px] font-bold text-slate-400 uppercase opacity-60">{{ day.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0) }}</span>
-              <span 
-                class="text-xs font-bold mt-0.5"
-                :class="isToday(day) ? 'text-blue-600' : 'text-slate-700'"
-              >
-                {{ day.getDate() }}
-              </span>
+              <span>{{ day.getDate() }}</span>
             </div>
           </div>
         </div>
 
-            <!-- Grid Body -->
+        <!-- Grid Body -->
         <div class="flex-1 overflow-y-auto">
             <div 
                 v-for="member in teamMembers" 
@@ -214,47 +249,47 @@ const handleMouseLeave = () => {
                 class="flex border-b border-slate-100 hover:bg-slate-50/30 transition-colors group min-h-[64px]"
             >
                 
-                <!-- Member Column (Jetzt synchronisiert mit der Mitarbeiter-Verwaltung) -->
+                <!-- Member Column -->
                 <div class="w-52 shrink-0 p-3 border-r border-slate-100 bg-white sticky left-0 z-10 flex items-center gap-3 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
-                <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors shrink-0">
-                    <div v-if="member.avatar" class="w-10 h-10 rounded-full overflow-hidden border border-slate-200 shrink-0">
-                    <img :src="member.avatar" class="w-full h-full object-cover" />
-                    </div>
-                    <div v-else class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold shrink-0 text-sm">
-                    {{ member.initials || '??' }}
-                    </div>
-                </div>
-                <div class="min-w-0 flex-1">
-                    <div class="text-xs font-bold text-slate-900 truncate">{{ member.name }}</div>
-                    <div class="text-[10px] text-slate-400 truncate">{{ member.role || "Mitarbeiter" }}</div>
-                </div>
+                  <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors shrink-0">
+                      <div v-if="member.avatar" class="w-10 h-10 rounded-full overflow-hidden border border-slate-200 shrink-0">
+                        <img :src="member.avatar" class="w-full h-full object-cover" />
+                      </div>
+                      <div v-else class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold shrink-0 text-sm">
+                        {{ member.initials || '??' }}
+                      </div>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                      <div class="text-xs font-bold text-slate-900 truncate">{{ member.name }}</div>
+                      <div class="text-[10px] text-slate-400 truncate">{{ member.role || "Mitarbeiter" }}</div>
+                  </div>
                 </div>
 
-                <!-- Days Timeline (Höhe flexibel an Member-Spalte angepasst) -->
+                <!-- Days Timeline -->
                 <div class="flex-1 flex min-w-0">
-                <div 
-                    v-for="day in monthDays" 
-                    :key="day.getTime()"
-                    class="flex-1 min-w-0 min-h-[64px] border-r border-slate-100 last:border-r-0 flex items-center justify-center relative p-1"
-                    :class="[
-                    isToday(day) ? 'bg-blue-50/10' : '',
-                    isWeekend(day) ? 'bg-slate-50/10' : ''
-                    ]"
-                >
-                    <template v-if="getEvents(member.name, day).length > 0">
-                    <div 
-                        v-for="event in getEvents(member.name, day)"
-                        :key="event.id"
-                        class="w-full h-7 rounded-lg border flex items-center justify-center cursor-help transition-all hover:scale-105 hover:z-30 hover:shadow-md"
-                        :class="getEventClass(event.type)"
-                        @mouseenter="handleMouseEnter(event, $event)"
-                        @mouseleave="handleMouseLeave"
-                    />
-                    </template>
-                </div>
+                  <div 
+                      v-for="day in monthDays" 
+                      :key="day.getTime()"
+                      class="flex-1 min-w-0 min-h-[64px] border-r border-slate-100 last:border-r-0 flex items-center justify-center relative p-1"
+                      :class="[
+                        isToday(day) ? 'bg-blue-50/10' : '',
+                        isWeekend(day) ? 'bg-slate-50/10' : ''
+                      ]"
+                  >
+                      <!-- KORREKTUR: Wir übergeben das gesamte member-Objekt -->
+                      <template v-if="getEvents(member, day).length > 0">
+                        <div 
+                            v-for="event in getEvents(member, day)"
+                            :key="event.id"
+                            class="w-full h-7 rounded-lg border flex items-center justify-center cursor-help transition-all hover:scale-105 hover:z-30 hover:shadow-md"
+                            :class="getEventClass(event.type)"
+                            @mouseenter="handleMouseEnter(event, $event)"
+                            @mouseleave="handleMouseLeave"
+                        />
+                      </template>
+                  </div>
                 </div>
             </div>
-
 
           <!-- Empty State -->
           <div 
