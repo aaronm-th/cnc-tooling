@@ -52,12 +52,16 @@ export const useAdminStore = defineStore('admin', {
       return (memberName, date) => {
         return state.calendarEvents.filter(e => {
           const eDate = new Date(e.date)
-          return e.userName === memberName &&
-                 eDate.getDate() === date.getDate() &&
-                 eDate.getMonth() === date.getMonth() &&
-                 eDate.getFullYear() === date.getFullYear() &&
-                 e.type !== 'work' 
-        })
+          
+          // Überprüfung auf exaktes Datum
+          const isSameDate = eDate.getDate() === date.getDate() &&
+                            eDate.getMonth() === date.getMonth() &&
+                            eDate.getFullYear() === date.getFullYear();
+
+          if (!isSameDate) return false;
+
+          return (e.userName === memberName || e.userName === 'Alle') && e.type !== 'work'
+          })
       }
     }
   },

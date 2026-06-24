@@ -44,6 +44,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
             ret['email'] = '' # Sende einen sauberen, leeren String ans Frontend
             
         return ret
+    
 
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_avatar(self, obj):
@@ -62,7 +63,6 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
 
 class VacationQuotaSerializer(serializers.ModelSerializer):
-    remaining_days = serializers.FloatField(read_only=True)
     total_available_days = serializers.FloatField(read_only=True)
     used_days = serializers.SerializerMethodField()
     total_days = serializers.FloatField()
@@ -72,15 +72,16 @@ class VacationQuotaSerializer(serializers.ModelSerializer):
         model = VacationQuota
         fields = [
             'year', 'total_days', 'carried_over', 
-            'remaining_days', 'total_available_days', 
+            'total_available_days', 
             'used_days'
         ]
 
     @extend_schema_field(serializers.IntegerField())
     def get_used_days(self, obj):
-        # FIX: Direkt den Service fragen, anstatt eine nicht existente Model-Methode aufzurufen
+        # Berechne die Anzahl der bereits genutzten Urlaubstage
         return VacationService.get_used_days(obj.employee, obj.year)
 
+        
 
 class NotificationSerializer(serializers.ModelSerializer):
     type = serializers.ReadOnlyField(source='notification_type')

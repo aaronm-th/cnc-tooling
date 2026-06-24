@@ -1,8 +1,16 @@
 import datetime
+from datetime import timedelta
 from django.db import models, transaction
 from django.core.exceptions import ValidationError
 from django.db.models import Sum, F, ExpressionWrapper, DurationField
 from django.utils import timezone
+
+from core.models import Employee
+import holidays
+
+from django.utils.timezone import now
+
+
 
 class WorkDay(models.Model):
     employee = models.ForeignKey("core.Employee", related_name="workdays", on_delete=models.CASCADE)
@@ -160,6 +168,12 @@ class WSChangeRequest(models.Model):
 
 
 class LeaveRequest(models.Model):
+
+    class Meta:
+        verbose_name = "Leave Request"
+        verbose_name_plural = "Leave Requests"
+        ordering = ["-leave_start"]
+
     STATUS_CHOICES = [
         ("pending", "In Bearbeitung"),
         ("approved", "Genehmigt"),
@@ -173,25 +187,45 @@ class LeaveRequest(models.Model):
         ("overtime", "GLZ-Abbau"),
     ]
 
-    employee = models.ForeignKey("core.Employee", on_delete=models.CASCADE, related_name="leave_requests")
-    leave_type = models.CharField(max_length=20, choices=LEAVE_CHOICES, default="vacation")
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="leave_requests"
+    )
+
+    leave_type = models.CharField(
+        max_length=20,
+        choices=LEAVE_CHOICES,
+        default="vacation"
+    )
+
     leave_start = models.DateField()
     leave_end = models.DateField()
-    
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
-    note = models.TextField(blank=True)
+
+
     request_date = models.DateTimeField(auto_now_add=True)
+    reviewed_date = models.DateTimeField(null=True, blank=True)
 
-    class Meta:
-        verbose_name = "Leave Request"
-        verbose_name_plural = "Leave Requests"
-        ordering = ["-leave_start"]
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending"
+    )
 
+    note = models.TextField(blank=True)
+
+    # -------------------------
+    # Validation
+    # -------------------------
     def clean(self):
         super().clean()
+        if not self.employee_id:
+            return
+
         if self.leave_start > self.leave_end:
             raise ValidationError("Das Startdatum muss vor oder am Enddatum liegen.")
 
+        # Überlappungsprüfung
         overlaps = LeaveRequest.objects.filter(
             employee=self.employee,
             status__in=["pending", "approved"],
@@ -201,3 +235,97 @@ class LeaveRequest(models.Model):
 
         if overlaps.exists():
             raise ValidationError("Dieser Zeitraum überschneidet sich mit einem bestehenden Antrag.")
+
+
+        if self.actual_vacation_days_to_deduct() == 0 and self.leave_type == 'vacation':
+            raise ValidationError("Dieser Zeitraum enthält keine Werktage, die vom Urlaubskonto abgezogen werden könnten.")
+
+    # -------------------------
+    # Helper
+    # -------------------------
+
+    def get_affected_dates(self):
+        """
+        Returns a list of all weekdays (Mon-Fri) covered by this leave.
+        """
+        days = []
+        current = self.leave_start
+        while current <= self.leave_end:
+            # Check if the current day is a weekday (Mon-Fri)
+            if current.weekday() < 5:
+                days.append(current)
+            current += timedelta(days=1)
+        return days
+    
+    def num_vacdays(self):
+        return len(self.get_affected_dates())
+
+    def approve(self, user):
+        """Genehmigt den Antrag und schreibt die WorkDay-Tabelle fort."""
+
+        from . import WorkDay
+
+        with transaction.atomic():
+            self.status = "approved"
+            self.reviewed_by = user
+            self.reviewed_date = now()
+            self.save()
+            
+            # Kalender synchronisieren
+            # Wir nutzen das Bundesland des Mitarbeiters (hier Hardcoded 'BW', sollte dynamisch sein)
+            de_holidays = holidays.Germany(prov='BW')
+            
+            current = self.leave_start
+            while current <= self.leave_end:
+                wd, created = WorkDay.objects.get_or_create(
+                    employee=self.employee, 
+                    date=current
+                )
+                
+                # REGEWERK FÜR DEN DAY_TYPE:
+                # 1. Feiertage behalten ihren Status (Urlaub ist dort 'geschenkt')
+                # 2. Wochenenden bleiben Wochenenden
+                # 3. Nur Arbeitstage werden zu Urlaub/Krank/GLZ
+                is_holiday = current in de_holidays
+                is_weekend = current.weekday() >= 5
+
+                if not is_holiday and not is_weekend:
+                    wd.day_type = self.map_leave_to_daytype()
+                elif is_holiday:
+                    wd.day_type = "holiday"
+                elif is_weekend:
+                    wd.day_type = "weekend"
+                
+                wd.save()
+                current += timedelta(days=1)
+
+    def actual_vacation_days_to_deduct(self):
+        """
+        Zählt die Netto-Urlaubstage.
+        Berücksichtigt Wochenenden UND gesetzliche Feiertage.
+        """
+        # Tipp: Pro-Mitarbeiter Bundesland nutzen: getattr(self.employee, 'province', 'BW')
+        de_holidays = holidays.Germany(prov='BW')
+        days = 0
+        current = self.leave_start
+        while current <= self.leave_end:
+            if current.weekday() < 5 and current not in de_holidays:
+                days += 1
+            current += timedelta(days=1)
+        return days
+
+    @property
+    def total_days(self):
+        """Gibt die Brutto-Dauer in Tagen zurück (für die Anzeige im UI)."""
+        return (self.leave_end - self.leave_start).days + 1
+
+    def map_leave_to_daytype(self):
+        mapping = {
+            "vacation": "vacation",
+            "sick": "sick",
+            "overtime": "overtime"
+        }
+        return mapping.get(self.leave_type, "work")
+
+    def __str__(self):
+        return f"{self.employee} | {self.leave_type} | {self.leave_start} → {self.leave_end}"

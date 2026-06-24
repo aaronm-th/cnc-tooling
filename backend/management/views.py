@@ -1,4 +1,5 @@
 from datetime import timedelta
+import holidays
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
@@ -143,8 +144,10 @@ class HandleLeaveRequestView(APIView):
                         WorkDay.objects.update_or_create(
                             employee=leave_request.employee,
                             date=curr,
-                            note=leave_request.note,
-                            defaults={'day_type': leave_request.leave_type}
+                            defaults={
+                                'day_type': 'vacation',
+                                'note': 'Test'
+                            }
                         )
                     curr += timedelta(days=1)
                 msg = "Antrag genehmigt."
@@ -218,7 +221,7 @@ class HandleChangeRequestView(APIView):
         )
 
 
-class TeamCalendarEventsView(APIView):
+class TeamCalendarEventsView_old(APIView):
     permission_classes = [IsAuthenticated, IsSupervisor]
 
     def get(self, request):
@@ -258,7 +261,99 @@ class TeamCalendarEventsView(APIView):
                 curr_date += timedelta(days=1)
 
         return Response(events_data, status=status.HTTP_200_OK)
-    
+
+
+class TeamCalendarEventsView(APIView):
+    permission_classes = [IsAuthenticated, IsSupervisor]
+
+    def get(self, request):
+        subordinates = Employee.objects.filter(is_superuser=False, is_active=True)
+
+        # 1. Bestehende WorkDays (Urlaub, Krank, etc.) holen
+        calendar_days = WorkDay.objects.filter(
+            employee__in=subordinates, day_type__isnull=False
+        ).exclude(day_type__in=['work']).select_related('employee')
+
+        events_data = []
+        
+        # Bestimmung des Zeitraums für die Feiertags-Generierung basierend auf den Daten
+        all_dates = [day.date for day in calendar_days]
+
+        for day in calendar_days:
+            events_data.append({
+                "id": f"wd-{day.id}",
+                "userName": day.employee.get_full_name(),
+                "date": day.date.isoformat(),
+                "type": day.day_type,
+                "title": day.get_day_type_display(),
+                "note": day.note if day.note else ""
+            })
+
+        # 2. Ausstehende Urlaubsanträge (Inklusive Wochenende & Feiertage)
+        pending_leaves = LeaveRequest.objects.filter(
+            employee__is_superuser=False, status='pending', leave_type='vacation'
+        ).select_related('employee')
+
+        for leave in pending_leaves:
+            all_dates.extend([leave.leave_start, leave.leave_end])
+            curr_date = leave.leave_start
+            while curr_date <= leave.leave_end:
+                # Das 'if curr_date.weekday() < 5:' wurde entfernt, damit Sa/So mitkommen!
+                events_data.append({
+                    "id": f"lr-{leave.id}-{curr_date.isoformat()}",
+                    "userName": leave.employee.get_full_name(),
+                    "date": curr_date.isoformat(),
+                    "type": "pending",
+                    "title": f"{leave.get_leave_type_display()} (offen)",
+                    "note": leave.note if leave.note else ""
+                })
+                curr_date += timedelta(days=1)
+
+        # 3. Feiertage und Wochenenden global hinzufügen
+        # Wir ermitteln das Jahr aus den vorhandenen Daten (Standard: aktuelles Jahr)
+        years = {d.year for d in all_dates} if all_dates else {date.today().year}
+        
+        # Feiertags-Konfiguration (Hier 'DE' für Deutschland, 'AT' für Österreich, etc.)
+        # 'prov' kann für Bundesländer genutzt werden, z.B. prov='BY' für Bayern
+        geo_holidays = holidays.Germany(years=list(years)) 
+
+        # Optionale Optimierung: Um doppelte Wochenenden zu vermeiden, 
+        # generieren wir sie nur für den sichtbaren Zeitraum (z.B. aktuelle 3 Monate)
+        start_period = min(all_dates) if all_dates else date.today() - timedelta(days=30)
+        end_period = max(all_dates) if all_dates else date.today() + timedelta(days=90)
+
+        curr_check = start_period
+        while curr_check <= end_period:
+            iso_date = curr_check.isoformat()
+            
+            # Ist es ein Feiertag?
+            if curr_check in geo_holidays:
+                events_data.append({
+                    "id": f"holiday-{iso_date}",
+                    "userName": "Alle",  # Betrifft das gesamte Team
+                    "date": iso_date,
+                    "type": "holiday",
+                    "title": geo_holidays.get(curr_check),  # Name des Feiertags (z.B. "Karfreitag")
+                    "note": "Gesetzlicher Feiertag"
+                })
+            
+            # Ist es ein Wochenende? (Und kein Feiertag, um Doppelungen an diesem Tag zu vermeiden)
+            elif curr_check.weekday() >= 5: 
+                day_name = "Samstag" if curr_check.weekday() == 5 else "Sonntag"
+                events_data.append({
+                    "id": f"weekend-{iso_date}",
+                    "userName": "Alle",
+                    "date": iso_date,
+                    "type": "weekend",
+                    "title": day_name,
+                    "note": ""
+                })
+
+            curr_check += timedelta(days=1)
+
+        return Response(events_data, status=status.HTTP_200_OK)
+
+
 
 class CreateEditEmployeeView(APIView):
     permission_classes = [IsSupervisor]

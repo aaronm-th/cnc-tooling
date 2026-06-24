@@ -18,7 +18,7 @@ const props = defineProps({
 const authStore = useAuthStore()
 const adminStore = useAdminStore()
 const { user, userStats } = storeToRefs(authStore)
-const { activeEmployees } = storeToRefs(adminStore)
+const { activeEmployees, pendingRequestsCount } = storeToRefs(adminStore)
 
 const { isSupervisor } = storeToRefs(authStore)
 
@@ -96,25 +96,26 @@ watch(() => authStore.isAuthenticated, (val) => {
 
 </script>
 
-<template>
 
+<template>
 
   <header class="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8">
     <div class="flex items-center gap-8 flex-1">
       
       <!-- Header Stats -->
       <div class="hidden md:flex items-center gap-6">
-        <!-- Status (Sichtbar für alle) -->
-        <div class="flex items-center gap-2.5">
-          <div :class="['w-2 h-2 rounded-full', getStatusColor(userStats?.status)]"></div>              
-          <div class="flex flex-col">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Status</span>
-            <span class="text-xs font-bold text-slate-700 mt-0.5">{{ userStats?.status }}</span>
-          </div>
-        </div>
 
         <!-- ================= MITARBEITER-ANSICHT ================= -->
         <template v-if="!isSupervisor">
+          <!-- Status (Nur sichtbar für normale Mitarbeiter) -->
+          <div class="flex items-center gap-2.5">
+            <div :class="['w-2 h-2 rounded-full', getStatusColor(userStats?.status)]"></div>              
+            <div class="flex flex-col">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Status</span>
+              <span class="text-xs font-bold text-slate-700 mt-0.5">{{ userStats?.status }}</span>
+            </div>
+          </div>
+
           <div class="h-8 w-px bg-slate-100"></div>
 
           <!-- Vacation -->
@@ -142,8 +143,6 @@ watch(() => authStore.isAuthenticated, (val) => {
 
         <!-- ================= CHEF-ANSICHT (SUPERVISOR) ================= -->
         <template v-else>
-          <div class="h-8 w-px bg-slate-100"></div>
-
           <!-- Aktive Mitarbeiter im Team -->
           <div class="flex items-center gap-2.5">
             <User class="w-4 h-4 text-blue-500" />
@@ -151,6 +150,17 @@ watch(() => authStore.isAuthenticated, (val) => {
               <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Team</span>
               <span class="text-xs font-bold text-slate-700 mt-0.5">
                 {{ activeEmployees }} Mitarbeiter aktiv
+              </span>
+            </div>
+          </div>
+
+          <!-- Ausstehende Anfragen -->
+          <div class="flex items-center gap-2.5">
+            <Bell class="w-4 h-4 text-yellow-500" />
+            <div class="flex flex-col">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Anfragen</span>
+              <span class="text-xs font-bold text-slate-700 mt-0.5">
+                {{ pendingRequestsCount }} ausstehend
               </span>
             </div>
           </div>
@@ -226,7 +236,5 @@ watch(() => authStore.isAuthenticated, (val) => {
       </div>
     </div>
   </header>
-
-
 
 </template>

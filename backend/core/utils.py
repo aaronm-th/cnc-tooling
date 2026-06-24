@@ -21,13 +21,30 @@ def user_profile_photo_upload(instance, filename):
 
 
 
-def create_notification(user, title, message, notification_type='info', link_to=None, reference_id=None):
+def create_notification(user, title, message, notification_type='info', link_to=None):
     from .models import Notification
     return Notification.objects.create(
         recipient=user,
         title=title,
         message=message,
         notification_type=notification_type,
-        link_to=link_to,
-        reference_id=reference_id  # Hier die ID speichern
+        link_to=link_to
     )
+
+def create_notifications_for_multiple_users(recipients, title, message, notification_type='info', link_to=None):
+    from .models import Notification
+    
+    # Eine Liste von Notification-Instanzen im Speicher vorbereiten
+    notifications = [
+        Notification(
+            recipient=user,
+            title=title,
+            message=message,
+            notification_type=notification_type,
+            link_to=link_to
+        )
+        for user in recipients
+    ]
+    
+    # Alle Benachrichtigungen mit einem einzigen SQL-Befehl in die DB schreiben
+    return Notification.objects.bulk_create(notifications)

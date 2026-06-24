@@ -3,7 +3,7 @@ from rest_framework import serializers
 from core.models import VacationQuota
 from .models import WorkSession, WSChangeRequest
 from datetime import timedelta
-
+from core.services.vacation_service import VacationService
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
     type_display = serializers.CharField(source='get_leave_type_display', read_only=True)
@@ -53,9 +53,12 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
                 leave_end=end,
                 leave_type=leave_type
             )
-            if temp_leave.num_vacdays() > quota.remaining_days:
+
+            remaining_days = quota.total_days -  VacationService.get_used_days(employee, start.year)
+
+            if temp_leave.num_vacdays() > remaining_days:
                 raise serializers.ValidationError(
-                    {"leave_type": f"Guthaben reicht nicht aus (Benötigt: {temp_leave.num_vacdays()}, Verfügbar: {quota.remaining_days})."}
+                    {"leave_type": f"Guthaben reicht nicht aus (Benötigt: {temp_leave.num_vacdays()}, Verfügbar: {remaining_days})."}
                 )
         
         return data
