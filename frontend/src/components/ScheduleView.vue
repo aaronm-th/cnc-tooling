@@ -212,6 +212,8 @@ watch(calendarDays, (newDays) => {
 watch(currentDate, fetchSchedule)
 </script>
 
+
+  
 <template>
   <div class="flex-1 overflow-y-auto p-8 bg-slate-50 relative">
     <div v-if="isLoading" class="absolute inset-0 bg-white/50 backdrop-blur-sm z-[200] flex items-center justify-center">
@@ -241,10 +243,23 @@ watch(currentDate, fetchSchedule)
             <button @click="nextMonth" class="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition-all"><ChevronRight class="w-5 h-5" /></button>
           </div>
         </div>
+        
         <div class="hidden lg:flex items-center gap-6">
-          <div v-for="type in ['Arbeit', 'Urlaub', 'Krank']" :key="type" class="flex items-center gap-2">
-            <div :class="['w-3 h-3 rounded-full', type === 'Arbeit' ? 'bg-blue-500' : type === 'Urlaub' ? 'bg-emerald-500' : 'bg-red-500']"></div>
-            <span class="text-xs font-medium text-slate-600">{{ type }}</span>
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded bg-amber-100 border border-amber-300" />
+            <span class="text-xs font-bold text-slate-600">Abwesenheit (in Bearbeitung)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded bg-green-100 border border-green-300" />
+            <span class="text-xs font-bold text-slate-600">Urlaub</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded bg-red-100 border border-red-300" />
+            <span class="text-xs font-bold text-slate-600">Krankheit</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded bg-violet-200 border border-violet-300" />
+            <span class="text-xs font-bold text-slate-600">Feiertag</span>
           </div>
         </div>
       </div>
@@ -253,6 +268,7 @@ watch(currentDate, fetchSchedule)
         <div class="grid grid-cols-7 border-b border-slate-100">
           <div v-for="day in daysOfWeek" :key="day" class="py-3 text-center text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-50/50">{{ day }}</div>
         </div>
+        
         <div class="grid grid-cols-7 grid-rows-6 h-[750px]">
           <div v-for="(day, index) in calendarDays" :key="index"
             :class="['border-r border-b border-slate-100 p-2 flex flex-col gap-1', day.isCurrentMonth ? 'bg-white' : 'bg-slate-50/30 text-slate-400']"
@@ -266,14 +282,15 @@ watch(currentDate, fetchSchedule)
                 @mouseenter="handleMouseEnter(event, $event, index)"
                 @mouseleave="hoveredEvent = null"
                 @click="handleEventClick(event)"
-                :class="['p-1.5 rounded-lg border text-[10px] leading-tight flex flex-col gap-0.5 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-sm', getEventClass(event.type)]"
+                :class="['p-1.5 rounded-lg border text-[10px] leading-tight flex flex-col gap-0.5 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-sm relative', getEventClass(event)]"
               >
                 <div v-if="event.hasPendingRequest" class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-white" />
-                  <div class="flex items-center gap-1 font-bold">
-                    <component :is="getEventIcon(event.type)" class="w-3 h-3" />
-                    <span class="truncate">{{ event.title }}</span>
-                  </div>
+                
+                <div class="flex items-center gap-1 font-bold">
+                  <component :is="getEventIcon(event.type)" class="w-3 h-3" />
+                  <span class="truncate">{{ event.title }}</span>
                 </div>
+              </div>
             </div>
           </div>
         </div>
@@ -295,8 +312,6 @@ watch(currentDate, fetchSchedule)
       @submit="handleShiftSubmit"
       @withdraw="handleRequestWithdraw" 
     />
-
-
 
     <EventInfoModal :isOpen="isInfoModalOpen" :event="selectedEvent" @close="isInfoModalOpen = false" />
   </div>

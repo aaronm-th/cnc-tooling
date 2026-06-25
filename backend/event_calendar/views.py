@@ -61,7 +61,7 @@ class UserCalendarFeedView(APIView):
         # (Logik bleibt gleich, nutzt aber das aktualisierte processed_dates)
         leave_requests = amdl.LeaveRequest.objects.filter(
             employee=employee, 
-            status__in=['pending', 'approved'],
+            status__in=['pending'],
             leave_start__lte=end_date, 
             leave_end__gte=start_date
         )

@@ -1,7 +1,23 @@
 import { Clock, Palmtree, Stethoscope, Landmark, Sun } from 'lucide-vue-next'
 
 export function useEventStyles() {
-  const getEventClass = (type) => {
+  const getEventClass = (event) => {
+    // Falls ein String statt eines Objekts übergeben wurde (Fallback)
+    if (typeof event === 'string') {
+      return getEventClassByType(event)
+    }
+
+    // --- NEU: Wenn der Antrag noch offen (pending) ist -> Gelb/Amber färben ---
+    if (event?.isRequest && event?.isPending) {
+      return 'bg-amber-100 text-amber-700 border-amber-300'
+    }
+
+    // Normales Fallback auf den Event-Typen, wenn genehmigt oder regulär
+    return getEventClassByType(event?.type)
+  }
+
+  // Die alte Logik ausgelagert als Hilfsfunktion für genehmigte/reguläre Typen
+  const getEventClassByType = (type) => {
     const t = type?.toLowerCase()
     if (t === 'work') return 'bg-blue-100 text-blue-700 border-blue-300'
     if (t === 'vacation') return 'bg-emerald-100 text-emerald-700 border-emerald-300'

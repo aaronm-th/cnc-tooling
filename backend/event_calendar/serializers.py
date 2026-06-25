@@ -15,31 +15,40 @@ class CalendarEventSerializer(serializers.Serializer):
     def from_workday(wd):
         """Transformiert einen WorkDay in ein Kalender-Event."""
         if wd.day_type == 'work':
-
-            expected = float(wd.employee.get_expected_hours_for_date(wd.date))
-            actual = float(wd.total_hours)
-
-            diff = actual - expected
-            # Vorzeichen für die Anzeige bestimmen
-            prefix = "+" if diff > 0 else ""
             
-            # Format: "8.00h (+0.50)" oder "7.50h (-0.50)"
-            title = f"{actual:.2f}h ({prefix}{diff:.2f})"
+            title = "Arbeitstag"
 
-            notes = [
-                f"{localtime(s.check_in).strftime('%H:%M')} - "
-                f"{localtime(s.check_out).strftime('%H:%M') if s.check_out else '...'}"
-                for s in wd.sessions.all()
-            ]
-            note = " | ".join(notes)
+            # --- NEU: Chronologische Sortierung & Formatierung für das Tooltip ---
+            day_sessions = sorted(wd.sessions.all(), key=lambda s: s.check_in)
+            
+            session_strings = []
+            for session in day_sessions:
+                in_time = localtime(session.check_in).strftime("%H:%M")
+                if session.check_out:
+                    out_time = localtime(session.check_out).strftime("%H:%M")
+                    session_strings.append(f"{in_time} - {out_time}")
+                else:
+                    session_strings.append(f"{in_time} - (offen)")
+
+            if session_strings:                
+                # Wenn im Admin eine zusätzliche Notiz eingetragen wurde
+                if wd.note:
+                    session_strings.append(f"Notiz: {wd.note}")
+                
+                # Das 'TOTAL:'-Präfix für die Sonderbehandlung im Vue-Tooltip
+                session_strings.append(f"TOTAL:Gesamtzeit: {wd.total_hours} Std.")
+                
+                note = "|".join(session_strings)
+            else:
+                note = wd.note if wd.note else ""
         
         elif wd.day_type == 'vacation':
             title = wd.get_day_type_display()
             note = wd.note
-    
+            
         else:
             title = wd.get_day_type_display()
-            note = ""
+            note = wd.note if wd.note else ""
 
         return {
             "id": f"wd-{wd.id}",
@@ -58,7 +67,7 @@ class CalendarEventSerializer(serializers.Serializer):
             "title": name,
             "date": date.isoformat(),
             "type": "holiday"
-            }
+        }
 
     @staticmethod
     def from_leave_request(lr, current_date):
