@@ -13,6 +13,12 @@ const activeTab = ref(localStorage.getItem('admin_active_tab') || 'leave')
 const searchQuery = ref('')
 const statusFilter = ref('all')
 
+const { 
+  requests_count 
+} = storeToRefs(adminStore)
+
+
+
 onMounted(() => {
   adminStore.fetchLeaveRequests()
   adminStore.fetchChangeRequests()
@@ -42,7 +48,7 @@ watch(activeTab, (newTab) => {
         <div class="flex items-center bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 self-start md:self-center shadow-sm gap-2">
           <AlertCircle class="w-4 h-4 text-amber-500" />
           <span class="text-xs font-bold text-amber-700">
-            {{ pendingRequestsCount !== undefined ? pendingRequestsCount : 99 }} Offene Anträge
+            {{ requests_count ?? 67 }} Offene Anträge
           </span>
         </div>
       </section>

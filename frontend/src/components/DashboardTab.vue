@@ -206,7 +206,7 @@
                 Meine Aufgaben
               </h2>
               <span class="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-                {{ todos.filter(t => !t.completed).length }} offen
+                {{ todos?.filter(t => !t.completed)?.length ?? 0}} offen
               </span>
             </div>
 
@@ -257,7 +257,7 @@
               </div>
 
               <!-- Empty State -->
-              <div v-if="todos.length === 0" class="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
+              <div v-if="!todos || todos.length === 0" class="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
                 <p class="text-sm font-medium">Alles erledigt!</p>
                 <p class="text-xs mt-0.5 text-slate-400">Trage oben deine erste Aufgabe ein.</p>
               </div>

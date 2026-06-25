@@ -4,25 +4,19 @@ import axios from 'axios'
 export const useAdminStore = defineStore('admin', {
   state: () => ({
     user: null,
-    teamMembers: [],       // Array für alle Mitarbeiter (Listenansicht)
-    currentMember: null,   // NEU: Hält die Detaildaten des aktuell ausgewählten/zu editierenden Mitarbeiters
+    employees: [],          // von 'teamMembers' geändert
+    currentMember: null,   
     calendarEvents: [],    
-    employeesCount: 0,     
-    activeEmployees: 0,
-    onLeaveTodayCount: 0,  
-    pendingRequests: [],   
+    employees_count: 0,     // von 'employeesCount' geändert
+    active_employees: 0,    // von 'activeEmployees' geändert
+    on_leave_today: 0,      // von 'onLeaveTodayCount' geändert
+    requests_count: 0,      // von 'pendingRequests: []' geändert, da das Backend eine Zahl schickt!
     leaveRequests: [],     
     changeRequests: [],    
     isLoading: false,      
   }),
 
   getters: {
-
-    pendingRequestsCount: (state) => {
-      const pendingLeaves = state.leaveRequests.filter(r => r.status === 'pending').length
-      const pendingChanges = state.changeRequests.filter(r => r.status === 'pending').length
-      return pendingLeaves + pendingChanges
-    },
 
     filteredTeamMembers: (state) => {
       return (searchQuery) => {
@@ -65,12 +59,13 @@ export const useAdminStore = defineStore('admin', {
   actions: {
     resetState() {
       this.user = null
-      this.teamMembers = []
-      this.currentMember = null // Zurücksetzen
+      this.employees = []
+      this.currentMember = null 
       this.calendarEvents = []
-      this.employeesCount = 0
-      this.onLeaveTodayCount = 0
-      this.pendingRequests = []
+      this.employees_count = 0
+      this.active_employees = 0
+      this.on_leave_today = 0
+      this.requests_count = 0
       this.leaveRequests = []
       this.changeRequests = []
       this.isLoading = false
@@ -80,15 +75,12 @@ export const useAdminStore = defineStore('admin', {
       this.isLoading = true 
       try {
         const token = localStorage.getItem('access_token')
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/mgmt/stats/`, {
+        const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/mgmt/stats/`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
 
-        this.teamMembers = res.data.employees
-        this.activeEmployees = res.data.active_employees
-        this.employeesCount = res.data.employees_count 
-        this.onLeaveTodayCount = res.data.on_leave_today
-        this.pendingRequests = res.data.pending_requests
+        // Nutzt Object.assign, um alle Felder direkt auf 'this' zu übertragen
+        Object.assign(this, data)
 
       } catch (error) {
         console.error('Fehler beim Laden der Dashboard-Daten:', error)

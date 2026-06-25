@@ -201,9 +201,9 @@ const handleDeactivateConfirm = async () => {
                 <td class="px-6 py-4 text-center">
                   <div class="flex flex-col items-center">
                     <span class="text-sm font-bold text-slate-800">
-                      {{ member.vacation_left }} / {{ member.vacation_days_per_year }}
+                      {{ member.vacation_used }} / {{ member.vacation_total }}
                     </span>
-                    <span class="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">Tage offen</span>
+                    <span class="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">Tage verbraucht</span>
                   </div>
                 </td>
 
@@ -265,15 +265,6 @@ const handleDeactivateConfirm = async () => {
           </table>
         </div>
 
-        <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
-          <div class="flex gap-4">
-            <span>Gesamt: <strong>{{ filteredMembers.length }}</strong> von {{ teamMembers.length }} Mitarbeiter</span>
-            <span class="flex items-center gap-1">
-              <AlertCircle class="w-3 h-3 text-amber-500" /> 
-              {{ filteredMembers.filter(m => m.overtime_hours > 20).length }} kritische Überstunden
-            </span>
-          </div>
-        </div>
       </div>
     </div>
 

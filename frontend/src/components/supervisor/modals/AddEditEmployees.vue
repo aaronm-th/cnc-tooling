@@ -156,10 +156,10 @@ const handleSubmit = async () => {
           last_name: form.value.last_name,
           joined_at: form.value.joined_at,
           work_days_schema: cleanedSchema,
-          overtime_hours: form.value.overtime_balance,
           
           vacation_days_per_year: form.value.vacation_days_per_year, 
-          vacation_left: form.value.vacation_left
+          // Hier senden wir den berechneten anteiligen Wert als Startwert ans Backend
+          vacation_total: form.value.vacation_left 
         })
     }
 
@@ -269,7 +269,7 @@ const handleSubmit = async () => {
         </div>
 
         <!-- Urlaubstage & Überstunden -->
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-2 gap-4">
           <div class="space-y-1">
             <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Urlaub / Jahr</label>
             <input 
@@ -280,25 +280,12 @@ const handleSubmit = async () => {
             />
           </div>
 
-          <div class="space-y-1">
-            <label class="text-xs font-bold uppercase text-blue-600 tracking-wider">Offener Urlaub</label>
-            <input 
-              v-model.number="form.vacation_left" 
-              type="number" 
-              step="0.5"
-              min="0"
-              class="w-full px-4 py-2 bg-blue-50/30 border border-blue-200 rounded-xl text-sm font-bold text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-            />
-          </div>
-
-          <div class="space-y-1">
-            <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Überstunden</label>
-            <input 
-              v-model.number="form.overtime_balance" 
-              type="number" 
-              step="any"
-              class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-            />
+          <div v-if="!member" class="space-y-1">
+            <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Anteilig (Vorschau)</label>
+            <div class="w-full px-4 py-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-sm font-semibold flex items-center gap-2 h-[38px]">
+              <span>{{ form.vacation_left }} Tage</span>
+              <span class="text-[10px] text-amber-600 font-normal">(bis Jahresende)</span>
+            </div>
           </div>
         </div>
 

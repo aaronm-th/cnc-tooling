@@ -52,7 +52,7 @@ class EmployeeAdmin(UserAdmin):
                 'fields': ('is_active', 'is_staff', 'is_superuser', 'user_permissions'),
             }),
             ('Zusatzinformationen', {'fields': ('last_login', 'date_joined', 'vacation_days_per_year')}),
-            ('Arbeitszeiten (Soll)', {'fields': ('hours_per_day', 'mo', 'di', 'mi', 'do', 'fr', 'sa', 'so')}),
+            ('Arbeitszeiten (Soll)', {'fields': ('mo', 'di', 'mi', 'do', 'fr', 'sa', 'so')}),
 
         )
 
@@ -60,6 +60,16 @@ class EmployeeAdmin(UserAdmin):
         return ", ".join([group.name for group in obj.groups.all()])
     
     display_groups.short_description = 'Groups'
+
+    def get_form(self, request, obj=None, **kwargs):
+        """
+        Diese Methode holt das Formular (egal ob für Erstellung oder Bearbeitung)
+        und zwingt das E-Mail-Feld dazu, NICHT mehr verpflichtend zu sein.
+        """
+        form = super().get_form(request, obj, **kwargs)
+        if 'email' in form.base_fields:
+            form.base_fields['email'].required = False
+        return form
 
 @admin.register(md.VacationQuota)
 class VacationQuotaAdmin(admin.ModelAdmin):

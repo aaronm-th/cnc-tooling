@@ -50,7 +50,9 @@ class SupervisorDashboardStatsView(APIView):
             employee__is_superuser=False, status='pending'
         ).select_related('employee')
 
-        active_employees = Employee.objects.filter(is_superuser=False, is_active=True).count()
+        employees = Employee.objects.filter(is_superuser=False, is_active=True)
+        active_employees = sum(1 for emp in employees if emp.status == True)
+
 
         # REFACTOR: Nutzt den neuen Serializer für die einheitliche, fehlerfreie Karten-Anzeige
         serializer = TeamMemberSummarySerializer(subordinates, many=True, context={'request': request})
@@ -379,14 +381,14 @@ class CreateEditEmployeeView(APIView):
                 # Holt das Objekt frisch inklusive dem vom Model generierten Usernamen/Passwort-Hash
                 user.refresh_from_db()
                 
-                # 2. Das offizielle Urlaubskontingent zuteilen (Jetzt IM try-block)
+                # 2. Das offizielle Urlaubskontingent zuteilen
                 if user.joined_at:
                     target_year = user.joined_at.year
                     
                     from core.services.vacation_service import VacationService
 
-
-                    allocated_days = VacationService.calculate_initial_quota(user, target_year)
+                    # Nutzen der existierenden Methode aus dem schlanken Service
+                    allocated_days = VacationService.get_total_days_for_year(user, target_year)
                     
                     # Quota erstellen oder updaten
                     VacationQuota.objects.update_or_create(
@@ -399,8 +401,10 @@ class CreateEditEmployeeView(APIView):
                     )
 
             except Exception as db_err:
-                # Jetzt fängst du auch Fehler ab, die im VacationService oder beim Quota-Erstellen passieren
-                return Response({"error": f"Fehler beim Erstellen des Mitarbeiters: {str(db_err)}"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"error": f"Fehler beim Erstellen des Mitarbeiters: {str(db_err)}"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         return Response({
             "success": "Mitarbeiter erfolgreich angelegt.",

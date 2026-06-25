@@ -15,10 +15,18 @@ const props = defineProps({
   }
 })
 
+
+
+
 const authStore = useAuthStore()
 const adminStore = useAdminStore()
 const { user, userStats } = storeToRefs(authStore)
-const { activeEmployees, pendingRequestsCount } = storeToRefs(adminStore)
+
+const { 
+  active_employees, 
+  requests_count 
+} = storeToRefs(adminStore)
+
 
 const { isSupervisor } = storeToRefs(authStore)
 
@@ -107,7 +115,6 @@ watch(() => authStore.isAuthenticated, (val) => {
 
         <!-- ================= MITARBEITER-ANSICHT ================= -->
         <template v-if="!isSupervisor">
-          <!-- Status (Nur sichtbar für normale Mitarbeiter) -->
           <div class="flex items-center gap-2.5">
             <div :class="['w-2 h-2 rounded-full', getStatusColor(userStats?.status)]"></div>              
             <div class="flex flex-col">
@@ -149,7 +156,7 @@ watch(() => authStore.isAuthenticated, (val) => {
             <div class="flex flex-col">
               <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Team</span>
               <span class="text-xs font-bold text-slate-700 mt-0.5">
-                {{ activeEmployees }} Mitarbeiter aktiv
+                {{ active_employees ?? 67 }} Mitarbeiter aktiv
               </span>
             </div>
           </div>
@@ -160,7 +167,7 @@ watch(() => authStore.isAuthenticated, (val) => {
             <div class="flex flex-col">
               <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Anfragen</span>
               <span class="text-xs font-bold text-slate-700 mt-0.5">
-                {{ pendingRequestsCount }} ausstehend
+                {{ requests_count ?? 67 }} ausstehend
               </span>
             </div>
           </div>

@@ -102,15 +102,17 @@
   })
 
 
-  // 1. Stores & Composables initialisieren
 const adminStore = useAdminStore()
 const appStore = useAppStore()
 const { getEventIcon, getIconColorClass, getBadgeColorClass } = useEventStyles()
 
-// 2. Reaktive Daten direkt aus dem Admin-Store ziehen
-// 'onLeaveTodayCount' fängt deine Fehlermeldung ab
-const { teamMembers, pendingRequests, onLeaveTodayCount, employeesCount } = storeToRefs(adminStore)
-
+const { 
+  employees,        
+  active_employees, 
+  employees_count,  
+  on_leave_today,   
+  requests_count 
+} = storeToRefs(adminStore)
 
 // 4. Actions (Direkt an den Store weitergeleitet)
 const approveRequest = (id) => adminStore.approveRequest(id)
@@ -171,8 +173,8 @@ onMounted(async () => {
             <Users class="w-7 h-7" />
           </div>
           <div>
-            <p class="text-sm font-medium text-slate-500">Mitarbeiter Gesamt</p>
-            <h3 class="text-2xl font-bold text-slate-900">{{ employeesCount || 0 }}</h3>
+            <p class="text-sm font-medium text-slate-500">Mitarbeiter Aktiv</p>
+            <h3 class="text-2xl font-bold text-slate-900">{{ active_employees ?? 67 }}</h3>
           </div>
         </div>
         
@@ -182,17 +184,17 @@ onMounted(async () => {
           </div>
           <div>
             <p class="text-sm font-medium text-slate-500">Offene Anträge</p>
-            <h3 class="text-2xl font-bold text-slate-900">{{ pendingRequests ?? 0 }}</h3>
+            <h3 class="text-2xl font-bold text-slate-900">{{ requests_count ?? 67 }}</h3>
           </div>
-        </div>
+        </div>                  
         
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div class="p-4 bg-emerald-50 rounded-2xl text-emerald-600">
             <Calendar class="w-7 h-7" />
           </div>
           <div>
-            <p class="text-sm font-medium text-slate-500">Heute Abwesend</p>
-            <h3 class="text-2xl font-bold text-slate-900">{{ onLeaveTodayCount || 0 }}</h3>
+            <p class="text-sm font-medium text-slate-500">Heute im Urlaub</p>
+            <h3 class="text-2xl font-bold text-slate-900">{{ on_leave_today ?? 67 }}</h3>
           </div>
         </div>
       </div>

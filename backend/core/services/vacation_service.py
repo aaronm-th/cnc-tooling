@@ -1,43 +1,36 @@
-from decimal import Decimal, ROUND_HALF_UP
 import datetime
-import math
-
+from decimal import Decimal, ROUND_HALF_UP
+from django.utils import timezone
 
 class VacationService:
     
     @staticmethod
-    def calculate_initial_quota(employee, year):
+    def get_total_days_for_year(employee, year) -> Decimal:
         """
-        Berechnet den Urlaubsanspruch für ein bestimmtes Jahr.
-        Berücksichtigt unterjährigen Eintritt (Aliquotierung).
+        Berechnet den vollen Jahresanspruch. 
+        Berücksichtigt den unterjährigen Einstieg (Aliquotierung).
         """
         base_days = getattr(employee, 'vacation_days_per_year', Decimal('30.0')) 
         
-        if not employee.joined_at:
-            return base_days
-            
-        if employee.joined_at.year < year:
-            return base_days
+        if not employee.joined_at or employee.joined_at.year < year:
+            return Decimal(str(base_days))
             
         if employee.joined_at.year == year:
             entry_month = employee.joined_at.month
             months_active = 12 - entry_month + 1 
             
-            # Präzise Decimal-Berechnung statt fehleranfälligem Float-Prozent-Dividieren
+            # Anteilige Berechnung: (Basis-Tage / 12) * Aktive Monate
             pro_rata_days = (Decimal(str(base_days)) / Decimal('12')) * Decimal(str(months_active))
-            
-            # Kaufmännische Rundung auf 0 Nachkommastellen (Ganzzahlige Tage)
             return pro_rata_days.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
             
         return Decimal('0.0')
 
     @staticmethod
     def get_used_days(employee, year) -> int:
-        """Holt die summierten Urlaubstage aus dem WorkDay Model."""
+        """Zählt einfach alle genommenen Urlaubstage im laufenden Jahr."""
         from attendance.models import WorkDay
         return WorkDay.objects.filter(
             employee=employee,
             date__year=year,
-            date__lte=datetime.date.today(),
             day_type='vacation'
         ).count()

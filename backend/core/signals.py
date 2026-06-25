@@ -48,11 +48,12 @@ def create_employee_vacation_quota(sender, instance, created, **kwargs):
     if created and instance.joined_at:
         from core.services.vacation_service import VacationService
         from decimal import Decimal
+        from core.models import VacationQuota # Sicherstellen, dass das Model importiert ist
         
         target_year = instance.joined_at.year
         
-        # Den Service statt der (nicht existierenden) Model-Methode nutzen
-        allocated_days = VacationService.calculate_initial_quota(instance, target_year)
+        # Nutzen der neuen, existierenden Service-Methode
+        allocated_days = VacationService.get_total_days_for_year(instance, target_year)
         
         VacationQuota.objects.get_or_create(
             employee=instance,
