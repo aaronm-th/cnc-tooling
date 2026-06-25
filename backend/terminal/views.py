@@ -16,7 +16,8 @@ class TerminalUserListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        employees = Employee.objects.filter(is_active=True, is_superuser=False).order_by('last_name')
+        today = timezone.localdate()
+        employees = Employee.objects.filter(is_active=True, is_superuser=False, joined_at__lte=today).order_by('last_name')
         # context={'request': request} ist wichtig für die absoluten Bild-URLs
         serializer = TerminalUserSerializer(employees, many=True, context={'request': request})
         return Response(serializer.data)
@@ -25,15 +26,20 @@ class TerminalUserListView(APIView):
 class TerminalToggleStatusView(APIView):
     """Steuert das Ein- und Ausstempeln inkl. Sperrzeit-Logik."""
     permission_classes = [AllowAny]
+    
 
     def post(self, request):
         employee_id = request.data.get('employee_id')
+        today = timezone.localdate()
+
         if not employee_id:
             return Response({"error": "Mitarbeiter-ID fehlt."}, status=status.HTTP_400_BAD_REQUEST)
-            
+
         employee = get_object_or_404(Employee, id=employee_id)
-        
-        today = timezone.localdate()
+            
+        if employee.joined_at > today:
+            return Response({"error": "Mitarbeiter ist noch nicht aktiv!"}, status=status.HTTP_400_BAD_REQUEST)
+
         disable_time = timedelta(seconds=60)
 
         # 1. WorkDay sicherstellen

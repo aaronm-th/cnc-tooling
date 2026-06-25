@@ -168,55 +168,51 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
 <template>
   <div class="flex-1 flex flex-col min-h-0 bg-slate-50">
     <!-- Header -->
-    <header class="p-8 pb-4">
-      <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <CalendarIcon class="w-8 h-8 text-blue-600" />
-            Teamkalender
-          </h1>
-          <p class="text-slate-500 mt-1">
-            Anwendungsübersicht für die Urlaubsplanung, Abwesenheiten und wichtige Termine deines Teams. 
-          </p>
+    <header class="p-8 pb-6 flex flex-col gap-6">
+      <div class="max-w-7xl w-full mx-auto">
+        <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
+          <CalendarIcon class="w-8 h-8 text-blue-600" />
+          Teamkalender
+        </h1>
+        <p class="text-slate-500 mt-1 text-sm">
+          Anwendungsübersicht für die Urlaubsplanung, Abwesenheiten und wichtige Termine deines Teams. 
+        </p>
+      </div>
+
+      <div class="max-w-7xl w-full mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="relative w-full sm:max-w-sm h-10">
+          <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input 
+            v-model="searchQuery"
+            type="text" 
+            placeholder="Suche..."
+            class="w-full h-full pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
+          >
         </div>
 
-        <div class="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+        <div class="flex items-center justify-between bg-white px-1 rounded-xl border border-slate-200 shadow-sm w-full sm:w-auto sm:min-w-[240px] h-10">
           <button 
-            class="p-2 hover:bg-slate-100 rounded-xl transition-colors"
+            class="p-1.5 hover:bg-slate-100 rounded-lg transition-colors flex items-center justify-center"
             @click="prevMonth"
           >
-            <ChevronLeft class="w-5 h-5 text-slate-600" />
+            <ChevronLeft class="w-4 h-4 text-slate-600" />
           </button>
-          <div class="px-4 font-bold text-slate-900 min-w-[160px] text-center">
+          <div class="px-4 font-bold text-slate-900 min-w-[140px] text-center text-sm select-none leading-none">
             {{ months[viewDate.getMonth()] }} {{ viewDate.getFullYear() }}
           </div>
           <button 
-            class="p-2 hover:bg-slate-100 rounded-xl transition-colors"
+            class="p-1.5 hover:bg-slate-100 rounded-lg transition-colors flex items-center justify-center"
             @click="nextMonth"
           >
-            <ChevronRight class="w-5 h-5 text-slate-600" />
+            <ChevronRight class="w-4 h-4 text-slate-600" />
           </button>
         </div>
       </div>
     </header>
 
-    <!-- Controls -->
-    <section class="px-8 mb-6">
-      <div class="max-w-7xl mx-auto flex items-center gap-4">
-        <div class="relative flex-1 max-w-sm">
-          <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input 
-            v-model="searchQuery"
-            type="text" 
-            placeholder="Suche"
-            class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
-          >
-        </div>
-      </div>
-    </section>
-
     <!-- Calendar Grid -->
     <div class="flex-1 overflow-hidden px-8 pb-8">
+      <!-- ... Rest deines unveränderten Calendar Grids ... -->
       <div class="max-w-7xl mx-auto h-full bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col">
         
         <!-- Grid Header (Days) -->
@@ -225,14 +221,13 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
             Employee
           </div>
 
-          <!-- KORREKTUR: Im Header werden nur die Spalten gezeichnet, keine Events gefiltert! -->
           <div class="flex-1 flex min-w-0">
             <div 
                 v-for="day in monthDays" 
                 :key="day.getTime()"
                 class="flex-1 min-w-0 min-h-[40px] border-r border-slate-100 last:border-r-0 flex flex-col items-center justify-center relative p-1 text-xs font-semibold text-slate-500"
                 :class="[
-                  isToday(day) ? 'bg-orange-200 text-slate-600' : '',
+                  isToday(day) ? 'bg-blue-100 text-blue-600' : '',
                   isWeekend(day) ? 'bg-slate-100/50 text-slate-400' : ''
                 ]"
             >
@@ -272,11 +267,10 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
                       :key="day.getTime()"
                       class="flex-1 min-w-0 min-h-[64px] border-r border-slate-100 last:border-r-0 flex items-center justify-center relative p-1"
                       :class="[
-                        isToday(day) ? 'bg-orange-200/40' : '',
+                        isToday(day) ? 'bg-blue-200/20' : '',
                         isWeekend(day) ? 'bg-slate-50/10' : ''
                       ]"
                   >
-                      <!-- KORREKTUR: Wir übergeben das gesamte member-Objekt -->
                       <template v-if="getEvents(member, day).length > 0">
                         <div 
                             v-for="event in getEvents(member, day)"
@@ -326,8 +320,8 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
           <span class="text-xs font-bold text-slate-600">Krankheit</span>
         </div>
         <div class="flex items-center gap-2">
-          <div class="w-3 h-3 rounded bg-slate-100 border border-slate-300" />
-          <span class="text-xs font-bold text-slate-600">Sonstiges</span>
+          <div class="w-3 h-3 rounded bg-violet-200 border border-violet-300" />
+          <span class="text-xs font-bold text-slate-600">Feiertag</span>
         </div>
       </div>
     </footer>
@@ -340,6 +334,7 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
     />
   </div>
 </template>
+
 
 <style scoped>
 .no-scrollbar::-webkit-scrollbar {

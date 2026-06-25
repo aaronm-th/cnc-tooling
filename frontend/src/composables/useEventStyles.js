@@ -8,6 +8,7 @@ export function useEventStyles() {
     if (t === 'sick') return 'bg-red-100 text-red-700 border-red-300'
     if (t === 'overtime') return 'bg-orange-100 text-orange-700 border-orange-300'
     if (t === 'pending') return 'bg-amber-100 text-amber-700 border-amber-300'
+    if (t === 'holiday') return 'bg-violet-200 text-violet-700 border-violet-300'
     return 'bg-slate-100 text-slate-700 border-slate-300'
   }
 
