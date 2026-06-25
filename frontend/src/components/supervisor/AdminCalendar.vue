@@ -218,7 +218,7 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
         <!-- Grid Header (Days) -->
         <div class="flex border-b border-slate-100 bg-slate-50/50 sticky top-0 z-20">
           <div class="w-52 shrink-0 p-3 font-bold text-[10px] text-slate-400 uppercase tracking-widest border-r border-slate-100 bg-slate-50 flex items-center">
-            Employee
+            Mitarbeiter
           </div>
 
           <div class="flex-1 flex min-w-0">
@@ -256,7 +256,7 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
                   </div>
                   <div class="min-w-0 flex-1">
                       <div class="text-xs font-bold text-slate-900 truncate">{{ member.name }}</div>
-                      <div class="text-[10px] text-slate-400 truncate">{{ member.role || "Mitarbeiter" }}</div>
+                      <div class="text-[10px] text-slate-400 truncate">{{ member.username }}</div>
                   </div>
                 </div>
 
