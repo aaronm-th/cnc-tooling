@@ -26,7 +26,7 @@ const employeeNav = [
 
 // Navigation für Admins / Vorgesetzte
 const adminNav = [
-  { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard }, // Nutzt die ID des normalen Dashboards oder 'admin-dashboard', falls nötig
+  { id: 'admin-dashboard', name: 'Dashboard', icon: LayoutDashboard }, // Nutzt die ID des normalen Dashboards oder 'admin-dashboard', falls nötig
   { id: 'admin-team', name: 'Mitarbeiterübersicht', icon: Users },
   { id: 'admin-requests', name: 'Anfragen verwalten', icon: ClipboardCheck },
   { id: 'admin-calendar', name: 'Teamkalender', icon: Calendar },
@@ -61,7 +61,7 @@ const adminNav = [
         </button>
       </template>
 
-      <template v-else>
+      <template v-if="!isSupervisor">
         <button 
           v-for="item in employeeNav" 
           :key="item.id"
