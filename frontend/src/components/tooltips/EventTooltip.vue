@@ -57,10 +57,21 @@ const { getIconColorClass, getEventIcon } = useEventStyles()
             <div 
               v-for="(line, sIdx) in (Array.isArray(event.note) ? event.note : event.note.split('|'))" 
               :key="sIdx" 
-              class="text-slate-300 text-[11px] flex items-start gap-2"
             >
-              <div class="w-1.5 h-1.5 rounded-full bg-blue-400/50 mt-1 shrink-0"></div>
-              <span class="leading-tight">{{ line.trim() }}</span>
+              <div 
+                v-if="line.startsWith('TOTAL:')" 
+                class="text-blue-400 font-semibold text-[11px] mt-2 pt-1 border-t border-white/10"
+              >
+                {{ line.replace('TOTAL:', '').trim() }}
+              </div>
+
+              <div 
+                v-else 
+                class="text-slate-300 text-[11px] flex items-start gap-2 mb-1"
+              >
+                <div class="w-1.5 h-1.5 rounded-full bg-blue-400/50 mt-1 shrink-0"></div>
+                <span class="leading-tight">{{ line.trim() }}</span>
+              </div>
             </div>
           </template>
 

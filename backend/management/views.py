@@ -301,6 +301,9 @@ class TeamCalendarEventsView(APIView):
                 if day.note:
                     session_strings.append(f"Notiz: {day.note}")
                 
+
+                session_strings.append(f"TOTAL:Gesamtzeit: {day.total_hours} Std.")
+
                 time_note = "|".join(session_strings)
             else:
                 time_note = day.note if day.note else ""

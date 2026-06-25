@@ -54,9 +54,9 @@ const handleUploadSuccess = async () => {
 }
 
 const getOvertimeClass = (hours) => {
-  if (hours > 20) return 'bg-red-100 text-red-700'
-  if (hours > 0) return 'bg-amber-100 text-amber-700'
-  return 'bg-emerald-100 text-emerald-700'
+  if (hours > 50 || hours < -10) return 'bg-red-100 text-red-700 border border-red-300'
+  if (hours > 30 || hours < 0) return 'bg-amber-100 text-amber-700 border border-amber-300'
+  return 'bg-emerald-100 text-emerald-700 border border-emerald-300'
 }
 
 // Filtered team members based on search bar
