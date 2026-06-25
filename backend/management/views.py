@@ -271,24 +271,47 @@ class TeamCalendarEventsView(APIView):
     def get(self, request):
         subordinates = Employee.objects.filter(is_superuser=False, is_active=True)
 
-        # 1. Bestehende WorkDays (Urlaub, Krank, etc.) holen
+
         calendar_days = WorkDay.objects.filter(
             employee__in=subordinates, day_type__isnull=False
-        ).select_related('employee')
+        ).select_related('employee').prefetch_related('sessions')
 
         events_data = []
         
         # Bestimmung des Zeitraums für die Feiertags-Generierung basierend auf den Daten
         all_dates = [day.date for day in calendar_days]
 
+
         for day in calendar_days:
+            day_sessions = sorted(day.sessions.all(), key=lambda s: s.check_in)
+            
+            session_strings = []
+            for session in day_sessions:
+                in_time = session.check_in.astimezone().strftime("%H:%M")
+                
+                if session.check_out:
+                    out_time = session.check_out.astimezone().strftime("%H:%M")
+                    session_strings.append(f"{in_time} - {out_time}")
+                else:
+                    session_strings.append(f"{in_time} - (offen)")
+
+            if session_strings:
+                
+                # Falls es noch eine manuelle Notiz gibt, hängen wir sie als eigenen Punkt an
+                if day.note:
+                    session_strings.append(f"Notiz: {day.note}")
+                
+                time_note = "|".join(session_strings)
+            else:
+                time_note = day.note if day.note else ""
+
             events_data.append({
                 "id": f"wd-{day.id}",
                 "userName": day.employee.get_full_name(),
                 "date": day.date.isoformat(),
                 "type": day.day_type,
                 "title": day.get_day_type_display(),
-                "note": day.note if day.note else ""
+                "note": time_note
             })
 
         # 2. Ausstehende Urlaubsanträge (Inklusive Wochenende & Feiertage)
