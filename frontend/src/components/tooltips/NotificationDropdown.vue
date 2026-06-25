@@ -100,7 +100,7 @@ const getNotificationColor = (type) => {
       class="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50"
     >
       <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-        <h3 class="font-bold text-slate-900 text-sm">Notifications</h3>
+        <h3 class="font-bold text-slate-900 text-sm">Benachrichtigungen</h3>
         
         <div class="flex gap-4">
           <button 
@@ -108,7 +108,7 @@ const getNotificationColor = (type) => {
             class="text-[10px] font-bold uppercase tracking-widest text-blue-600 hover:text-blue-700 transition-colors"
             @click="notificationStore.markAllAsRead"
           >
-            Read all
+            Alle öffnen
           </button>
 
           <button 
@@ -116,7 +116,7 @@ const getNotificationColor = (type) => {
             class="text-[10px] font-bold uppercase tracking-widest text-red-500 hover:text-red-600 transition-colors"
             @click="notificationStore.clearAll" 
           >
-            Delete all
+            Alle löschen
           </button>
         </div>
       </div>
@@ -124,7 +124,7 @@ const getNotificationColor = (type) => {
       <div class="max-h-[400px] overflow-y-auto custom-scrollbar">
         <div v-if="displayNotifications.length === 0" class="p-8 text-center">
           <Bell class="w-8 h-8 text-slate-200 mx-auto mb-2" />
-          <p class="text-xs text-slate-400">No new notifications</p>
+          <p class="text-xs text-slate-400">Keine neuen Benachrichtigungen</p>
         </div>
 
         <div 

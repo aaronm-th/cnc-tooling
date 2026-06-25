@@ -115,7 +115,7 @@ const saveProfile = async () => {
           <div class="p-2 bg-blue-50 rounded-lg">
             <User class="w-5 h-5 text-blue-600" />
           </div>
-          <h2 class="text-xl font-bold text-slate-900">Edit Profile</h2>
+          <h2 class="text-xl font-bold text-slate-900">Profil bearbeiten</h2>
         </div>
         <button @click="$emit('close')" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-full transition-colors">
           <X class="w-5 h-5" />
@@ -128,7 +128,7 @@ const saveProfile = async () => {
         <div class="flex flex-col items-center mb-8">
           <div class="relative group">
             <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-slate-50 bg-slate-100 shadow-inner flex items-center justify-center">
-              <img v-if="avatarPreview" :src="avatarPreview" class="w-full h-full object-cover" alt="Avatar Preview" referrerPolicy="no-referrer" />
+              <img v-if="avatarPreview" :src="avatarPreview" class="w-full h-full object-cover" alt="Vorschau" referrerPolicy="no-referrer" />
               <User v-else class="w-10 h-10 text-slate-300" />
             </div>
             
@@ -138,7 +138,7 @@ const saveProfile = async () => {
                 @click="removeAvatar"
                 type="button"
                 class="p-2 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-700 transition-all transform hover:scale-110"
-                title="Remove photo"
+                title="Foto löschen"
               >
                 <Trash2 class="w-4 h-4" />
               </button>
@@ -147,7 +147,7 @@ const saveProfile = async () => {
                 @click="triggerFileInput"
                 type="button"
                 class="p-2 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all transform hover:scale-110"
-                title="Change photo"
+                title="Foto ändern"
               >
                 <Camera class="w-4 h-4" />
               </button>
@@ -161,7 +161,7 @@ const saveProfile = async () => {
               @change="handleAvatarUpload"
             />
           </div>
-          <p class="text-xs text-slate-500 mt-3">Click the icons to upload or delete your profile picture</p>
+          <p class="text-xs text-slate-500 mt-3">Auf Icons klicken um ein Profilbild hochzuladen oder zu löschen.</p>
         </div>
 
 
@@ -169,7 +169,7 @@ const saveProfile = async () => {
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="space-y-1.5">
-            <label class="text-xs font-bold uppercase tracking-wider text-slate-500">Email Address</label>
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-500">E-Mail Adresse</label>
             <div class="relative">
               <Mail class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
@@ -183,7 +183,7 @@ const saveProfile = async () => {
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-bold uppercase tracking-wider text-slate-500">Phone Number</label>
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-500">Telefonnummer</label>
             <div class="relative">
               <Phone class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
@@ -196,7 +196,7 @@ const saveProfile = async () => {
           </div>
 
           <div class="space-y-1.5 md:col-span-2">
-            <label class="text-xs font-bold uppercase tracking-wider text-slate-500">Password</label>
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-500">Passwort</label>
             <div class="relative">
               <Lock class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
@@ -206,7 +206,7 @@ const saveProfile = async () => {
                 placeholder="••••••••"
               />
             </div>
-            <p class="text-[10px] text-slate-400 mt-1">Leave as is to keep your current password</p>
+            <p class="text-[10px] text-slate-400 mt-1">Unausgefüllt lassen um das aktuelle Passwort beizubehalten</p>
           </div>
         </div>
       </div>
@@ -216,14 +216,14 @@ const saveProfile = async () => {
           @click="$emit('close')"
           class="flex-1 py-3 px-4 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
         >
-          Cancel
+          Abbruch
         </button>
         <button 
           @click="saveProfile"
           class="flex-1 py-3 px-4 bg-blue-600 rounded-xl text-sm font-semibold text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
         >
           <Upload class="w-4 h-4" />
-          Save Profile
+          Speichern
         </button>
       </div>
     </div>

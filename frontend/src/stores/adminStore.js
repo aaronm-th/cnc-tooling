@@ -21,22 +21,22 @@ export const useAdminStore = defineStore('admin', {
     filteredTeamMembers: (state) => {
       return (searchQuery) => {
         // 1. Filter ungültige Einträge & "System" aus
-        let validMembers = state.teamMembers.filter(m => m && m.name && m.name !== 'System');
+        let validMembers = state.teamMembers?.filter(m => m && m.name && m.name !== 'System');
 
         // 2. Duplikate anhand des Namens entfernen (falls nötig)
         const seen = new Set();
-        validMembers = validMembers.filter(m => {
+        validMembers = validMembers?.filter(m => {
           if (seen.has(m.name)) return false;
           seen.add(m.name);
           return true;
         });
 
         // 3. Alphabetisch nach Name sortieren
-        validMembers.sort((a, b) => a.name.localeCompare(b.name));
+        validMembers?.sort((a, b) => a.name.localeCompare(b.name));
 
         // 4. Suchfilter anwenden
         if (!searchQuery) return validMembers;
-        return validMembers.filter(m => 
+        return validMembers?.filter(m => 
           m.name.toLowerCase().includes(searchQuery.toLowerCase())
         );
       }
@@ -44,13 +44,12 @@ export const useAdminStore = defineStore('admin', {
 
     getEventsForMemberAndDate: (state) => {
       return (memberName, date) => {
-        return state.calendarEvents.filter(e => {
+        return state.calendarEvents?.filter(e => {
           const eDate = new Date(e.date)
           return e.userName === memberName &&
                 eDate.getDate() === date.getDate() &&
                 eDate.getMonth() === date.getMonth() &&
-                eDate.getFullYear() === date.getFullYear() &&
-                e.type !== 'work' 
+                eDate.getFullYear() === date.getFullYear()
         })
       }
     }
@@ -180,7 +179,7 @@ export const useAdminStore = defineStore('admin', {
           headers: { Authorization: `Bearer ${token}` }
         });
 
-        this.teamMembers = this.teamMembers.filter(m => m.id !== userId)
+        this.teamMembers = this.teamMembers?.filter(m => m.id !== userId)
         this.employeesCount--
 
       } catch (error) {
@@ -219,7 +218,7 @@ export const useAdminStore = defineStore('admin', {
           { headers: { Authorization: `Bearer ${token}` }}
         );
 
-        this.pendingRequests = this.pendingRequests.filter(r => r.id !== requestId);
+        this.pendingRequests = this.pendingRequests?.filter(r => r.id !== requestId);
 
         const request = this.leaveRequests.find(r => r.id === requestId);
         if (request) {

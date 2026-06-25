@@ -84,7 +84,7 @@ const getStatusBadgeClass = (status) => {
                 />
               </div>
               <h2 class="text-lg font-bold text-slate-900">
-                Event Details
+                Details
               </h2>
             </div>
             <button
@@ -142,7 +142,7 @@ const getStatusBadgeClass = (status) => {
               class="w-full py-3.5 px-4 bg-slate-100 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all"
               @click="$emit('close')"
             >
-              Close
+              Schließen
             </button>
           </div>
         </div>

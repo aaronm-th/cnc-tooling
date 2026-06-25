@@ -30,7 +30,7 @@ from .serializers import (
 )
 from core.utils import create_notification
 
-
+from datetime import date
 
 
 
@@ -274,7 +274,7 @@ class TeamCalendarEventsView(APIView):
         # 1. Bestehende WorkDays (Urlaub, Krank, etc.) holen
         calendar_days = WorkDay.objects.filter(
             employee__in=subordinates, day_type__isnull=False
-        ).exclude(day_type__in=['work']).select_related('employee')
+        ).select_related('employee')
 
         events_data = []
         

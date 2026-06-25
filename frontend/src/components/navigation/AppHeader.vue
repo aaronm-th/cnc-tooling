@@ -218,11 +218,7 @@ watch(() => authStore.isAuthenticated, (val) => {
             class="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
           >
             <User class="w-4 h-4 text-slate-400" />
-            <span>Edit Profile</span>
-          </button>
-          <button class="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
-            <Settings class="w-4 h-4 text-slate-400" />
-            <span>Settings</span>
+            <span>Profil bearbeiten</span>
           </button>
           <div class="h-px bg-slate-100 my-1"></div>
           <button 
@@ -230,7 +226,7 @@ watch(() => authStore.isAuthenticated, (val) => {
             class="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
           >
             <LogOut class="w-4 h-4" />
-            <span>Sign Out</span>
+            <span>Ausloggen</span>
           </button>
         </div>
         

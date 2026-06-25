@@ -15,6 +15,10 @@ const emit = defineEmits(['update:currentTab'])
 const authStore = useAuthStore()
 const { isSupervisor } = storeToRefs(authStore)
 
+// Backend-URL aus der .env holen (Vite-Standard)
+const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
+
+
 // Navigation für normale Mitarbeiter
 const employeeNav = [
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
@@ -26,7 +30,7 @@ const employeeNav = [
 
 // Navigation für Admins / Vorgesetzte
 const adminNav = [
-  { id: 'admin-dashboard', name: 'Dashboard', icon: LayoutDashboard }, // Nutzt die ID des normalen Dashboards oder 'admin-dashboard', falls nötig
+  { id: 'admin-dashboard', name: 'Dashboard', icon: LayoutDashboard },
   { id: 'admin-team', name: 'Mitarbeiterübersicht', icon: Users },
   { id: 'admin-requests', name: 'Anfragen verwalten', icon: ClipboardCheck },
   { id: 'admin-calendar', name: 'Teamkalender', icon: Calendar },
@@ -35,15 +39,22 @@ const adminNav = [
 
 <template>
   <aside class="w-64 bg-slate-900 text-white flex flex-col">
-    <div class="p-6 flex items-center gap-3">
-      <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-        <LayoutDashboard class="w-5 h-5 text-white" />
+    <div class="p-6 flex items-center gap-4 border-b border-slate-800/50">
+      <div class="w-15 h-15 flex items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 p-0 shadow-md border border-slate-700/50">
+        <img 
+          :src="`${backendUrl}/media/logos/jv_logo.png`" 
+          alt="Logo"
+          class="w-full h-full object-contain"
+        />
       </div>
-      <span class="font-bold text-xl tracking-tight">CorpConnect</span>
+      <div class="flex flex-col">
+        <span class="font-bold text-lg tracking-tight leading-none text-white">Jürgen Vogler</span>
+        <span class="text-[11px] text-blue-400 font-medium mt-1 tracking-wide uppercase">Stempelsystem</span>
+      </div>
     </div>
     
     <nav class="flex-1 px-4 py-4 space-y-1 overflow-y-auto custom-scrollbar">
-      
+      <!-- ... Rest deines Navigations-Codes bleibt absolut identisch ... -->
       <template v-if="isSupervisor">
         <button 
           v-for="item in adminNav" 
@@ -77,7 +88,6 @@ const adminNav = [
           <span class="text-sm font-medium">{{ item.name }}</span>
         </button>
       </template>
-
     </nav>
   </aside>
 </template>

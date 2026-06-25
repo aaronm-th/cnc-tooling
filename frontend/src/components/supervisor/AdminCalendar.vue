@@ -28,8 +28,8 @@ onMounted(async () => {
 })
 
 const months = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
+  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
 ]
 
 
@@ -65,10 +65,10 @@ const getEvents = (member, day) => {
 
   // 1. Hole echte Events vom Mitarbeiter aus dem Store
   const backendEvents = adminStore.getEventsForMemberAndDate(member.name, day)
-  if (backendEvents && backendEvents.length > 0) return backendEvents
+  if (backendEvents && backendEvents?.length > 0) return backendEvents
 
   // 2. Prüfen, ob der Tag ein Feiertag ist
-  if (currentHolidays.value && currentHolidays.value.length > 0) {
+  if (currentHolidays?.value && currentHolidays?.value.length > 0) {
     const holidayMatch = currentHolidays.value.find(h => {
       const hDate = new Date(h.date)
       return hDate.getDate() === day.getDate() &&
@@ -173,7 +173,7 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
         <div>
           <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
             <CalendarIcon class="w-8 h-8 text-blue-600" />
-            Teamkalendar
+            Teamkalender
           </h1>
           <p class="text-slate-500 mt-1">
             Anwendungsübersicht für die Urlaubsplanung, Abwesenheiten und wichtige Termine deines Teams. 
@@ -232,7 +232,7 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
                 :key="day.getTime()"
                 class="flex-1 min-w-0 min-h-[40px] border-r border-slate-100 last:border-r-0 flex flex-col items-center justify-center relative p-1 text-xs font-semibold text-slate-500"
                 :class="[
-                  isToday(day) ? 'bg-blue-50 text-blue-600' : '',
+                  isToday(day) ? 'bg-orange-200 text-slate-600' : '',
                   isWeekend(day) ? 'bg-slate-100/50 text-slate-400' : ''
                 ]"
             >
@@ -272,7 +272,7 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
                       :key="day.getTime()"
                       class="flex-1 min-w-0 min-h-[64px] border-r border-slate-100 last:border-r-0 flex items-center justify-center relative p-1"
                       :class="[
-                        isToday(day) ? 'bg-blue-50/10' : '',
+                        isToday(day) ? 'bg-orange-200/40' : '',
                         isWeekend(day) ? 'bg-slate-50/10' : ''
                       ]"
                   >
@@ -293,7 +293,7 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
 
           <!-- Empty State -->
           <div 
-            v-if="teamMembers.length === 0" 
+            v-if="teamMembers?.length === 0" 
             class="flex flex-col items-center justify-center p-20 text-center"
           >
             <div class="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mb-4 border border-slate-100">

@@ -15,6 +15,8 @@ const { formattedTime, formattedDate } = useClock()
 const lockedIds = ref(new Set())
 const searchQuery = ref('')
 
+const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
+
 onMounted(async () => {
   // Teammitglieder laden (falls noch nicht geschehen)
   if (teamMembers.value.length === 0) {
@@ -74,27 +76,36 @@ const filteredEmployees = computed(() => {
   <div class="min-h-screen bg-slate-50 flex flex-col">
     <!-- Header -->
     <header class="bg-slate-900 text-white p-6 shadow-lg">
-      <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
+
+<div class="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
+        
         <div class="flex items-center gap-4">
-          <router-link to="/login" class="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-white">
-            <ArrowLeft class="w-6 h-6" />
+          <router-link to="/login" class="p-2.5 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/40 rounded-xl transition-all text-slate-400 hover:text-white group">
+            <ArrowLeft class="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
           </router-link>
+          
+          <div class="w-20 h-20 flex items-center justify-center overflow-hidden">
+            <img 
+              :src="`${backendUrl}/media/logos/jv_logo.png`" 
+              alt="Logo"
+              class="w-full h-full object-contain"
+            />
+          </div>
+
           <div>
-            <h1 class="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                <Clock class="w-5 h-5 text-white" />
-              </div>
+            <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
               Terminal
             </h1>
-            <p class="text-slate-400 text-sm">Employee Check-In / Check-Out</p>
+            <p class="text-slate-400 text-xs mt-0.5 font-medium tracking-wide uppercase">Zeiterfassung</p>
           </div>
         </div>
 
-        <div class="text-right">
-          <p class="text-xl font-mono font-bold text-blue-400">{{ formattedTime }}</p>
-          <p class="text-slate-400 text-sm">{{ formattedDate }}</p>
+        <div class="px-5 py-3 rounded-2xl flex flex-col items-end min-w-[160px]">
+          <p class="text-3xl font-mono font-black text-blue-400 tracking-wider leading-none">{{ formattedTime }}</p>
+          <p class="text-slate-400 text-[14px] font-semibold uppercase tracking-wider mt-1.5">{{ formattedDate }}</p>
         </div>
       </div>
+
     </header>
 
     <!-- Main Content -->
@@ -112,16 +123,6 @@ const filteredEmployees = computed(() => {
           />
         </div>
 
-        <div class="flex items-center gap-6 text-sm font-medium text-slate-500">
-          <div class="flex items-center gap-2">
-            <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
-            <span>Anwesend</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-3 h-3 rounded-full bg-slate-300"></div>
-            <span>Abwesend</span>
-          </div>
-        </div>
       </div>
 
       <!-- Employee Grid -->
@@ -189,14 +190,10 @@ const filteredEmployees = computed(() => {
         <div class="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
           <User class="w-10 h-10" />
         </div>
-        <h2 class="text-xl font-bold text-slate-900">No employee found</h2>
-        <p class="text-slate-500">Try searching for another name</p>
+        <h2 class="text-xl font-bold text-slate-900">Keine Mitarbeiter gefunden</h2>
       </div>
     </main>
 
-    <footer class="p-8 text-center text-slate-400 text-sm">
-      <p>© 2026 CorpConnect Terminal System • Secure Access Only</p>
-    </footer>
   </div>
 </template>
 

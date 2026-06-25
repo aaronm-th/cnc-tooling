@@ -16,7 +16,7 @@ class TerminalUserListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        employees = Employee.objects.filter(is_active=True).order_by('last_name')
+        employees = Employee.objects.filter(is_active=True, is_superuser=False).order_by('last_name')
         # context={'request': request} ist wichtig für die absoluten Bild-URLs
         serializer = TerminalUserSerializer(employees, many=True, context={'request': request})
         return Response(serializer.data)
