@@ -16,6 +16,7 @@ class SimpleResponseSerializer(serializers.Serializer):
 class EmployeeSerializer(serializers.ModelSerializer):
     avatar = serializers.SerializerMethodField()
     name = serializers.ReadOnlyField() 
+    username = serializers.ReadOnlyField()
     initials = serializers.ReadOnlyField()
     status_text = serializers.SerializerMethodField()
     is_supervisor = serializers.SerializerMethodField()
@@ -31,7 +32,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         model = Employee
         fields = [
             'id', 'first_name', 'last_name', 'name', 'initials', 
-            'email', 'phone', 'status_text', 'avatar', 'is_supervisor'
+            'email', 'phone', 'status_text', 'avatar', 'is_supervisor', 'username'
         ]
         read_only_fields = ['id']
 
@@ -120,6 +121,7 @@ class UserStatsSerializer(serializers.Serializer):
     status = serializers.SerializerMethodField()
     joined_at = serializers.SerializerMethodField()
     is_supervisor = serializers.SerializerMethodField()
+    username = serializers.ReadOnlyField()
 
     @extend_schema_field(VacationQuotaSerializer)
     def get_vacation(self, obj):
@@ -159,3 +161,7 @@ class UserStatsSerializer(serializers.Serializer):
     @extend_schema_field(serializers.BooleanField())
     def get_is_supervisor(self, obj):
         return obj.is_superuser if hasattr(obj, 'is_superuser') else False
+    
+    @extend_schema_field(serializers.CharField())
+    def get_username(self, obj):
+        return obj.username

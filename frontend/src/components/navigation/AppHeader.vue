@@ -210,7 +210,7 @@ watch(() => authStore.isAuthenticated, (val) => {
             </div>
             <div>
               <p class="text-sm font-bold text-slate-900 leading-none">{{ user?.name }}</p>
-              <p class="text-[10px] text-slate-500 mt-1">{{ user?.email }}</p>
+              <p class="text-[10px] text-slate-500 mt-1">{{ user?.username }}</p>
             </div>
           </div>
           <button 

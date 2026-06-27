@@ -77,12 +77,12 @@ const filteredMembers = computed(() => {
                     </div>
                     <div>
                       <span class="font-semibold text-slate-900 block leading-tight">{{ member.name }}</span>
-                      <span class="text-[11px] text-slate-400">{{ member.role || 'Mitarbeiter' }}</span>
+                      <span class="text-[11px] text-slate-400">{{ member.username}}</span>
                     </div>
                   </div>
                 </td>
                 <td class="px-6 py-4 text-sm text-slate-600">
-                  <a :href="`mailto:${member.email}`" class="hover:text-blue-600 transition-colors">{{ member.email }}</a>
+                  <a :href="`mailto:${member.email}`" class="hover:text-blue-600 transition-colors">{{ member.email || '-' }}</a>
                 </td>
                 <td class="px-6 py-4 text-sm text-slate-600">{{ member.phone || '-' }}</td>
                 <td class="px-6 py-4">

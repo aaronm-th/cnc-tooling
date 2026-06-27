@@ -70,7 +70,7 @@ const { getIconColorClass, getEventIcon } = useEventStyles()
           </template>
 
           <p v-else class="text-slate-300 text-[11px] leading-relaxed italic">
-            "{{ Array.isArray(event.note) ? event.note[0] : event.note }}"
+            {{ Array.isArray(event.note) ? event.note[0] : event.note }}
           </p>
         </div>
 

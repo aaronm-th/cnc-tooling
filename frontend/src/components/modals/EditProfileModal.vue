@@ -169,7 +169,7 @@ const saveProfile = async () => {
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="space-y-1.5">
-            <label class="text-xs font-bold uppercase tracking-wider text-slate-500">E-Mail Adresse</label>
+            <label class="text-xs font-bold tracking-wider text-slate-500"><span class="uppercase">E-Mail</span> (optional)</label>
             <div class="relative">
               <Mail class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
@@ -177,20 +177,20 @@ const saveProfile = async () => {
                 @input="editForm.email = $event.target.value"
                 type="email" 
                 class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                placeholder="alex@example.com"
+                placeholder="E-Mail Adresse eingeben..."
               />
             </div>
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-bold uppercase tracking-wider text-slate-500">Telefonnummer</label>
+            <label class="text-xs font-bold tracking-wider text-slate-500"><span class="uppercase">Telefonnummer</span> (optional)</label>
             <div class="relative">
               <Phone class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
                 v-model="editForm.phone"
                 type="tel" 
                 class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                placeholder="+1 (555) 000-0000"
+                placeholder="Telefonnummer eingeben..."
               />
             </div>
           </div>
