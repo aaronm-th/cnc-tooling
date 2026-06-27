@@ -4,26 +4,26 @@ import axios from 'axios'
 export const useAdminStore = defineStore('admin', {
   state: () => ({
     user: null,
-    employees: [],          // von 'teamMembers' geändert
+    teamMembers: [],        // Für die Team-Liste im Kalender
     currentMember: null,   
-    calendarEvents: [],    
-    employees_count: 0,     // von 'employeesCount' geändert
-    active_employees: 0,    // von 'activeEmployees' geändert
-    on_leave_today: 0,      // von 'onLeaveTodayCount' geändert
-    requests_count: 0,      // von 'pendingRequests: []' geändert, da das Backend eine Zahl schickt!
+    calendarEvents: [],     // Für die echten Events vom Backend
+    
+    // Komplett im Backend-Format (Snake-Case) -> kein Mapping bei Object.assign nötig
+    employees_count: 0,     
+    active_employees: 0,    
+    on_leave_today: 0,      
+    requests_count: 0,      
     leaveRequests: [],     
     changeRequests: [],    
     isLoading: false,      
   }),
 
   getters: {
-
     filteredTeamMembers: (state) => {
       return (searchQuery) => {
-        // 1. Filter ungültige Einträge & "System" aus
         let validMembers = state.teamMembers?.filter(m => m && m.name && m.name !== 'System');
 
-        // 2. Duplikate anhand des Namens entfernen (falls nötig)
+        // Duplikate entfernen
         const seen = new Set();
         validMembers = validMembers?.filter(m => {
           if (seen.has(m.name)) return false;
@@ -31,10 +31,9 @@ export const useAdminStore = defineStore('admin', {
           return true;
         });
 
-        // 3. Alphabetisch nach Name sortieren
+        // Alphabetisch sortieren
         validMembers?.sort((a, b) => a.name.localeCompare(b.name));
 
-        // 4. Suchfilter anwenden
         if (!searchQuery) return validMembers;
         return validMembers?.filter(m => 
           m.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -58,7 +57,7 @@ export const useAdminStore = defineStore('admin', {
   actions: {
     resetState() {
       this.user = null
-      this.employees = []
+      this.teamMembers = []
       this.currentMember = null 
       this.calendarEvents = []
       this.employees_count = 0
@@ -77,10 +76,9 @@ export const useAdminStore = defineStore('admin', {
         const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/mgmt/stats/`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
-
-        // Nutzt Object.assign, um alle Felder direkt auf 'this' zu übertragen
+        
+        // Matcht jetzt zu 100% mit dem State, überschreibt direkt ohne Fehler/Mapping!
         Object.assign(this, data)
-
       } catch (error) {
         console.error('Fehler beim Laden der Dashboard-Daten:', error)
       } finally {
@@ -92,7 +90,6 @@ export const useAdminStore = defineStore('admin', {
       this.isLoading = true
       try {
         const token = localStorage.getItem('access_token')
-        // URL bleibt auf dem Kollektions-Endpunkt
         const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/mgmt/team/`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
@@ -104,15 +101,10 @@ export const useAdminStore = defineStore('admin', {
       }
     },
 
-    // ************************************************************
-    // NEU: CRUD-ACTIONS FÜR EINZELNE MITARBEITER (TeamMemberDetailView)
-    // ************************************************************
-
     async fetchTeamMemberDetail(userId) {
       this.isLoading = true
       try {
         const token = localStorage.getItem('access_token')
-        // GET an /api/mgmt/team/<id>/
         const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/mgmt/team/${userId}/`, {
           headers: { Authorization: `Bearer ${token}` }
         })
@@ -125,20 +117,18 @@ export const useAdminStore = defineStore('admin', {
       }
     },
 
-    async createTeamMember(employeeData) { // Nimmt jetzt das ganze Objekt entgegen
+    async createTeamMember(employeeData) {
       this.isLoading = true
       try {
-
         const token = localStorage.getItem('access_token')
-
         const res = await axios.post(
           `${import.meta.env.VITE_API_URL}/api/mgmt/team/new/`, 
-          employeeData, // Schickt name, email, work_days_schema, etc. gesammelt mit
+          employeeData, 
           { headers: { Authorization: `Bearer ${token}` }}
         )
         
         this.teamMembers.push(res.data)
-        this.employeesCount++
+        this.employees_count++ // Synchron mit Backend-Name
       } catch (error) {
         console.error("Fehler beim Erstellen eines neuen Mitarbeiters:", error)
         alert("Mitarbeiter konnte nicht erstellt werden.")
@@ -156,7 +146,6 @@ export const useAdminStore = defineStore('admin', {
           headers: { Authorization: `Bearer ${token}` }
         })
 
-        // Lokale Liste direkt updaten, damit die UI ohne Refresh aktuell ist
         const index = this.teamMembers.findIndex(m => m.id === userId)
         if (index !== -1) {
           this.teamMembers[index] = { ...this.teamMembers[index], ...updatedData }
@@ -174,25 +163,19 @@ export const useAdminStore = defineStore('admin', {
       this.isLoading = true
       try {
         const token = localStorage.getItem('access_token')
-        // MODIFIZIERT: Nutzt jetzt die neue REST-konforme URL /api/mgmt/team/<id>/
         await axios.delete(`${import.meta.env.VITE_API_URL}/api/mgmt/team/${userId}/`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
         this.teamMembers = this.teamMembers?.filter(m => m.id !== userId)
-        this.employeesCount--
-
+        this.employees_count-- // Synchron mit Backend-Name
       } catch (error) {
-        console.error("Fehler: Benutzer konnte nicht deaktiviert werden.", error)
+        console.error("Fehler: Benutzer konnte nicht deactivated werden.", error)
         alert("Mitarbeiter konnte nicht deaktiviert werden.")
       } finally {
         this.isLoading = false
       }
     },
-
-    // ******************************
-    // LEAVE REQUESTS & CHANGE REQUESTS (Unverändert)
-    // ******************************
 
     async fetchLeaveRequests() {
       this.isLoading = true
@@ -218,7 +201,10 @@ export const useAdminStore = defineStore('admin', {
           { headers: { Authorization: `Bearer ${token}` }}
         );
 
-        this.pendingRequests = this.pendingRequests?.filter(r => r.id !== requestId);
+        // Falls du 'pendingRequests' im State nutzt, hier optional via Safe-Navigation absichern
+        if (this.pendingRequests) {
+          this.pendingRequests = this.pendingRequests.filter(r => r.id !== requestId);
+        }
 
         const request = this.leaveRequests.find(r => r.id === requestId);
         if (request) {

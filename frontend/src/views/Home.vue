@@ -3,8 +3,10 @@ import { ref, watch, onMounted } from 'vue'
 import { Users, Calendar, FileText, Briefcase } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
+import { useAdminStore } from '@/stores/adminStore'
 import { useAppStore } from '@/stores/appStore'
 import { storeToRefs } from 'pinia'
+ 
 
 import AppSidebar from '@/components/navigation/AppSidebar.vue'
 import AppHeader from '@/components/navigation/AppHeader.vue'
@@ -24,6 +26,7 @@ import AdminCalendar from '@/components/supervisor/AdminCalendar.vue'
 
 // Stores initialisieren
 const authStore = useAuthStore()
+const adminStore = useAdminStore()
 const appStore = useAppStore()
 const router = useRouter()
 
@@ -60,7 +63,14 @@ const applyStoredPreference = () => {
 
 // Beobachte Änderungen am Supervisor-Status
 watch(isSupervisor, (newValue) => {
-  if (newValue !== undefined) applyStoredPreference()
+  if (newValue !== undefined) {
+    applyStoredPreference()
+    
+    // Falls der Status erst hier bekannt wird, jetzt die Daten holen
+    if (newValue === true) {
+      adminStore.fetchDashboardData()
+    }
+  }
 }, { immediate: true })
 
 // Logik wenn der Admin-Modus umgeschaltet wird
@@ -85,6 +95,11 @@ onMounted(async () => {
       await authStore.fetchUser()
       applyStoredPreference()
     }
+  }
+
+  // JEDES Mal beim Laden/Reload prüfen: Wenn Vorgesetzter, dann sofort die Header-Stats holen
+  if (isSupervisor.value) {
+    adminStore.fetchDashboardData()
   }
 })
 

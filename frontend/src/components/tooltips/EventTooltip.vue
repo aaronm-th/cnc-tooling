@@ -35,7 +35,6 @@ const { getIconColorClass, getEventIcon } = useEventStyles()
         :style="styles"
         class="w-64 p-4 bg-slate-900 text-white rounded-2xl shadow-2xl pointer-events-none"
       >
-        <!-- Header: Icon & Typ -->
         <div class="flex items-center gap-2 mb-2">
           <div :class="['p-1.5 rounded-lg bg-white/10', getIconColorClass(event.type)]">
             <component :is="getEventIcon(event.type)" class="w-4 h-4" />
@@ -45,15 +44,10 @@ const { getIconColorClass, getEventIcon } = useEventStyles()
           </span>
         </div>
 
-        <!-- Titel -->
+        <div v-if="event.note" class="h-px bg-white/10 my-2"></div>
         
-
-        <div class="h-px bg-white/10 my-2"></div>
-        
-        <!-- Notizen / Details (mit Scrollbar-Container aus AI-Studio) -->
-        <div class="max-h-40 overflow-y-auto custom-scrollbar pr-2 space-y-2">
-          <!-- Backend-Logik: Spezielle Liste für 'work' Events -->
-          <template v-if="event.type === 'work' && event.note">
+        <div v-if="event.note" class="max-h-40 overflow-y-auto custom-scrollbar pr-2 space-y-2">
+          <template v-if="event.type === 'work'">
             <div 
               v-for="(line, sIdx) in (Array.isArray(event.note) ? event.note : event.note.split('|'))" 
               :key="sIdx" 
@@ -75,18 +69,11 @@ const { getIconColorClass, getEventIcon } = useEventStyles()
             </div>
           </template>
 
-          <!-- Backend-Logik: Fallback für andere Event-Typen mit Notiz -->
-          <p v-else-if="event.note" class="text-slate-300 text-[11px] leading-relaxed italic">
+          <p v-else class="text-slate-300 text-[11px] leading-relaxed italic">
             "{{ Array.isArray(event.note) ? event.note[0] : event.note }}"
-          </p>
-
-          <!-- Backend-Logik: Keine Notiz vorhanden -->
-          <p v-else class="text-slate-500 text-[10px] italic">
-            Keine weiteren Details
           </p>
         </div>
 
-        <!-- Footer: Datum (Deutsche Formatierung beibehalten) -->
         <div class="mt-3 pt-3 border-t border-white/5 flex items-center gap-2 text-[10px] text-slate-400">
           <Calendar class="w-3 h-3" />
           <span class="capitalize">
@@ -94,7 +81,6 @@ const { getIconColorClass, getEventIcon } = useEventStyles()
           </span>
         </div>
         
-        <!-- Arrow (Kombination aus dynamischem Style und Fallback-Klassen) -->
         <div 
           :style="arrowStyle"
           :class="[

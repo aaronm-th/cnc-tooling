@@ -15,12 +15,13 @@ import {
 
 const adminStore = useAdminStore()
 const { getEventClass } = useEventStyles()
+const { getHolidaysForYear } = useHolidays()
 
 const viewDate = ref(new Date())
 const searchQuery = ref('')
-const { getHolidaysForYear } = useHolidays()
 
 onMounted(async () => {
+  // Lädt die Daten parallel beim Mounten der Komponente
   await Promise.all([
     adminStore.fetchTeamMembers(),
     adminStore.fetchCalendarEvents()
@@ -32,7 +33,7 @@ const months = [
   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
 ]
 
-
+// Berechnet Feiertage passend zum aktuell angezeigten Jahr
 const currentHolidays = computed(() => {
   if (!viewDate.value) return []
   const year = viewDate.value.getFullYear()
@@ -55,24 +56,26 @@ const monthDays = computed(() => {
   return days
 })
 
+// Greift nun fehlerfrei auf die korrekte Store-Variable zu
 const teamMembers = computed(() => {
   return adminStore.filteredTeamMembers(searchQuery.value)
 })
 
-// Kombiniert echte Backend-Events mit den im Frontend berechneten Feiertagen/Wochenenden
+// Kombiniert Backend-Events mit dynamischen Frontend-Feiertagen und Wochenenden
 const getEvents = (member, day) => {
   if (!member || !day) return []
 
-  // 1. Hole echte Events vom Mitarbeiter aus dem Store
+  // 1. Priorität: Echtes Event vom Backend (Arbeit, Krankheit, genehmigter Urlaub)
   const backendEvents = adminStore.getEventsForMemberAndDate(member.name, day)
-  if (backendEvents && backendEvents?.length > 0) return backendEvents
+  if (backendEvents && backendEvents.length > 0) return backendEvents
 
-  // 2. Prüfen, ob der Tag ein Feiertag ist
-  if (currentHolidays?.value && currentHolidays?.value.length > 0) {
+  // 2. Priorität: Gesetzlicher Feiertag aus dem Frontend-Composable
+  if (currentHolidays.value && currentHolidays.value.length > 0) {
     const holidayMatch = currentHolidays.value.find(h => {
       const hDate = new Date(h.date)
       return hDate.getDate() === day.getDate() &&
-             hDate.getMonth() === day.getMonth()
+             hDate.getMonth() === day.getMonth() &&
+             hDate.getFullYear() === day.getFullYear()
     })
 
     if (holidayMatch) {
@@ -80,20 +83,20 @@ const getEvents = (member, day) => {
         id: `holiday-${day.getTime()}`,
         type: 'holiday',
         title: holidayMatch.name,
-        note: 'Gesetzlicher Feiertag',
+        note: null, // Versteckt das Notizfeld im Tooltip komplett
         date: day
       }]
     }
   }
 
-  // 3. Prüfen, ob der Tag ein Wochenende ist
+  // 3. Priorität: Reguläres Wochenende
   if (isWeekend(day)) {
     const dayName = day.getDay() === 0 ? 'Sonntag' : 'Samstag'
     return [{
       id: `weekend-${day.getTime()}`,
       type: 'weekend',
       title: dayName,
-      note: '',
+      note: null, // Versteckt das Notizfeld im Tooltip komplett
       date: day
     }]
   }
@@ -121,7 +124,7 @@ const isWeekend = (date) => {
   return day === 0 || day === 6
 }
 
-// Tooltip-Logik
+// Tooltip-Logik für Hover-Zustände
 const hoveredEvent = ref(null)
 const tooltipStyles = ref({})
 const arrowStyles = ref({})
@@ -164,10 +167,8 @@ const handleMouseEnter = (event, e) => {
 const handleMouseLeave = () => { hoveredEvent.value = null }
 </script>
 
-
 <template>
   <div class="flex-1 flex flex-col min-h-0 bg-slate-50">
-    <!-- Header -->
     <header class="p-8 pb-6 flex flex-col gap-6">
       <div class="max-w-7xl w-full mx-auto">
         <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
@@ -210,12 +211,9 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
       </div>
     </header>
 
-    <!-- Calendar Grid -->
     <div class="flex-1 overflow-hidden px-8 pb-8">
-      <!-- ... Rest deines unveränderten Calendar Grids ... -->
       <div class="max-w-7xl mx-auto h-full bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col">
         
-        <!-- Grid Header (Days) -->
         <div class="flex border-b border-slate-100 bg-slate-50/50 sticky top-0 z-20">
           <div class="w-52 shrink-0 p-3 font-bold text-[10px] text-slate-400 uppercase tracking-widest border-r border-slate-100 bg-slate-50 flex items-center">
             Mitarbeiter
@@ -223,69 +221,66 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
 
           <div class="flex-1 flex min-w-0">
             <div 
-                v-for="day in monthDays" 
-                :key="day.getTime()"
-                class="flex-1 min-w-0 min-h-[40px] border-r border-slate-100 last:border-r-0 flex flex-col items-center justify-center relative p-1 text-xs font-semibold text-slate-500"
-                :class="[
-                  isToday(day) ? 'bg-blue-100 text-blue-600' : '',
-                  isWeekend(day) ? 'bg-slate-100/50 text-slate-400' : ''
-                ]"
+              v-for="day in monthDays" 
+              :key="day.getTime()"
+              class="flex-1 min-w-0 min-h-[44px] border-r border-slate-100 last:border-r-0 flex flex-col items-center justify-center relative p-1 text-xs font-semibold"
+              :class="[
+                isToday(day) ? 'text-blue-600 bg-blue-50/20' : (isWeekend(day) ? 'text-slate-400 bg-slate-100/40' : 'text-slate-500')
+              ]"
             >
-              <span>{{ day.getDate() }}</span>
+              <span 
+                class="flex items-center justify-center w-6 h-6 rounded-full text-[11px] transition-all"
+                :class="isToday(day) ? 'bg-blue-600 text-white font-bold' : ''"
+              >
+                {{ day.getDate() }}
+              </span>
             </div>
           </div>
         </div>
 
-        <!-- Grid Body -->
         <div class="flex-1 overflow-y-auto">
-            <div 
-                v-for="member in teamMembers" 
-                :key="member.id"
-                class="flex border-b border-slate-100 hover:bg-slate-50/30 transition-colors group min-h-[64px]"
-            >
-                
-                <!-- Member Column -->
-                <div class="w-52 shrink-0 p-3 border-r border-slate-100 bg-white sticky left-0 z-10 flex items-center gap-3 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
-                  <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors shrink-0">
-                      <div v-if="member.avatar" class="w-10 h-10 rounded-full overflow-hidden border border-slate-200 shrink-0">
-                        <img :src="member.avatar" class="w-full h-full object-cover" />
-                      </div>
-                      <div v-else class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold shrink-0 text-sm">
-                        {{ member.initials || '??' }}
-                      </div>
-                  </div>
-                  <div class="min-w-0 flex-1">
-                      <div class="text-xs font-bold text-slate-900 truncate">{{ member.name }}</div>
-                      <div class="text-[10px] text-slate-400 truncate">{{ member.username }}</div>
-                  </div>
+          <div 
+            v-for="member in teamMembers" 
+            :key="member.id"
+            class="flex border-b border-slate-100 hover:bg-slate-50/30 transition-colors group min-h-[64px]"
+          >
+            <div class="w-52 shrink-0 p-3 border-r border-slate-100 bg-white sticky left-0 z-10 flex items-center gap-3 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
+              <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors shrink-0">
+                <div v-if="member.avatar" class="w-10 h-10 rounded-full overflow-hidden border border-slate-200 shrink-0">
+                  <img :src="member.avatar" class="w-full h-full object-cover" />
                 </div>
-
-                <!-- Days Timeline -->
-                <div class="flex-1 flex min-w-0">
-                  <div 
-                      v-for="day in monthDays" 
-                      :key="day.getTime()"
-                      class="flex-1 min-w-0 min-h-[64px] border-r border-slate-100 last:border-r-0 flex items-center justify-center relative p-1"
-                      :class="[
-                        isToday(day) ? 'bg-blue-200/20' : '',
-                        isWeekend(day) ? 'bg-slate-50/10' : ''
-                      ]"
-                  >
-                      <template v-if="getEvents(member, day).length > 0">
-                        <div 
-                            v-for="event in getEvents(member, day)"
-                            :key="event.id"
-                            class="w-full h-7 rounded-lg border flex items-center justify-center cursor-help transition-all hover:scale-105 hover:z-30 hover:shadow-md"
-                            :class="getEventClass(event.type)"
-                            @mouseenter="handleMouseEnter(event, $event)"
-                            @mouseleave="handleMouseLeave"
-                        />
-                      </template>
-                  </div>
+                <div v-else class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold shrink-0 text-sm">
+                  {{ member.initials || '??' }}
                 </div>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="text-xs font-bold text-slate-900 truncate">{{ member.name }}</div>
+                <div class="text-[10px] text-slate-400 truncate">{{ member.username }}</div>
+              </div>
             </div>
 
-          <!-- Empty State -->
+            <div class="flex-1 flex min-w-0">
+              <div 
+                v-for="day in monthDays" 
+                :key="day.getTime()"
+                class="flex-1 min-w-0 min-h-[64px] border-r border-slate-100 last:border-r-0 flex items-center justify-center relative p-1"
+                :class="isWeekend(day) ? 'bg-slate-50/60' : ''"
+              >
+
+                <template v-if="getEvents(member, day).length > 0">
+                  <div 
+                    v-for="event in getEvents(member, day)"
+                    :key="event.id"
+                    class="w-full h-7 rounded-lg border flex items-center justify-center cursor-help transition-all hover:scale-105 hover:z-30 hover:shadow-md"
+                    :class="getEventClass(event.type)"
+                    @mouseenter="handleMouseEnter(event, $event)"
+                    @mouseleave="handleMouseLeave"
+                  />
+                </template>
+              </div>
+            </div>
+          </div>
+
           <div 
             v-if="teamMembers?.length === 0" 
             class="flex flex-col items-center justify-center p-20 text-center"
@@ -293,23 +288,20 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
             <div class="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mb-4 border border-slate-100">
               <User class="w-10 h-10 text-slate-200" />
             </div>
-            <h3 class="text-slate-900 font-bold text-lg">
-              No members found
-            </h3>
+            <h3 class="text-slate-900 font-bold text-lg">Keine Mitarbeiter gefunden</h3>
             <p class="text-slate-500 text-sm max-w-xs mx-auto">
-              We couldn't find any team members matching your search criteria.
+              Es konnten keine Teammitglieder gefunden werden, die den Suchkriterien entsprechen.
             </p>
           </div>
         </div>
       </div>
     </div>
     
-    <!-- Legend -->
     <footer class="px-8 pb-8">
       <div class="max-w-7xl mx-auto flex items-center justify-center gap-8 py-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
         <div class="flex items-center gap-2">
           <div class="w-3 h-3 rounded bg-amber-100 border border-amber-300" />
-          <span class="text-xs font-bold text-slate-600">Abwesenheit (in Bearbeitung)</span>
+          <span class="text-xs font-bold text-slate-600">Offener Antrag</span>
         </div>
         <div class="flex items-center gap-2">
           <div class="w-3 h-3 rounded bg-green-100 border border-green-300" />
@@ -326,7 +318,6 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
       </div>
     </footer>
 
-    <!-- Hover Event Tooltip -->
     <EventTooltip 
       :event="hoveredEvent"
       :styles="tooltipStyles"
@@ -334,7 +325,6 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
     />
   </div>
 </template>
-
 
 <style scoped>
 .no-scrollbar::-webkit-scrollbar {

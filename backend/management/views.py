@@ -140,6 +140,9 @@ class HandleLeaveRequestView(APIView):
         with transaction.atomic():
             if action == 'approve':
                 leave_request.status = 'approved'
+
+                target_day_type = getattr(leave_request, 'leave_type', 'vacation')
+
                 curr = leave_request.leave_start
                 while curr <= leave_request.leave_end:
                     if curr.weekday() < 5:
@@ -147,8 +150,8 @@ class HandleLeaveRequestView(APIView):
                             employee=leave_request.employee,
                             date=curr,
                             defaults={
-                                'day_type': 'vacation',
-                                'note': 'Test'
+                                'day_type': target_day_type,
+                                'note': leave_request.note if leave_request.note else ""
                             }
                         )
                     curr += timedelta(days=1)
@@ -223,47 +226,6 @@ class HandleChangeRequestView(APIView):
         )
 
 
-class TeamCalendarEventsView_old(APIView):
-    permission_classes = [IsAuthenticated, IsSupervisor]
-
-    def get(self, request):
-        subordinates = Employee.objects.filter(is_superuser=False, is_active=True)
-
-        calendar_days = WorkDay.objects.filter(
-            employee__in=subordinates, day_type__isnull=False
-        ).exclude(day_type__in=['work']).select_related('employee')
-
-        events_data = []
-        for day in calendar_days:
-            events_data.append({
-                "id": f"wd-{day.id}",
-                "userName": day.employee.get_full_name(),
-                "date": day.date.isoformat(),
-                "type": day.day_type,
-                "title": day.get_day_type_display(),
-                "note": day.note if day.note else ""
-            })
-
-        pending_leaves = LeaveRequest.objects.filter(
-            employee__is_superuser=False, status='pending', leave_type='vacation'
-        ).select_related('employee')
-
-        for leave in pending_leaves:
-            curr_date = leave.leave_start
-            while curr_date <= leave.leave_end:
-                if curr_date.weekday() < 5:
-                    events_data.append({
-                        "id": f"lr-{leave.id}-{curr_date}",
-                        "userName": leave.employee.get_full_name(),
-                        "date": curr_date.isoformat(),
-                        "type": "pending",
-                        "title": f"{leave.get_leave_type_display()} (offen)",
-                        "note": leave.note if leave.note else ""
-                    })
-                curr_date += timedelta(days=1)
-
-        return Response(events_data, status=status.HTTP_200_OK)
-
 
 class TeamCalendarEventsView(APIView):
     permission_classes = [IsAuthenticated, IsSupervisor]
@@ -271,24 +233,22 @@ class TeamCalendarEventsView(APIView):
     def get(self, request):
         subordinates = Employee.objects.filter(is_superuser=False, is_active=True)
 
-
         calendar_days = WorkDay.objects.filter(
-            employee__in=subordinates, day_type__isnull=False
+            employee__in=subordinates, 
+            day_type__isnull=False
+        ).exclude(
+            day_type__in=['weekend', 'holiday'] # Ersetze die Strings mit deinen exakten Choice-Keys
         ).select_related('employee').prefetch_related('sessions')
 
         events_data = []
-        
-        # Bestimmung des Zeitraums für die Feiertags-Generierung basierend auf den Daten
-        all_dates = [day.date for day in calendar_days]
 
-
+        # 1. Echte Arbeitszeiten & manuelle Einträge (z.B. 'work', 'sick')
         for day in calendar_days:
             day_sessions = sorted(day.sessions.all(), key=lambda s: s.check_in)
             
             session_strings = []
             for session in day_sessions:
                 in_time = session.check_in.astimezone().strftime("%H:%M")
-                
                 if session.check_out:
                     out_time = session.check_out.astimezone().strftime("%H:%M")
                     session_strings.append(f"{in_time} - {out_time}")
@@ -296,17 +256,13 @@ class TeamCalendarEventsView(APIView):
                     session_strings.append(f"{in_time} - (offen)")
 
             if session_strings:
-                
-                # Falls es noch eine manuelle Notiz gibt, hängen wir sie als eigenen Punkt an
                 if day.note:
                     session_strings.append(f"Notiz: {day.note}")
-                
-
                 session_strings.append(f"TOTAL:Gesamtzeit: {day.total_hours} Std.")
-
                 time_note = "|".join(session_strings)
             else:
-                time_note = day.note if day.note else ""
+                # Wichtig: Wenn keine Notiz existiert, None setzen (wird im JSON zu null)
+                time_note = day.note if day.note else None
 
             events_data.append({
                 "id": f"wd-{day.id}",
@@ -314,74 +270,28 @@ class TeamCalendarEventsView(APIView):
                 "date": day.date.isoformat(),
                 "type": day.day_type,
                 "title": day.get_day_type_display(),
-                "note": time_note
+                "note": time_note  # Reicht null weiter, Tooltip blendet sich aus
             })
 
-        # 2. Ausstehende Urlaubsanträge (Inklusive Wochenende & Feiertage)
+        # 2. Ausstehende Urlaubsanträge
         pending_leaves = LeaveRequest.objects.filter(
-            employee__is_superuser=False, status='pending', leave_type='vacation'
+            employee__is_superuser=False, status='pending'
         ).select_related('employee')
 
         for leave in pending_leaves:
-            all_dates.extend([leave.leave_start, leave.leave_end])
             curr_date = leave.leave_start
             while curr_date <= leave.leave_end:
-                # Das 'if curr_date.weekday() < 5:' wurde entfernt, damit Sa/So mitkommen!
                 events_data.append({
                     "id": f"lr-{leave.id}-{curr_date.isoformat()}",
                     "userName": leave.employee.get_full_name(),
                     "date": curr_date.isoformat(),
                     "type": "pending",
-                    "title": f"{leave.get_leave_type_display()} (offen)",
-                    "note": leave.note if leave.note else ""
+                    "title": "Abwesenheitsantrag",
+                    "note": leave.note if leave.note else None
                 })
                 curr_date += timedelta(days=1)
 
-        # 3. Feiertage und Wochenenden global hinzufügen
-        # Wir ermitteln das Jahr aus den vorhandenen Daten (Standard: aktuelles Jahr)
-        years = {d.year for d in all_dates} if all_dates else {date.today().year}
-        
-        # Feiertags-Konfiguration (Hier 'DE' für Deutschland, 'AT' für Österreich, etc.)
-        # 'prov' kann für Bundesländer genutzt werden, z.B. prov='BY' für Bayern
-        geo_holidays = holidays.Germany(years=list(years)) 
-
-        # Optionale Optimierung: Um doppelte Wochenenden zu vermeiden, 
-        # generieren wir sie nur für den sichtbaren Zeitraum (z.B. aktuelle 3 Monate)
-        start_period = min(all_dates) if all_dates else date.today() - timedelta(days=30)
-        end_period = max(all_dates) if all_dates else date.today() + timedelta(days=90)
-
-        curr_check = start_period
-        while curr_check <= end_period:
-            iso_date = curr_check.isoformat()
-            
-            # Ist es ein Feiertag?
-            if curr_check in geo_holidays:
-                events_data.append({
-                    "id": f"holiday-{iso_date}",
-                    "userName": "Alle",  # Betrifft das gesamte Team
-                    "date": iso_date,
-                    "type": "holiday",
-                    "title": geo_holidays.get(curr_check),  # Name des Feiertags (z.B. "Karfreitag")
-                    "note": "Gesetzlicher Feiertag"
-                })
-            
-            # Ist es ein Wochenende? (Und kein Feiertag, um Doppelungen an diesem Tag zu vermeiden)
-            elif curr_check.weekday() >= 5: 
-                day_name = "Samstag" if curr_check.weekday() == 5 else "Sonntag"
-                events_data.append({
-                    "id": f"weekend-{iso_date}",
-                    "userName": "Alle",
-                    "date": iso_date,
-                    "type": "weekend",
-                    "title": day_name,
-                    "note": ""
-                })
-
-            curr_check += timedelta(days=1)
-
         return Response(events_data, status=status.HTTP_200_OK)
-
-
 
 class CreateEditEmployeeView(APIView):
     permission_classes = [IsSupervisor]

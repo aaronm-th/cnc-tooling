@@ -1,4 +1,4 @@
-import { Clock, Palmtree, Stethoscope, Landmark, Sun } from 'lucide-vue-next'
+import { Clock, Palmtree, Stethoscope, Landmark, Sun, Hourglass } from 'lucide-vue-next'
 
 export function useEventStyles() {
   const getEventClass = (event) => {
@@ -65,6 +65,7 @@ export function useEventStyles() {
       case 'overtime': return Clock
       case 'holiday': return Landmark
       case 'weekend': return Sun
+      case 'pending': return Hourglass
       default: return Clock 
     }
   }
@@ -76,6 +77,7 @@ export function useEventStyles() {
       case 'vacation': return 'text-emerald-500'
       case 'sick': return 'text-red-500'
       case 'overtime': return 'text-orange-500'
+      case 'pending': return 'text-amber-500'
       default: return 'text-slate-500'
     }
   }

@@ -165,7 +165,7 @@ watch(() => authStore.isAuthenticated, (val) => {
           <div class="flex items-center gap-2.5">
             <Bell class="w-4 h-4 text-yellow-500" />
             <div class="flex flex-col">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Anfragen</span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Anträge</span>
               <span class="text-xs font-bold text-slate-700 mt-0.5">
                 {{ requests_count ?? 67 }} ausstehend
               </span>

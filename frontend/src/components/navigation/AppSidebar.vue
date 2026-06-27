@@ -48,8 +48,8 @@ const adminNav = [
         />
       </div>
       <div class="flex flex-col">
-        <span class="font-bold text-lg tracking-tight leading-none text-white">Jürgen Vogler</span>
-        <span class="text-[11px] text-blue-400 font-medium mt-1 tracking-wide uppercase">Stempelsystem</span>
+        <span class="font-bold text-lg tracking-tight leading-none text-white">STEMPELSYSTEM</span>
+        <span class="text-[11px] text-blue-400 font-medium mt-1 tracking-wide uppercase">V. 0.1</span>
       </div>
     </div>
     

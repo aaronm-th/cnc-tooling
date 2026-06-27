@@ -65,7 +65,7 @@ const getStatusClass = (s) => {
               <span class="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded-lg shrink-0">
                 <Calendar class="w-3.5 h-3.5 text-slate-400" /> {{ req.leave_start }} - {{ req.leave_end }}
               </span>
-              <span class="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded-lg shrink-0">
+              <span class="flex items-center bg-slate-100 gap-1.5 px-2 py-1 rounded-lg shrink-0" :class="getIconColorClass(req.leave_type)">
 
                 <component :is="getEventIcon(req.leave_type)" class="w-3.5 h-3.5" />
                 
@@ -73,7 +73,7 @@ const getStatusClass = (s) => {
                 {{ req.leave_type_display }}
               </span>
               <span class="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded-lg shrink-0">
-                <Clock class="w-3.5 h-3.5 text-slate-400" /> {{ req.duration || req.days_count }} Tage
+                <Clock class="w-3.5 h-3.5 text-slate-400" /> {{ req.duration ?? 0 }} {{ (req.duration ?? 0) === 1 ? 'Tag' : 'Tage' }}
               </span>
             </div>
 
