@@ -9,11 +9,13 @@ import {
   UserX,
   Search,
   UserPlus,
-  UploadCloud
+  UploadCloud,
+  CalendarPlus
 } from 'lucide-vue-next'
 import AddEditEmployees from './modals/AddEditEmployees.vue'
 import UploadDocumentModal from './modals/UploadDocumentModal.vue'
 import ConfirmDeactivateModal from './modals/ConfirmDeactivateModal.vue'
+import ManualEntryModal from './modals/ManualEntryModal.vue'
 
 import { useDateFormatter } from '@/composables/useDateFormatter'
 
@@ -92,6 +94,22 @@ const openEditModal = (member) => {
   isModalOpen.value = true
 }
 
+const isManualEntryModalOpen = ref(false)
+const selectedMemberForEntry = ref(null)
+
+const openManualEntryModal = (member) => {
+  selectedMemberForEntry.value = member
+  isManualEntryModalOpen.value = true
+}
+
+const handleManualEntrySuccess = async () => {
+  try {
+    // Daten nach erfolgreichem Eintrag neu laden (z.B. wegen veränderten Urlaubsansprüchen)
+    await adminStore.fetchTeamMembers()
+  } catch (error) {
+    console.error("Fehler beim Aktualisieren nach manuellem Eintrag:", error)
+  }
+}
 
 // 2. Erstelle zwei neue reaktive Variablen
 const isConfirmModalOpen = ref(false)
@@ -244,6 +262,14 @@ const handleDeactivateConfirm = async () => {
                     >
                       <FileEdit class="w-4 h-4" />
                     </button>
+
+                    <button 
+                      @click="openManualEntryModal(member)" 
+                      title="Manueller Eintrag (Systemausfall)" 
+                      class="p-2 hover:bg-amber-50 text-slate-400 hover:text-amber-600 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <CalendarPlus class="w-4 h-4" />
+                    </button>
                     
                     <button 
                       @click="openConfirmModal(member)"
@@ -279,6 +305,13 @@ const handleDeactivateConfirm = async () => {
       :member="selectedMemberForUpload"
       @close="isUploadModalOpen = false"
       @success="handleUploadSuccess"
+    />
+
+    <ManualEntryModal
+      :is-open="isManualEntryModalOpen"
+      :member="selectedMemberForEntry"
+      @close="isManualEntryModalOpen = false"
+      @success="handleManualEntrySuccess"
     />
 
     <ConfirmDeactivateModal
