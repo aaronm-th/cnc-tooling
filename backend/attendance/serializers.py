@@ -26,12 +26,18 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         end = data.get('leave_end')
         leave_type = data.get('leave_type')
 
-        # --- NEU: Wochenend-Prüfung ---
+        joined_at = getattr(employee, 'joined_at', None) 
+        
+        if joined_at and start and start < joined_at:
+            raise serializers.ValidationError(
+                {"leave_start": f"Der Urlaubsbeginn darf nicht vor dem Eintrittsdatum ({joined_at.strftime('%d.%m.%Y')}) liegen."}
+            )
+
         if start and end:
             has_workday = False
             current_date = start
             while current_date <= end:
-                if current_date.weekday() < 5:  # 0-4 ist Montag bis Freitag
+                if current_date.weekday() < 5:
                     has_workday = True
                     break
                 current_date += timedelta(days=1)
@@ -63,8 +69,6 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         
         return data
     
-
-
 
 class WorkSessionSerializer(serializers.ModelSerializer):
     duration = serializers.ReadOnlyField(source='duration_str') 

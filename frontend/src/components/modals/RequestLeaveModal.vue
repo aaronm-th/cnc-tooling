@@ -14,6 +14,8 @@ const props = defineProps({
 const emit = defineEmits(['close', 'submit'])
 const { getEventIcon, getActiveStyles } = useEventStyles()
 
+const backendErrors = ref(null)
+
 const leaveForm = ref({
   startDate: new Date().toISOString().split('T')[0],
   endDate: new Date().toISOString().split('T')[0],
@@ -21,10 +23,6 @@ const leaveForm = ref({
   note: ''
 })
 
-const isWeekend = (dateString) => {
-  const day = new Date(dateString).getDay()
-  return day === 0 || day === 6
-}
 
 // Computed: Prüft ob der Zeitraum nur aus Wochenenden besteht
 const isOnlyWeekend = computed(() => {
@@ -71,6 +69,20 @@ watch(() => leaveForm.value.startDate, (newStartDate, oldStartDate) => {
     leaveForm.value.endDate = newStartDate
   }
 })
+
+watch(leaveForm, () => {
+  backendErrors.value = null
+}, { deep: true })
+
+
+const setBackendErrors = (errors) => {
+  backendErrors.value = errors
+}
+
+defineExpose({
+  setBackendErrors
+})
+
 
 const handleSubmit = () => {
   // Keeping your functional mapping for the backend
@@ -158,6 +170,22 @@ const handleSubmit = () => {
                   />
                 </div>
               </div>
+
+              <Transition
+                enter-active-class="transition duration-200 ease-out"
+                enter-from-class="opacity-0 -translate-y-2"
+                enter-to-class="opacity-100 translate-y-0"
+              >
+                <div v-if="backendErrors?.leave_start || backendErrors?.leave_type" class="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start gap-3">
+                  <AlertCircle class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p class="text-xs text-rose-900 font-bold leading-tight">Eintrag ungültig</p>
+                    <p class="text-[10px] text-rose-700 mt-1 leading-relaxed">
+                      {{ backendErrors.leave_start?.[0] || backendErrors.leave_type?.[0] }}
+                    </p>
+                  </div>
+                </div>
+              </Transition>
 
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Grund / Notiz</label>

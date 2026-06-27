@@ -15,6 +15,7 @@ const currentFilter = ref('all')
 const selectedMonth = ref('all')
 const errorMessage = ref('')
 const activeTab = ref('leave') // Steuert die Tabs wie im AI-Studio Design
+const leaveModalRef = ref(null)
 
 const formatTime = (dateStr) => {
   if (!dateStr) return '--:--'
@@ -145,7 +146,10 @@ const handleFormSubmit = async (formData) => {
     await scheduleStore.fetchLeaveRequests()
     closeModals()
   } catch (error) {
-    console.error("Fehler beim Speichern:", error)
+    if (error.response && error.response.status === 400) {
+      // Reiche die DRF-Fehlermeldungen direkt an das Modal weiter
+      leaveModalRef.value?.setBackendErrors(error.response.data)
+    }
   }
 }
 
@@ -462,16 +466,16 @@ const formatDate = (dateStr) => {
     </div>
   </div>
 
-  <!-- Modal-Komponente bleibt voll funktionsfähig eingebunden -->
-  <RequestLeaveModal 
-    :is-open="isEditModalOpen || isRequestModalOpen"
-    :leaveTypes="[
-      { id: 'vacation', name: 'Urlaub' }, 
-      { id: 'sick', name: 'Krankheit' },
-      { id: 'overtime', name: 'GLZ-Abbau' }
-    ]"
-    :initial-data="editingRequest"
-    @close="closeModals"
-    @submit="handleFormSubmit"
-  />
+<RequestLeaveModal 
+  ref="leaveModalRef"
+  :is-open="isEditModalOpen || isRequestModalOpen"
+  :leaveTypes="[
+    { id: 'vacation', name: 'Urlaub' }, 
+    { id: 'sick', name: 'Krankheit' },
+    { id: 'overtime', name: 'GLZ-Abbau' }
+  ]"
+  :initial-data="editingRequest"
+  @close="closeModals"
+  @submit="handleFormSubmit"
+/>
 </template>
