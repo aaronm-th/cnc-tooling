@@ -7,14 +7,16 @@ import LeaveRequestList from '@/components/supervisor/LeaveRequestList.vue'
 import ChangeRequestList from '@/components/supervisor/ChangeRequestList.vue'
 
 const adminStore = useAdminStore()
-const { pendingRequestsCount, isLoading } = storeToRefs(adminStore)
+const { isLoading } = storeToRefs(adminStore)
 
 const activeTab = ref(localStorage.getItem('admin_active_tab') || 'leave')
 const searchQuery = ref('')
 const statusFilter = ref('all')
 
 const { 
-  requests_count 
+  requests_count,
+  change_requests_count,
+  leave_requests_count 
 } = storeToRefs(adminStore)
 
 
@@ -45,10 +47,10 @@ watch(activeTab, (newTab) => {
         </div>
         
         <!-- Offen-Badge im Design des Headers -->
-        <div class="flex items-center bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 self-start md:self-center shadow-sm gap-2">
+        <div v-if="requests_count > 0" class="flex items-center bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 self-start md:self-center shadow-sm gap-2">
           <AlertCircle class="w-4 h-4 text-amber-500" />
           <span class="text-xs font-bold text-amber-700">
-            {{ requests_count ?? 67 }} Offene Anträge
+            Offen: {{ requests_count ?? 0 }}
           </span>
         </div>
       </section>
@@ -82,31 +84,46 @@ watch(activeTab, (newTab) => {
         </div>
       </div>
 
-      <!-- Tab-Leiste (Identisch zu View 1) -->
-      <div class="flex border-b border-slate-200">
-        <button 
-          :class="[
-            'pb-3.5 px-6 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap',
-            activeTab === 'leave'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          ]"
-          @click="activeTab = 'leave'"
-        >
-          Abwesenheiten
-        </button>
-        <button 
-          :class="[
-            'pb-3.5 px-6 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap',
-            activeTab === 'change'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          ]"
-          @click="activeTab = 'change'"
-        >
-          Zeitkorrekturen
-        </button>
-      </div>
+<!-- Tab-Leiste (Orientiert an deinem Notification-Design) -->
+    <div class="flex border-b border-slate-200">
+      
+      <!-- Tab: Abwesenheiten -->
+      <button 
+        :class="[
+          'pb-3.5 px-6 pr-8 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap relative',
+          activeTab === 'leave'
+            ? 'border-blue-600 text-blue-600'
+            : 'border-transparent text-slate-500 hover:text-slate-800'
+        ]"
+        @click="activeTab = 'leave'"
+      >
+        Abwesenheiten
+        <!-- Roter Punkt exakt wie beim Notification-Badge -->
+        <span 
+          v-if="leave_requests_count > 0" 
+          class="absolute top-1 right-4 w-2 h-2 bg-red-500 rounded-full border-2 border-white"
+        />
+      </button>
+      
+      <!-- Tab: Zeitkorrekturen -->
+      <button 
+        :class="[
+          'pb-3.5 px-6 pr-8 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap relative',
+          activeTab === 'change'
+            ? 'border-blue-600 text-blue-600'
+            : 'border-transparent text-slate-500 hover:text-slate-800'
+        ]"
+        @click="activeTab = 'change'"
+      >
+        Zeitkorrekturen
+        <!-- Roter Punkt exakt wie beim Notification-Badge -->
+        <span 
+          v-if="change_requests_count > 0" 
+          class="absolute top-1 right-4 w-2 h-2 bg-red-500 rounded-full border-2 border-white"
+        />
+      </button>
+
+    </div>
 
       <!-- Loading State -->
       <div v-if="isLoading" class="flex flex-col items-center justify-center p-12 space-y-4">

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, watch, onUnmounted } from 'vue'
-import { Bell, Palmtree, Zap, User, Settings, LogOut, ShieldCheck } from 'lucide-vue-next'
+import { Bell, Palmtree, Zap, User, LogOut} from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/authStore' 
 import { useAdminStore } from '@/stores/adminStore'
 import { storeToRefs } from 'pinia'
@@ -14,8 +14,6 @@ const props = defineProps({
     default: false
   }
 })
-
-
 
 
 const authStore = useAuthStore()
@@ -129,7 +127,7 @@ watch(() => authStore.isAuthenticated, (val) => {
           <div class="flex items-center gap-2.5">
             <Palmtree class="w-4 h-4 text-emerald-500" />
             <div class="flex flex-col">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Vacation</span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Urlaub</span>
               <span class="text-xs font-bold text-slate-700 mt-0.5">
                 {{ userStats?.vacation?.used_days }} / {{ userStats?.vacation?.total_available_days }} used
               </span>
@@ -142,7 +140,7 @@ watch(() => authStore.isAuthenticated, (val) => {
           <div class="flex items-center gap-2.5">
             <Zap class="w-4 h-4 text-orange-500" />
             <div class="flex flex-col">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Overtime</span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Stundenkonto</span>
               <span class="text-xs font-bold text-slate-700 mt-0.5">{{ userStats?.overtime?.balance }}h</span>
             </div>
           </div>
@@ -167,7 +165,7 @@ watch(() => authStore.isAuthenticated, (val) => {
             <div class="flex flex-col">
               <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Anträge</span>
               <span class="text-xs font-bold text-slate-700 mt-0.5">
-                {{ requests_count ?? 67 }} ausstehend
+                {{ requests_count ?? 0 }} ausstehend
               </span>
             </div>
           </div>

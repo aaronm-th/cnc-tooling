@@ -23,7 +23,7 @@ const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
 const employeeNav = [
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
   { id: 'team', name: 'Kontakte', icon: BookUser },
-  { id: 'schedule', name: 'Kalender', icon: Calendar },
+  { id: 'calendar', name: 'Kalender', icon: Calendar },
   { id: 'requests', name: 'Meine Anträge', icon: Send },
   { id: 'documents', name: 'Dokumente', icon: FileText },
 ]
@@ -80,7 +80,7 @@ const adminNav = [
           :class="[
             'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200',
             currentTab === item.id 
-              ? 'bg-slate-800 text-white' 
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' /* Jetzt auch hier blau! */
               : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
           ]"
         >

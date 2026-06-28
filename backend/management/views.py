@@ -47,9 +47,13 @@ class SupervisorDashboardStatsView(APIView):
             employee__in=subordinates, date=today, day_type__in=['vacation', 'sick']
         ).count()
 
-        pending_requests = LeaveRequest.objects.filter(
+        leave_requests = LeaveRequest.objects.filter(
             employee__is_superuser=False, status='pending'
-        ).select_related('employee')
+            ).select_related('employee').count()
+
+        change_requests = WSChangeRequest.objects.filter(
+            requested_by__is_superuser=False, status='pending'
+            ).select_related('employee').count()
 
         employees = Employee.objects.filter(is_superuser=False, is_active=True)
         active_employees = sum(1 for emp in employees if emp.status == True)
@@ -62,7 +66,9 @@ class SupervisorDashboardStatsView(APIView):
             "employees": serializer.data,
             "employees_count": subordinates.count(),
             "on_leave_today": on_leave_today,
-            "requests_count": pending_requests.count(),
+            "requests_count": leave_requests+change_requests,
+            "change_requests_count": change_requests,
+            "leave_requests_count": leave_requests,
             "active_employees": active_employees
         })
 

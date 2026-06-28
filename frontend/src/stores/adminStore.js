@@ -11,7 +11,9 @@ export const useAdminStore = defineStore('admin', {
     employees_count: 0,     
     active_employees: 0,    
     on_leave_today: 0,      
-    requests_count: 0,      
+    requests_count: 0,
+    leave_requests_count: 0,
+    change_requests_count: 0,      
     leaveRequests: [],     
     changeRequests: [],    
     isLoading: false,      
@@ -63,6 +65,8 @@ export const useAdminStore = defineStore('admin', {
       this.active_employees = 0
       this.on_leave_today = 0
       this.requests_count = 0
+      this.change_requests_count = 0
+      this.leave_requests_count = 0
       this.leaveRequests = []
       this.changeRequests = []
       this.isLoading = false

@@ -29,6 +29,7 @@ const authStore = useAuthStore()
 const adminStore = useAdminStore()
 const appStore = useAppStore()
 const router = useRouter()
+const isReady = ref(false)
 
 const { user, isSupervisor } = storeToRefs(authStore)
 const { activeTab } = storeToRefs(appStore) // Wir nutzen activeTab aus dem Store
@@ -38,11 +39,6 @@ const isEditProfileModalOpen = ref(false)
 const isAdminView = ref(true)
 
 // --- Tab-Logik & Persistence ---
-// Beim Laden den gespeicherten Tab aus LocalStorage im Store setzen
-const savedTab = localStorage.getItem('activeTab')
-if (savedTab) {
-  appStore.setTab(savedTab)
-}
 
 watch(activeTab, (newTab) => {
   localStorage.setItem('activeTab', newTab)
@@ -75,13 +71,14 @@ watch(isSupervisor, (newValue) => {
 
 // Logik wenn der Admin-Modus umgeschaltet wird
 watch(isAdminView, (newValue) => {
+  if (!isReady.value) return // Blockieren, solange die App nicht fertig initialisiert ist
+
   if (isSupervisor.value) {
     localStorage.setItem('isAdminView', newValue.toString())
   }
   
-  // Wenn Admin-Modus AUS und wir auf einem Admin-Tab sind -> zurück zum Dashboard
   if (newValue === false) {
-    const adminTabs = ['admin-dashboard', 'admin-team', 'admin-requests']
+    const adminTabs = ['admin-dashboard', 'admin-team', 'admin-requests', 'admin-calendar']
     if (adminTabs.includes(activeTab.value)) {
       appStore.setTab('dashboard')
     }
@@ -93,14 +90,30 @@ onMounted(async () => {
   if (typeof authStore.fetchUser === 'function') {
     if (!user.value || Object.keys(user.value).length === 0) {
       await authStore.fetchUser()
-      applyStoredPreference()
     }
   }
+  
+  applyStoredPreference()
 
-  // JEDES Mal beim Laden/Reload prüfen: Wenn Vorgesetzter, dann sofort die Header-Stats holen
+  // Jetzt erst den gespeicherten Tab laden
+  const savedTab = localStorage.getItem('activeTab')
+  if (savedTab) {
+    const adminTabs = ['admin-dashboard', 'admin-team', 'admin-requests', 'admin-calendar']
+    if (!isSupervisor.value && adminTabs.includes(savedTab)) {
+      appStore.setTab('dashboard')
+    } else {
+      appStore.setTab(savedTab)
+    }
+  } else {
+    appStore.setTab('dashboard')
+  }
+
   if (isSupervisor.value) {
     adminStore.fetchDashboardData()
   }
+
+  // JETZT sind wir fertig und die Watcher dürfen aktiv werden!
+  isReady.value = true
 })
 
 // --- Aktionen ---
@@ -114,7 +127,7 @@ const logout = () => {
 
 const quickLinks = [
   { name: 'Adressbuch', icon: Users, color: 'text-blue-600', tab: 'team' },
-  { name: 'Kalender', icon: Calendar, color: 'text-emerald-600', tab: 'schedule' },
+  { name: 'Kalender', icon: Calendar, color: 'text-emerald-600', tab: 'calendar' },
   { name: 'Meine Dokumente', icon: FileText, color: 'text-purple-600', tab: 'documents' },
 ]
 
@@ -145,7 +158,7 @@ const quickLinks = [
           v-if="activeTab === 'team'" 
         />
         
-        <ScheduleView v-if="activeTab === 'schedule'" />
+        <ScheduleView v-if="activeTab === 'calendar'" />
 
         <RequestsView v-if="activeTab === 'requests'"/>
 
