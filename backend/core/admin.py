@@ -77,10 +77,7 @@ class VacationQuotaAdmin(admin.ModelAdmin):
     list_filter = ('employee', 'year')
     search_fields = ('employee__first_name', 'employee__last_name', 'year')
     ordering = ('employee__last_name', 'year')
-
-
-    
-
+ 
 
 @admin.register(md.Scratchpad)
 class EmployeeScratchpadAdmin(admin.ModelAdmin):

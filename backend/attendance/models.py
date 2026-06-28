@@ -104,6 +104,29 @@ class WSChangeRequest(models.Model):
             )
         ]
 
+    @property
+    def duration_difference_minutes(self):
+        """
+        Berechnet die Differenz der Arbeitszeit in Minuten.
+        Positiv = Mehrarbeitszeit, Negativ = Weniger Arbeitszeit.
+        """
+        if not self.requested_check_in or not self.requested_check_out:
+            return 0
+
+        # Dauer des Antrags in Minuten
+        requested_duration = (self.requested_check_out - self.requested_check_in).total_seconds() / 60
+
+        # Dauer der alten Session (falls vorhanden)
+        old_duration = 0
+        if self.old_check_in and self.old_check_out:
+            old_duration = (self.old_check_out - self.old_check_in).total_seconds() / 60
+        elif self.worksession:
+            # Fallback, falls old_check_in noch nicht im save() weggeschrieben wurde
+            old_duration = (self.worksession.check_out - self.worksession.check_in).total_seconds() / 60
+
+        # Differenz berechnen und runden
+        return round(requested_duration - old_duration)
+
     def clean(self):
         if self.requested_check_in and self.requested_check_out:
             if self.requested_check_out <= self.requested_check_in:

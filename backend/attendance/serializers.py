@@ -123,7 +123,6 @@ class WorkSessionDetailSerializer(serializers.ModelSerializer):
             'check_in', 
             'check_out', 
             'duration', 
-            'old_ver_exists', 
             'pending_request', 
             'date'
         ]

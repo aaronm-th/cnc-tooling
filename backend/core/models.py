@@ -5,6 +5,8 @@ from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
 from .utils import user_profile_photo_upload
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes.fields import GenericForeignKey
 
 class Employee(AbstractUser):
     # E-Mail wird optional, da Offline-Betrieb
@@ -156,19 +158,28 @@ class VacationQuota(models.Model):
 
 
 class Notification(models.Model):
-    recipient = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="notifications")
+    # Deine bestehenden Felder...
+    recipient = models.ForeignKey('core.Employee', on_delete=models.CASCADE, related_name='notifications')
     title = models.CharField(max_length=255)
     message = models.TextField()
     notification_type = models.CharField(max_length=20, default='info')
+    link_to = models.CharField(max_length=100, null=True, blank=True)
     read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-    link_to = models.CharField(max_length=255, blank=True, null=True)
+
+    # --- Die neuen Felder für Generic Foreign Keys ---
+    # 1. Zeigt auf die Tabelle (z.B. "WSChangeRequest" oder "Leave")
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, null=True, blank=True)
+    # 2. Speichert die ID des konkreten Antrags (z.B. 12)
+    object_id = models.PositiveIntegerField(null=True, blank=True)
+    # 3. Das "virtuelle" Feld, das beides verbindet
+    content_object = GenericForeignKey('content_type', 'object_id')
 
     class Meta:
-        ordering = ['-created_at']
-
-    def __str__(self):
-        return f"Benachrichtigung für {self.recipient.username} - {self.title}"
+        # Ein Index beschleunigt das Suchen nach verknüpften Objekten enorm
+        indexes = [
+            models.Index(fields=["content_type", "object_id"]),
+        ]
 
 
 class Scratchpad(models.Model):

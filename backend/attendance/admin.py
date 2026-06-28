@@ -1,7 +1,9 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from . import models as md
 from django.db import transaction
 from datetime import timedelta
+from django.utils.timezone import localtime
+from django.utils.html import format_html
 
 class WorkSessionAdmin(admin.ModelAdmin):
     list_display = ('id', 'employee', 'check_in', 'check_out')
@@ -15,18 +17,104 @@ class WorkSessionAdmin(admin.ModelAdmin):
 admin.site.register(md.WorkSession, WorkSessionAdmin)
 
 
-class ChangeRequestAdmin(admin.ModelAdmin):
-    list_display = ('requested_by', 'old_check_in', 'old_check_out', 'requested_check_in', 'requested_check_out', 'duration_minutes', 'status', 'reviewed_by')
-    list_filter = ('requested_by', 'reviewed_by', 'status')
-    sorting = ('-created_at',)
 
-    def duration_minutes(self, obj):
-        
-        dur_min = f"{obj.duration_difference / 60:.0f}"
-        
-        return f"+{dur_min}" if obj.duration_difference >= 0 else dur_min
+@admin.register(md.WSChangeRequest)
+class WSChangeRequestAdmin(admin.ModelAdmin):
+    # Spalten in der Übersicht
+    list_display = (
+        'requested_by', 
+        'work_day', 
+        'get_old_time', 
+        'get_requested_time', 
+        'get_duration_diff_display', 
+        'status', 
+        'request_date'
+    )
     
-admin.site.register(md.WSChangeRequest, ChangeRequestAdmin)
+    # Filter auf der rechten Seite
+    list_filter = ('status', 'request_date', 'work_day__date')
+    
+    # Suchfelder
+    search_fields = (
+        'requested_by__first_name', 
+        'requested_by__last_name', 
+        'employee_note', 
+        'admin_note'
+    )
+    
+    # Detailseite Gruppierung
+    fieldsets = (
+        ('Metadaten', {
+            'fields': ('status', 'requested_by', 'work_day', 'worksession')
+        }),
+        ('Alte Zeiten (System)', {
+            'fields': ('old_check_in', 'old_check_out'),
+            'description': 'Werden bei existierenden Sessions automatisch befüllt.'
+        }),
+        ('Beantragte Änderungen', {
+            'fields': ('requested_check_in', 'requested_check_out', 'employee_note')
+        }),
+        ('Prüfung & Freigabe', {
+            'fields': ('reviewed_by', 'reviewed_date', 'admin_note')
+        }),
+    )
+    
+    readonly_fields = ('request_date', 'old_check_in', 'old_check_out')
+    
+    # --- Custom Listen-Spalten (Formatierung) ---
+
+    @admin.display(description='Alte Zeit')
+    def get_old_time(self, obj):
+        if obj.old_check_in and obj.old_check_out:
+            old_in = localtime(obj.old_check_in).strftime('%H:%M')
+            old_out = localtime(obj.old_check_out).strftime('%H:%M')
+            return f"{old_in} - {old_out}"
+        return "Neuanlage"
+
+    @admin.display(description='Beantragt')
+    def get_requested_time(self, obj):
+        req_in = localtime(obj.requested_check_in).strftime('%H:%M')
+        req_out = localtime(obj.requested_check_out).strftime('%H:%M')
+        return f"{req_in} - {req_out}"
+
+    @admin.display(description='Abweichung')
+    def get_duration_diff_display(self, obj):
+        diff = obj.duration_difference_minutes
+
+        format_html('<span style="color: orange; font-weight: bold;">+{} Min.</span>', diff)
+
+        if diff > 0:
+            return format_html('<span style="color: orange; font-weight: bold;">+{} Min.</span>', diff)
+        elif diff < 0:
+            return format_html('<span style="color: orange; font-weight: bold;">{} Min.</span>', diff)
+        return "0 Min."
+
+    # --- Admin Actions (Massenbearbeitung) ---
+    actions = ['approve_requests', 'reject_requests']
+
+    @admin.action(description='Ausgewählte Anträge GENEHMIGEN')
+    def approve_requests(self, request, queryset):
+        success_count = 0
+        for obj in queryset.filter(status='pending'):
+            try:
+                obj.approve(reviewer=request.user)
+                success_count += 1
+            except Exception as e:
+                self.message_user(request, f"Fehler bei Antrag {obj.id}: {str(e)}", messages.ERROR)
+        
+        if success_count:
+            self.message_user(request, f"{success_count} Anträge wurden erfolgreich genehmigt.", messages.SUCCESS)
+
+    @admin.action(description='Ausgewählte Anträge ABLEHNEN')
+    def reject_requests(self, request, queryset):
+        # Hier wird eine Standardbegründung gesetzt, da Actions keinen Textinput im Standard haben
+        updated = 0
+        for obj in queryset.filter(status='pending'):
+            obj.reject(reviewer=request.user, reason="Durch Administrator in Massenbearbeitung abgelehnt.")
+            updated += 1
+        
+        if updated:
+            self.message_user(request, f"{updated} Anträge wurden abgelehnt.", messages.WARNING)
 
 
 
