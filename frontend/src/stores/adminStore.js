@@ -4,11 +4,10 @@ import axios from 'axios'
 export const useAdminStore = defineStore('admin', {
   state: () => ({
     user: null,
-    teamMembers: [],        // Für die Team-Liste im Kalender
+    teamMembers: [],        
     currentMember: null,   
-    calendarEvents: [],     // Für die echten Events vom Backend
+    calendarEvents: [],     
     
-    // Komplett im Backend-Format (Snake-Case) -> kein Mapping bei Object.assign nötig
     employees_count: 0,     
     active_employees: 0,    
     on_leave_today: 0,      
@@ -154,6 +153,27 @@ export const useAdminStore = defineStore('admin', {
         console.error(`Fehler beim Aktualisieren des Users ${userId}:`, error)
         alert("Änderungen konnten nicht gespeichert werden.")
         throw error
+      } finally {
+        this.isLoading = false
+      }
+    },
+
+    async createManualEntry(payload) {
+      this.isLoading = true
+      try {
+        const token = localStorage.getItem('access_token')
+        
+        // Da es sich um administrative Einträge handelt, nutzen wir den Präfix /api/mgmt/
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/mgmt/manual-entries/`, payload, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        
+        // Optionale Optimierung: Lädt direkt die Teamliste neu, damit aktualisierte Überstunden/Urlaubstage
+        // sofort live in der UI reflektiert werden.
+        await this.fetchTeamMembers()
+      } catch (error) {
+        console.error("Fehler beim Erstellen des manuellen Eintrags im Store:", error)
+        throw error // Re-Throw, damit das Modal die Fehlermeldung im UI anzeigen kann
       } finally {
         this.isLoading = false
       }

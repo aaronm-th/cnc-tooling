@@ -5,6 +5,9 @@ import { useEventStyles } from '@/composables/useEventStyles'
 import EventTooltip from '@/components/tooltips/EventTooltip.vue'
 import { useHolidays } from '@/composables/useHolidays'
 
+import { useDateFormatter } from '@/composables/useDateFormatter'
+const { formatDate } = useDateFormatter()
+
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -19,6 +22,19 @@ const { getHolidaysForYear } = useHolidays()
 
 const viewDate = ref(new Date())
 const searchQuery = ref('')
+
+// Prüft, ob der Mitarbeiter an diesem Tag bereits im Unternehmen war
+const isBeforeJoinedDate = (member, day) => {
+  if (!member || !member.joined_at || !day) return false
+  
+  const joinedDate = new Date(member.joined_at)
+  joinedDate.setHours(0, 0, 0, 0)
+  
+  const currentDay = new Date(day)
+  currentDay.setHours(0, 0, 0, 0)
+  
+  return currentDay < joinedDate
+}
 
 onMounted(async () => {
   // Lädt die Daten parallel beim Mounten der Komponente
@@ -169,6 +185,7 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
 
 <template>
   <div class="flex-1 flex flex-col min-h-0 bg-slate-50">
+    <!-- Header-Bereich -->
     <header class="p-8 pb-6 flex flex-col gap-6">
       <div class="max-w-7xl w-full mx-auto">
         <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
@@ -211,9 +228,11 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
       </div>
     </header>
 
+    <!-- Kalender-Grid-Bereich -->
     <div class="flex-1 overflow-hidden px-8 pb-8">
       <div class="max-w-7xl mx-auto h-full bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col">
         
+        <!-- Tabellen-Header (Tage 1-31) -->
         <div class="flex border-b border-slate-100 bg-slate-50/50 sticky top-0 z-20">
           <div class="w-52 shrink-0 p-3 font-bold text-[10px] text-slate-400 uppercase tracking-widest border-r border-slate-100 bg-slate-50 flex items-center">
             Mitarbeiter
@@ -238,12 +257,14 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
           </div>
         </div>
 
+        <!-- Tabellen-Body (Mitarbeiter Zeilen) -->
         <div class="flex-1 overflow-y-auto">
           <div 
             v-for="member in teamMembers" 
             :key="member.id"
-            class="flex border-b border-slate-100 hover:bg-slate-50/30 transition-colors group min-h-[64px]"
+            class="flex border-b border-slate-100 hover:bg-slate-50/30 transition-colors group min-h-[64px] relative"
           >
+            <!-- Linker Block: Mitarbeiter Info (Sticky) -->
             <div class="w-52 shrink-0 p-3 border-r border-slate-100 bg-white sticky left-0 z-10 flex items-center gap-3 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
               <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors shrink-0">
                 <div v-if="member.avatar" class="w-10 h-10 rounded-full overflow-hidden border border-slate-200 shrink-0">
@@ -259,28 +280,57 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
               </div>
             </div>
 
-            <div class="flex-1 flex min-w-0">
+            <!-- Rechter Block: Die Kalendertage im Grid -->
+            <div class="flex-1 flex min-w-0 relative">
+              
+              <!-- Intelligenter, proportionaler Info-Text: 
+                   Nutzt flex-grow basierend auf der Anzahl inaktiver Tage in diesem Monat -->
+              <div 
+                v-if="monthDays.filter(d => isBeforeJoinedDate(member, d)).length > 0"
+                class="absolute inset-y-0 left-0 z-10 select-none flex items-center justify-center px-4"
+                :style="{
+                  width: `${(monthDays.filter(d => isBeforeJoinedDate(member, d)).length / monthDays.length) * 100}%`
+                }"
+              >
+                <!-- Blendet den Text komplett aus, wenn der Bereich schmaler als 4 Tage ist -->
+                <span 
+                  v-if="monthDays.filter(d => isBeforeJoinedDate(member, d)).length >= 4"
+                  :title="`Eintrittsdatum: ${formatDate(member.joined_at)}`"
+                  class="font-bold text-xs text-slate-500/80 tracking-wide truncate max-w-full text-center block px-2 pointer-events-auto cursor-help"
+                >
+                  Eintrittsdatum: {{ formatDate(member.joined_at) }}
+                </span>
+              </div>
+
+              <!-- Die einzelnen Tages-Zellen -->
               <div 
                 v-for="day in monthDays" 
                 :key="day.getTime()"
-                class="flex-1 min-w-0 min-h-[64px] border-r border-slate-100 last:border-r-0 flex items-center justify-center relative p-1"
-                :class="isWeekend(day) ? 'bg-slate-50/60' : ''"
+                class="flex-1 min-w-0 min-h-[64px] border-r border-slate-100 last:border-r-0 flex items-center justify-center relative p-1 transition-colors"
+                :class="[
+                  isBeforeJoinedDate(member, day) 
+                    ? 'bg-slate-200/50 cursor-not-allowed select-none' 
+                    : (isWeekend(day) ? 'bg-slate-50/60' : '')
+                ]"
               >
-
-                <template v-if="getEvents(member, day).length > 0">
-                  <div 
-                    v-for="event in getEvents(member, day)"
-                    :key="event.id"
-                    class="w-full h-7 rounded-lg border flex items-center justify-center cursor-help transition-all hover:scale-105 hover:z-30 hover:shadow-md"
-                    :class="getEventClass(event.type)"
-                    @mouseenter="handleMouseEnter(event, $event)"
-                    @mouseleave="handleMouseLeave"
-                  />
+                <!-- Events nur anzeigen, wenn der Mitarbeiter an diesem Tag schon im Unternehmen war -->
+                <template v-if="!isBeforeJoinedDate(member, day)">
+                  <template v-if="getEvents(member, day).length > 0">
+                    <div 
+                      v-for="event in getEvents(member, day)"
+                      :key="event.id"
+                      class="w-full h-7 rounded-lg border flex items-center justify-center cursor-help transition-all hover:scale-105 hover:z-30 hover:shadow-md"
+                      :class="getEventClass(event.type)"
+                      @mouseenter="handleMouseEnter(event, $event)"
+                      @mouseleave="handleMouseLeave"
+                    />
+                  </template>
                 </template>
               </div>
             </div>
           </div>
 
+          <!-- Empty State (Keine Suchtreffer) -->
           <div 
             v-if="teamMembers?.length === 0" 
             class="flex flex-col items-center justify-center p-20 text-center"
@@ -297,6 +347,7 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
       </div>
     </div>
     
+    <!-- Legend / Footer -->
     <footer class="px-8 pb-8">
       <div class="max-w-7xl mx-auto flex items-center justify-center gap-8 py-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
         <div class="flex items-center gap-2">
@@ -318,6 +369,7 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
       </div>
     </footer>
 
+    <!-- Tooltip-Komponente -->
     <EventTooltip 
       :event="hoveredEvent"
       :styles="tooltipStyles"

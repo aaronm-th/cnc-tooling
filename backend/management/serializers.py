@@ -1,8 +1,14 @@
 from rest_framework import serializers
+
 from django.utils import timezone
-from attendance.models import LeaveRequest, WSChangeRequest
+import datetime
+
+from attendance.models import LeaveRequest, WSChangeRequest, WorkSession, WorkDay
 from core.models import Employee, VacationQuota
 from core.services.vacation_service import VacationService
+
+from django.utils.translation import gettext_lazy as _
+from django.shortcuts import get_object_or_404
 
 
 # --- NEU: URALUBS-QUOTA PREVIEW / ANZEIGE ---
@@ -186,3 +192,96 @@ class CreateEditEmployeeSerializer(serializers.Serializer):
         if isinstance(value, dict):
             return {str(k): v for k, v in value.items()}
         return value
+    
+
+class ManualEntrySerializer(serializers.Serializer):
+    ENTRY_TYPES = (
+        ('vacation', 'Urlaub'),
+        ('sick', 'Krankheit'),
+        ('work', 'Zeiterfassung'),
+    )
+
+    member_id = serializers.IntegerField(write_only=True)
+    type = serializers.ChoiceField(choices=ENTRY_TYPES)
+    date = serializers.DateField()
+    note = serializers.CharField(style={'base_template': 'textarea.html'})
+    
+    hours_or_days = serializers.FloatField(required=False, min_value=0.0)
+    check_in = serializers.TimeField(required=False, allow_null=True)
+    check_out = serializers.TimeField(required=False, allow_null=True)
+
+    def validate(self, attrs):
+        entry_type = attrs.get('type')
+        date_obj = attrs.get('date')
+        
+        employee = get_object_or_404(Employee, id=attrs.get('member_id'))
+        self.context['employee_instance'] = employee
+
+        # NEU: Validierung gegen das Eintrittsdatum (joined_at)
+        if employee.joined_at and date_obj < employee.joined_at:
+            # Formatiere das Datum für eine lesbare Fehlermeldung
+            joined_formatted = employee.joined_at.strftime('%d.%m.%Y')
+            raise serializers.ValidationError({
+                "date": _(f"Einträge vor dem Eintrittsdatum ({joined_formatted}) sind nicht erlaubt.")
+            })
+
+        # Bei Urlaub/Krankheit löschen wir eventuelle Zeiteingaben aus dem Frontend
+        if entry_type in ['vacation', 'sick']:
+            attrs['check_in'] = None
+            attrs['check_out'] = None
+
+        # Bei der Zeiterfassung validieren wir die korrekte Uhrzeit
+        elif entry_type == 'work':
+            check_in = attrs.get('check_in')
+            check_out = attrs.get('check_out')
+
+            if not check_in or not check_out:
+                raise serializers.ValidationError({"check_in": _("Kommen- und Gehen-Zeiten sind erforderlich.")})
+            if check_in >= check_out:
+                raise serializers.ValidationError({"check_out": _("Die Gehen-Zeit muss nach der Kommen-Zeit liegen.")})
+            
+            attrs['hours_or_days'] = None
+
+        return attrs
+
+    def create(self, validated_data):
+        employee = self.context['employee_instance']
+        entry_type = validated_data['type']
+        date_obj = validated_data['date']
+        note = validated_data['note']
+        supervisor = self.context['request'].user
+
+        # 1. WorkDay holen oder erstellen
+        work_day, created = WorkDay.objects.get_or_create(
+            employee=employee, 
+            date=date_obj,
+            defaults={'day_type': entry_type, 'note': f"[{supervisor.get_full_name()}]: {note}"}
+        )
+        
+        # Falls der Tag bereits existierte, erzwingen wir das harte Überschreiben
+        if not created:
+            work_day.day_type = entry_type
+            work_day.note = f"[{supervisor.get_full_name()}]: {note}"
+            work_day.save()
+
+        # 2. RADIKAL AUFRÄUMEN: Unabhängig vom Typ löschen wir alle alten Sessions dieses Tages.
+        # - Verhindert das Aufaddieren bei erneuter Zeiterfassung ('work' -> 'work')
+        # - Bereinigt alte Sessions, falls ein Arbeitstag zu Urlaub/Krank umgebucht wird ('work' -> 'vacation')
+        work_day.sessions.all().delete()
+
+        # 3. Nur wenn der neue Typ 'work' ist, erstellen wir die EINE, neue korrekte Session
+        if entry_type == 'work':
+            naive_check_in = datetime.datetime.combine(date_obj, validated_data['check_in'])
+            naive_check_out = datetime.datetime.combine(date_obj, validated_data['check_out'])
+            
+            current_tz = timezone.get_current_timezone()
+            aware_check_in = timezone.make_aware(naive_check_in, current_tz)
+            aware_check_out = timezone.make_aware(naive_check_out, current_tz)
+
+            WorkSession.objects.create(
+                work_day=work_day,
+                check_in=aware_check_in,
+                check_out=aware_check_out
+            )
+            
+        return validated_data

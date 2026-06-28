@@ -1,7 +1,8 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
-import { useAdminStore } from '@/stores/adminStore' // Passe den Store-Pfad ggf. an deine Logik an
-import { X, CalendarPlus, AlertCircle, Clock } from 'lucide-vue-next'
+import { useAdminStore } from '@/stores/adminStore' 
+import { useDateFormatter } from '@/composables/useDateFormatter'
+import { X, CalendarPlus, AlertCircle, Clock, AlertTriangle, Loader2 } from 'lucide-vue-next'
 
 const props = defineProps({
   isOpen: {
@@ -16,68 +17,93 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'success'])
 const adminStore = useAdminStore()
+const { formatTimeForInput } = useDateFormatter()
 
 const entryType = ref('')
 const date = ref('')
-const durationOrTime = ref('') // Für Stunden (Krank/Urlaub) oder exakte Uhrzeit
-const timeOut = ref('')        // Nur für Stempelzeiten (Gehen-Zeit)
+const timeIn = ref('')        
+const timeOut = ref('')       
 const note = ref('')
 const errorMessage = ref('')
 const isSubmitting = ref(false)
 
 const ENTRY_TYPES = [
-  { value: 'urlaub', label: 'Urlaubssemester / Urlaubstag' },
-  { value: 'krankheit', label: 'Krankmeldung (Manuell)' },
-  { value: 'zeiterfassung', label: 'Stempelzeit nachbuchen (Kommen/Gehen)' }
+  { value: 'vacation', label: 'Urlaub' },
+  { value: 'sick', label: 'Krankmeldung' },
+  { value: 'work', label: 'Stempelzeit nachbuchen (Kommen/Gehen)' }
 ]
 
-// Reset des Formulars bei Schließen/Öffnen
+// Reaktiv bestehende Events am ausgewählten Tag herausfiltern
+const existingEvents = computed(() => {
+  if (!date.value || !props.member?.name) return []
+  const selectedDate = new Date(date.value)
+  
+  // Holt das Event aus dem Store
+  const rawEvents = adminStore.getEventsForMemberAndDate(props.member.name, selectedDate) || []
+  
+  return rawEvents.map(event => {
+    // Wenn eine Note existiert und der Typ 'work' ist, extrahieren wir die Stempelzeiten
+    if (event.type === 'work' && event.note) {
+      // Splittet den String am Pipe-Symbol |
+      const parts = event.note.split('|')
+      const timeRange = parts[0]?.trim() // Liefert z.B. "08:00 - 16:00"
+      
+      if (timeRange && timeRange.includes('-')) {
+        return {
+          id: event.id,
+          label: `${event.title || 'Arbeitszeit'}: ${timeRange} Uhr`
+        }
+      }
+    }
+    
+    // Fallback für Urlaub, Krankheit oder wenn das Format mal abweicht
+    return {
+      id: event.id,
+      label: event.title || 'Bereits erfasste Zeitbuchung'
+    }
+  })
+})
+
+// Reset bei Sichtbarkeitswechsel
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
     entryType.value = ''
     date.value = ''
-    durationOrTime.value = ''
+    timeIn.value = ''
     timeOut.value = ''
     note.value = ''
     errorMessage.value = ''
     isSubmitting.value = false
+    
+    if (!adminStore.calendarEvents.length) {
+      adminStore.fetchCalendarEvents()
+    }
   }
 })
 
 const handleSubmit = async () => {
-  if (!entryType.value || !date.value || !props.member?.id) return
+  if (!entryType.value || !date.value || !note.value || !props.member?.id) return
 
   isSubmitting.value = true
   errorMessage.value = ''
 
-  // Vorbereitung der Payload je nach Typ
   const payload = {
     member_id: props.member.id,
     type: entryType.value,
     date: date.value,
     note: note.value,
-    // Je nach Typ mappen wir die Felder passend für das Backend
-    ...(entryType.value === 'zeiterfassung' 
-        ? { check_in: durationOrTime.value, check_out: timeOut.value } 
-        : { hours_or_days: durationOrTime.value }
-    )
+    ...(entryType.value === 'work' && { check_in: timeIn.value, check_out: timeOut.value })
   }
 
   try {
-    // Ersetze dies durch deine tatsächliche API/Store-Aktion
-    if (typeof adminStore.createManualEntry === 'function') {
-      await adminStore.createManualEntry(payload)
-    } else {
-      // Mock/Fallback für Entwicklungszwecke, falls die Store-Methode noch fehlt
-      console.log("Sende an API:", payload)
-      await new Promise(resolve => setTimeout(resolve, 1000))
-    }
-    
+    await adminStore.createManualEntry(payload)
     emit('success')
     emit('close')
   } catch (error) {
     console.error("Fehler beim manuellen Eintrag:", error)
-    errorMessage.value = error.response?.data?.detail || 'Fehler beim Speichern des Eintrags.'
+    errorMessage.value = error.response?.data?.detail || 
+                         (error.response?.data && Object.values(error.response.data).flat()[0]) || 
+                         'Fehler beim Speichern des Eintrags.'
   } finally {
     isSubmitting.value = false
   }
@@ -85,132 +111,176 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div 
-    v-if="isOpen" 
-    class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-  >
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden">
-      
-      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-        <div>
-          <h3 class="font-bold text-lg text-slate-900">Manueller Eintrag</h3>
-          <p class="text-xs text-slate-500 mt-0.5">Notfall-Korrektur für {{ member?.name }}</p>
-        </div>
-        <button 
-          type="button"
-          class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-          @click="emit('close')"
-        >
-          <X class="w-4 h-4" />
-        </button>
-      </div>
-
-      <form class="p-6 space-y-5" @submit.prevent="handleSubmit">
+  <Teleport to="body">
+    <Transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-200 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div v-if="isOpen" class="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+        <div @click="!isSubmitting && $emit('close')" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
         
-        <div v-if="errorMessage" class="p-3 bg-red-50 border border-red-100 rounded-xl flex items-start gap-2.5 text-sm text-red-700">
-          <AlertCircle class="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{{ errorMessage }}</span>
-        </div>
-
-        <div class="space-y-1.5">
-          <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Art des Eintrags</label>
-          <select 
-            v-model="entryType"
-            required
-            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 font-medium appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[length:1rem_1rem] bg-[right_1rem_center] bg-no-repeat"
-          >
-            <option value="" disabled selected>Bitte Typ auswählen...</option>
-            <option v-for="type in ENTRY_TYPES" :key="type.value" :value="type.value">
-              {{ type.label }}
-            </option>
-          </select>
-        </div>
-
-        <div v-if="entryType" class="space-y-4 animate-fadeIn">
+        <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
           
-          <div class="space-y-1.5">
-            <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Datum</label>
-            <input 
-              v-model="date"
-              type="date"
-              required
-              class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800"
-            />
-          </div>
-
-          <div v-if="entryType === 'urlaub' || entryType === 'krankheit'" class="space-y-1.5">
-            <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">
-              Dauer (in Stunden)
-            </label>
-            <input 
-              v-model="durationOrTime"
-              type="number"
-              step="0.5"
-              placeholder="z.B. 8.0"
-              required
-              class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800"
-            />
-          </div>
-
-          <div v-if="entryType === 'zeiterfassung'" class="grid grid-cols-2 gap-4">
-            <div class="space-y-1.5">
-              <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Kommen (Zeit)</label>
-              <input 
-                v-model="durationOrTime"
-                type="time"
-                required
-                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800"
-              />
+          <div class="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div class="flex items-center gap-3">
+              <div class="p-2 bg-blue-100 rounded-xl">
+                <CalendarPlus class="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h2 class="text-xl font-bold text-slate-900">Manueller Eintrag</h2>
+                <p class="text-[10px] text-slate-500 font-medium mt-0.5">Notfall-Korrektur für {{ member?.name }}</p>
+              </div>
             </div>
-            <div class="space-y-1.5">
-              <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Gehen (Zeit)</label>
-              <input 
-                v-model="timeOut"
-                type="time"
-                required
-                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800"
-              />
+            <button @click="$emit('close')" :disabled="isSubmitting" class="p-2 text-slate-400 hover:text-slate-600 rounded-full transition-all">
+              <X class="w-5 h-5" />
+            </button>
+          </div>
+          
+          <form @submit.prevent="handleSubmit" class="p-6 space-y-6">
+            
+            <Transition
+              enter-active-class="transition duration-200 ease-out"
+              enter-from-class="opacity-0 -translate-y-2"
+              enter-to-class="opacity-100 translate-y-0"
+            >
+              <div v-if="errorMessage" class="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start gap-3">
+                <AlertCircle class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div>
+                  <p class="text-xs text-rose-900 font-bold leading-tight">Fehler beim Speichern</p>
+                  <p class="text-[10px] text-rose-700 mt-1 leading-relaxed">{{ errorMessage }}</p>
+                </div>
+              </div>
+            </Transition>
+
+            <div class="space-y-4">
+              <div class="space-y-2">
+                <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Art des Eintrags</label>
+                <select 
+                  v-model="entryType"
+                  required
+                  :disabled="isSubmitting"
+                  class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[length:1rem_1rem] bg-[right_1rem_center] bg-no-repeat"
+                >
+                  <option value="" disabled selected>Bitte Typ auswählen...</option>
+                  <option v-for="type in ENTRY_TYPES" :key="type.value" :value="type.value">
+                    {{ type.label }}
+                  </option>
+                </select>
+              </div>
+
+              <div v-if="entryType" class="space-y-4 animate-in fade-in duration-300">
+                
+                <div class="space-y-2">
+                  <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Datum</label>
+                  <input 
+                    v-model="date" 
+                    type="date" 
+                    required
+                    :disabled="isSubmitting" 
+                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                  />
+                </div>
+
+                <Transition
+                  enter-active-class="transition duration-200 ease-out"
+                  enter-from-class="opacity-0 -translate-y-2"
+                  enter-to-class="opacity-100 translate-y-0"
+                >
+                  <div v-if="existingEvents.length > 0" class="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-3">
+                    <AlertTriangle class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p class="text-xs text-amber-900 font-bold leading-tight">Überschreibungs-Gefahr!</p>
+                      <p class="text-[10px] text-amber-700 mt-1 leading-relaxed">
+                        An diesem Tag existieren bereits Einträge, die beim Speichern restlos überschrieben werden:
+                      </p>
+                      
+                      <ul class="list-disc list-inside mt-1.5 text-[10px] text-amber-800 font-semibold space-y-0.5">
+                        <li v-for="event in existingEvents" :key="event.id">
+                          {{ event.label }}
+                        </li>
+                      </ul>
+                      
+                    </div>
+                  </div>
+                </Transition>
+
+                <div v-if="entryType === 'work'" class="grid grid-cols-2 gap-4 animate-in fade-in duration-200">
+                  <div class="space-y-2">
+                    <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Kommen</label>
+                    <input 
+                      v-model="timeIn" 
+                      type="time" 
+                      required
+                      :disabled="isSubmitting" 
+                      class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                    />
+                  </div>
+                  <div class="space-y-2">
+                    <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Gehen</label>
+                    <input 
+                      v-model="timeOut" 
+                      type="time" 
+                      required
+                      :disabled="isSubmitting" 
+                      class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                    />
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Begründung für System-Korrektur</label>
+                  <textarea 
+                    v-model="note" 
+                    rows="3" 
+                    required
+                    :disabled="isSubmitting" 
+                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none resize-none" 
+                    placeholder="z.B. Server-Ausfall am Terminal, Mitarbeiter war regulär im Dienst..."
+                  ></textarea>
+                </div>
+              </div>
+
+              <div v-else class="p-6 bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center min-h-[140px] text-center text-slate-400">
+                <Clock class="w-6 h-6 mb-2 text-slate-300" />
+                <p class="text-xs font-bold text-slate-500">Art des Eintrags fehlt</p>
+                <p class="text-[10px] text-slate-400 mt-1 max-w-[200px] leading-normal">Bitte wähle zuerst einen Typ aus, um die Optionen anzuzeigen.</p>
+              </div>
+
             </div>
-          </div>
 
-          <div class="space-y-1.5">
-            <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Begründung für System-Korrektur</label>
-            <textarea 
-              v-model="note"
-              rows="3"
-              placeholder="z.B. Server-Ausfall am Terminal von 08:00 - 10:00 Uhr..."
-              required
-              class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 resize-none"
-            ></textarea>
-          </div>
-
+            <div class="flex gap-3 pt-2">
+              <button 
+                type="button" 
+                @click="$emit('close')" 
+                :disabled="isSubmitting" 
+                class="flex-1 py-3.5 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all disabled:opacity-50"
+              >
+                Abbrechen
+              </button>
+              <button 
+                type="submit" 
+                :disabled="isSubmitting || !entryType || !date || !note || (entryType === 'work' && (!timeIn || !timeOut))" 
+                class="flex-1 py-3.5 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+                :class="[
+                  (!entryType || !date || !note || (entryType === 'work' && (!timeIn || !timeOut)))
+                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
+                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20'
+                ]"
+              >
+                <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
+                <template v-else>
+                  Eintrag buchen
+                </template>
+              </button>
+            </div>
+          </form>
         </div>
-
-        <div v-else class="p-4 bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center min-h-[120px] text-center text-slate-400">
-          <Clock class="w-6 h-6 mb-2 text-slate-300" />
-          <p class="text-xs font-medium">Bitte wähle zuerst die Art des Eintrags aus,<br> um die Optionen anzuzeigen.</p>
-        </div>
-
-        <div class="pt-2 border-t border-slate-100 flex items-center justify-end gap-3">
-          <button 
-            type="button" 
-            :disabled="isSubmitting"
-            class="px-4 py-2 hover:bg-slate-100 rounded-xl text-slate-500 text-sm font-bold transition-all cursor-pointer disabled:opacity-50"
-            @click="emit('close')"
-          >
-            Abbrechen
-          </button>
-          <button 
-            type="submit" 
-            :disabled="!entryType || !date || !note || isSubmitting"
-            class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-900/20 cursor-pointer flex items-center gap-2"
-          >
-            <span v-if="isSubmitting" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-            {{ isSubmitting ? 'Wird gespeichert...' : 'Eintrag buchen' }}
-          </button>
-        </div>
-
-      </form>
-    </div>
-  </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
+

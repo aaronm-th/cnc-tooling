@@ -26,7 +26,8 @@ from .serializers import (
     ChangeRequestSerializer, 
     TeamMemberSummarySerializer,
     TeamMemberDetailSerializer,
-    CreateEditEmployeeSerializer
+    CreateEditEmployeeSerializer,
+    ManualEntrySerializer
 )
 from core.utils import create_notification
 
@@ -226,7 +227,6 @@ class HandleChangeRequestView(APIView):
         )
 
 
-
 class TeamCalendarEventsView(APIView):
     permission_classes = [IsAuthenticated, IsSupervisor]
 
@@ -293,6 +293,7 @@ class TeamCalendarEventsView(APIView):
 
         return Response(events_data, status=status.HTTP_200_OK)
 
+
 class CreateEditEmployeeView(APIView):
     permission_classes = [IsSupervisor]
 
@@ -349,3 +350,23 @@ class CreateEditEmployeeView(APIView):
                 "initial_password": user.username
             }
         }, status=status.HTTP_201_CREATED)
+    
+
+
+class ManualEntriesView(APIView):
+    permission_classes = [IsSupervisor]
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        # Context mitgeben, damit der Serializer weiß, welcher Admin den Eintrag bucht
+        serializer = ManualEntrySerializer(data=request.data, context={'request': request})
+        
+        if serializer.is_valid():
+            serializer.save()  # Triggert die create() Methode im Serializer
+            return Response(
+                {"detail": "Manueller Eintrag erfolgreich gebucht."}, 
+                status=status.HTTP_201_CREATED
+            )
+        
+        # Wenn Validierungsfehler auftreten, senden wir die exakten Feld-Fehler an das Vue-Frontend
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

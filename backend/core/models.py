@@ -69,6 +69,13 @@ class Employee(AbstractUser):
         ).exists()
     
     def get_expected_hours_for_date(self, date_obj):
+    # NEU: Prüfen, ob für dieses Datum bereits ein manueller Urlaubs-/Krankheitstag existiert
+        from attendance.models import WorkDay
+        db_day = WorkDay.objects.filter(employee=self, date=date_obj).first()
+        if db_day and db_day.day_type in [WorkDay.DayType.VACATION, WorkDay.DayType.SICK]:
+            return 0.0
+
+        # Deine bestehenden Urlaubsantrags- und Feiertags-Prüfungen
         if self.is_holiday(date_obj) or self.is_absent(date_obj):
             return 0.0
 
@@ -78,7 +85,7 @@ class Employee(AbstractUser):
         
         if date_obj.weekday() < 5:
             return float(self.hours_per_day)
-        
+    
         return 0.0
 
     def save(self, *args, **kwargs):

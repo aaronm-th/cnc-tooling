@@ -60,7 +60,7 @@ def new_workday(target_date=None):
     is_holiday = today in de_holidays
     is_weekend = today.weekday() >= 5
 
-    employees_to_track = Employee.objects.filter(is_active = True)
+    employees_to_track = Employee.objects.filter(is_active = True, is_superuser = False, joined_at__lte = today)
     
     # Bereits existierende Tage ausschließen
     existing_ids = WorkDay.objects.filter(date=today).values_list('employee_id', flat=True)
