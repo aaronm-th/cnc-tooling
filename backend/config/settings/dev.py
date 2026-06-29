@@ -17,5 +17,5 @@ CORS_ALLOWED_ORIGINS = [
 
 ALLOWED_HOSTS = ['192.168.0.127', 'localhost', '127.0.0.1']
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-DEFAULT_FROM_EMAIL = 'test@deine-app.local'
+
+SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'] = timedelta(hours=6)

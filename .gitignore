@@ -36,7 +36,7 @@ yarn-error.log*
 # Wir ignorieren .env Dateien NICHT pauschal, 
 # da du .env.demo und .env.dev aktiv im Repo nutzt.
 # Aber: Private .env (falls du sie hast) sollten hier rein:
-# .env
+.env.prod
 
 # --- Verschiedenes ---
 data/
