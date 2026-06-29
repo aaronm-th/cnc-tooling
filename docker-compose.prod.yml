@@ -63,7 +63,7 @@ services:
       # Hier nutzen wir ein Multi-Stage Dockerfile (siehe unten)
       dockerfile: Dockerfile.prod
       args:
-        - VITE_API_URL=http://192.168.0.XYZ:8000 # Hier die Mini-PC IP eintragen
+        - VITE_API_URL=${VITE_API_URL}
     container_name: timestamper_frontend
     restart: always
     ports:
