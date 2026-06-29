@@ -255,13 +255,13 @@ class ManualEntrySerializer(serializers.Serializer):
         work_day, created = WorkDay.objects.get_or_create(
             employee=employee, 
             date=date_obj,
-            defaults={'day_type': entry_type, 'note': f"[{supervisor.get_full_name()}]: {note}"}
+            defaults={'day_type': entry_type, 'note': f"Bemerkung von {supervisor.get_full_name()}: {note}"}
         )
         
         # Falls der Tag bereits existierte, erzwingen wir das harte Überschreiben
         if not created:
             work_day.day_type = entry_type
-            work_day.note = f"[{supervisor.get_full_name()}]: {note}"
+            work_day.note = f"Bemerkung von {supervisor.get_full_name()}: {note}"
             work_day.save()
 
         # 2. RADIKAL AUFRÄUMEN: Unabhängig vom Typ löschen wir alle alten Sessions dieses Tages.

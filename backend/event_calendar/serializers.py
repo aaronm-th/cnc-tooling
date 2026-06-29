@@ -33,7 +33,7 @@ class CalendarEventSerializer(serializers.Serializer):
             if session_strings:                
                 # Wenn im Admin eine zusätzliche Notiz eingetragen wurde
                 if wd.note:
-                    session_strings.append(f"Notiz: {wd.note}")
+                    session_strings.append(f"{wd.note}")
                 
                 # Das 'TOTAL:'-Präfix für die Sonderbehandlung im Vue-Tooltip
                 session_strings.append(f"TOTAL:Gesamtzeit: {wd.total_hours} Std.")

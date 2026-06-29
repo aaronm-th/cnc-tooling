@@ -49,16 +49,36 @@ const { getIconColorClass, getEventIcon } = useEventStyles()
         <div v-if="event.note" class="max-h-40 overflow-y-auto custom-scrollbar pr-2 space-y-2">
           <template v-if="event.type === 'work'">
             <div 
-              v-for="(line, sIdx) in (Array.isArray(event.note) ? event.note : event.note.split('|'))" 
+              v-for="(line, sIdx) in (() => {
+                // 1. Text in ein echtes Array umwandeln, falls es noch keins ist
+                const lines = Array.isArray(event.note) ? [...event.note] : event.note.split('|');
+                
+                // 2. Sortieren: Zeilen, die mit 'Notiz:' beginnen, nach hinten schieben
+                return lines.sort((a, b) => {
+                  if (a.trim().startsWith('Bemerkung')) return 1;
+                  if (b.trim().startsWith('Bemerkung')) return -1;
+                  return 0;
+                });
+              })()" 
               :key="sIdx" 
             >
+              <!-- 1. Bedingung: TOTAL -->
               <div 
-                v-if="line.startsWith('TOTAL:')" 
+                v-if="line.trim().startsWith('TOTAL:')" 
                 class="text-blue-400 font-semibold text-[11px] mt-2 pt-1 border-t border-white/10"
               >
                 {{ line.replace('TOTAL:', '').trim() }}
               </div>
+              
+              <!-- 2. Bedingung: NOTIZ (Rutscht durch die Sortierung automatisch nach unten) -->
+              <div 
+                v-else-if="line.trim().startsWith('Bemerkung')" 
+                class="text-white text-[11px] mt-2 pt-1 border-t border-white/10"
+              >
+                {{ line.trim() }}
+              </div>
 
+              <!-- 3. Fallback: Standard-Zeile -->
               <div 
                 v-else 
                 class="text-slate-300 text-[11px] flex items-start gap-2 mb-1"
@@ -69,7 +89,7 @@ const { getIconColorClass, getEventIcon } = useEventStyles()
             </div>
           </template>
 
-          <p v-else class="text-slate-300 text-[11px] leading-relaxed italic">
+          <p v-else class="text-slate-300 text-[11px] leading-relaxed">
             {{ Array.isArray(event.note) ? event.note[0] : event.note }}
           </p>
         </div>

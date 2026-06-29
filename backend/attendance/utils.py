@@ -1,7 +1,7 @@
 from core.utils import create_notifications_for_multiple_users
 from core.models import Employee
 
-def _send_supervisor_notification(title, message, **kwargs):
+def _send_supervisor_notification(title, message, link_to, **kwargs):
     """
     Interne Hilfsfunktion, die die Logik für Supervisor-Benachrichtigungen bündelt.
     """
@@ -12,7 +12,7 @@ def _send_supervisor_notification(title, message, **kwargs):
         title=title,
         message=message,
         notification_type='info',
-        link_to='admin-requests',
+        link_to=link_to,
         **kwargs  # Reicht zusätzliche Argumente wie reference_id flexibel weiter
     )
 
@@ -29,7 +29,8 @@ def send_leave_notification(leave):
     _send_supervisor_notification(
         title=f"Neuer Abwesenheitsantrag von {employee.get_full_name()}",
         message=f"{employee.get_full_name()} hat {type_name} {dates} beantragt.",
-        content_object=leave  # <-- Verknüpft die Benachrichtigung mit dem Urlaubsantrag
+        link_to='admin-requests',
+        content_object=leave 
     )
 
 
@@ -40,5 +41,6 @@ def send_change_notification(change_request):
     _send_supervisor_notification(
         title=f"Neuer Änderungsantrag von {employee.get_full_name()}",
         message=f"{employee.get_full_name()} hat eine Arbeitszeitänderung für den {date_str} beantragt.",
-        content_object=change_request  # <-- Verknüpft mit dem Änderungsantrag
+        link_to='admin-requests',
+        content_object=change_request
     )

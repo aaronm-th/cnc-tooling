@@ -9,7 +9,6 @@ def user_profile_photo_upload(instance, filename):
     return os.path.join('profile_pics', filename)
 
 
-# core/utils.py
 
 def create_notifications_for_multiple_users(recipients, title, message, notification_type='info', link_to=None, content_object=None):
     from .models import Notification
