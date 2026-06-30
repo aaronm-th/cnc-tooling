@@ -15,9 +15,6 @@ const emit = defineEmits(['update:currentTab'])
 const authStore = useAuthStore()
 const { isSupervisor } = storeToRefs(authStore)
 
-// Backend-URL aus der .env holen (Vite-Standard)
-const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
-
 
 // Navigation für normale Mitarbeiter
 const employeeNav = [
@@ -42,7 +39,7 @@ const adminNav = [
     <div class="p-6 flex items-center gap-4 border-b border-slate-800/50">
       <div class="w-15 h-15 flex items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 p-0 shadow-md border border-slate-700/50">
         <img 
-          :src="`${backendUrl}/media/logos/jv_logo.png`" 
+          :src="'/logos/jv_logo.png'" 
           alt="Logo"
           class="w-full h-full object-contain"
         />

@@ -15,7 +15,6 @@ const { formattedTime, formattedDate } = useClock()
 const lockedIds = ref(new Set())
 const searchQuery = ref('')
 
-const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
 
 onMounted(async () => {
   // Teammitglieder laden (falls noch nicht geschehen)
@@ -86,7 +85,7 @@ const filteredEmployees = computed(() => {
           
           <div class="w-20 h-20 flex items-center justify-center overflow-hidden">
             <img 
-              :src="`${backendUrl}/media/logos/jv_logo.png`" 
+              :src="'/logos/jv_logo.png'" 
               alt="Logo"
               class="w-full h-full object-contain"
             />
