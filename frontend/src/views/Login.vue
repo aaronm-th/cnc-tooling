@@ -10,8 +10,6 @@ const password = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('') // Für Feedback bei Fehlern
 
-const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
-
 
 const handleLogin = async () => {
   isLoading.value = true
@@ -55,7 +53,7 @@ const handleLogin = async () => {
       <div class="absolute -top-12 left-1/2 -translate-x-1/2 z-10">
         <div class="w-24 h-24 bg-white p-3 rounded-full shadow-2xl shadow-blue-900/10 border border-slate-100 flex items-center justify-center">
           <img 
-            :src="`${backendUrl}/media/logos/jv_logo.png`" 
+            :src="'/media/logos/jv_logo.png'"
             alt="Logo"
             class="w-full h-full object-contain filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.08)]"
           />
