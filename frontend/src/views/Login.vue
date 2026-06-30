@@ -20,7 +20,7 @@ const handleLogin = async () => {
   try {
     // 1. POST Request an dein Django Backend
     // Nutze die IP 127.0.0.1 wegen des Safari/CORS-Themas
-    const response = await axios.post('http://127.0.0.1:8000/api/login/', {
+    const response = await axios.post('/api/login/', {
       username: username.value,
       password: password.value
     })
