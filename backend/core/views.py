@@ -36,6 +36,8 @@ def get_tokens_for_user(user):
 class LoginView(APIView):
     permission_classes = [AllowAny]
     
+    authentication_classes = [] 
+    
     @extend_schema(responses={200: UserLoginResponseSerializer})
     def post(self, request):
         username = request.data.get('username')
