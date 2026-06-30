@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
+from django.views.decorators.csrf import csrf_exempt
 from .views import (
     LoginView, EmployeeListView, 
     UserProfileView, UserStatsView, NotificationViewSet, ScratchpadView, TodoView
@@ -12,7 +13,7 @@ router.register(r'notifications', NotificationViewSet, basename='notification')
 
 urlpatterns = [
     # AUTHENTIFIZIERUNG
-    path('api/login/', LoginView.as_view(), name='api_login'),
+    path('login/', csrf_exempt(LoginView.as_view()), name='login'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
     # NUTZERDATEN & PROFIL
