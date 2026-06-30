@@ -56,20 +56,22 @@ services:
       - redis
       - db
 
-  # 3. Das Frontend via Nginx ausliefern
   frontend:
     build:
       context: ./frontend
-      # Hier nutzen wir ein Multi-Stage Dockerfile (siehe unten)
       dockerfile: Dockerfile.prod
       args:
-        - VITE_API_URL=${VITE_API_URL}
+        - VITE_API_URL=/api
     container_name: timestamper_frontend
     restart: always
     ports:
-      - "80:80" # Macht die Webapp im Heimnetzwerk unter http://<mini-pc-ip> erreichbar
+      - "80:80"
+    volumes:
+      - static_volume:/usr/share/nginx/html/staticfiles:ro
+      - media_volume:/usr/share/nginx/html/media:ro
     depends_on:
       - backend
+
 
 volumes:
   postgres_data:
