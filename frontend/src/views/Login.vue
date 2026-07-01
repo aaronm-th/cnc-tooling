@@ -17,27 +17,34 @@ const handleLogin = async () => {
   
   try {
     // 1. POST Request an dein Django Backend
-    // Nutze die IP 127.0.0.1 wegen des Safari/CORS-Themas
     const response = await axios.post('/api/login/', {
       username: username.value,
       password: password.value
     })
 
-    if (response.data.success) {
-      // 2. JWT Tokens im LocalStorage speichern
-      localStorage.setItem('access_token', response.data.tokens.access)
-      localStorage.setItem('refresh_token', response.data.tokens.refresh)
+    // Wenn der Login erfolgreich war und wir ein Access-Token haben
+    if (response.data.success && response.data.access) {
+      
+      // 2. JWT Tokens DIREKT von der obersten Ebene im LocalStorage speichern
+      localStorage.setItem('access_token', response.data.access)
+      localStorage.setItem('refresh_token', response.data.refresh)
       
       // 3. User-Daten speichern
       localStorage.setItem('user', JSON.stringify(response.data.user))
 
       // 4. Weiterleitung
       router.push('/')
+    } else {
+      errorMessage.value = 'Login fehlgeschlagen. Ungültige Server-Antwort.'
     }
   } catch (err: any) {
     // Fehlerbehandlung
     console.error('Login Error:', err)
-    errorMessage.value = err.response?.data?.message || 'Login fehlgeschlagen. Bitte prüfe deine Daten.'
+    
+    // Falls das Backend bei falschen Credentials einen 401 mit Detail sendet:
+    errorMessage.value = err.response?.data?.detail || 
+                         err.response?.data?.message || 
+                         'Login fehlgeschlagen. Bitte prüfe deine Daten.'
   } finally {
     isLoading.value = false
   }

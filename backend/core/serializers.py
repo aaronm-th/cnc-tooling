@@ -5,6 +5,9 @@ from decimal import Decimal
 from .models import Employee, VacationQuota, Notification
 from .services.vacation_service import VacationService  # Import deines zentralen Services
 from drf_spectacular.utils import extend_schema_field
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+
 
 # 1. Einfache Hilfs-Serializer
 class SimpleResponseSerializer(serializers.Serializer):
@@ -12,11 +15,24 @@ class SimpleResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        # Generiert standardmäßig {"refresh": "...", "access": "..."}
+        data = super().validate(attrs)
+        
+        # Erweitert das Standard-Dictionary flach auf der obersten Ebene
+        data['success'] = True
+        data['user'] = EmployeeSerializer(self.user, context=self.context).data
+        
+        return data
+
+
 # 2. Modell-Serializer
 class EmployeeSerializer(serializers.ModelSerializer):
     avatar = serializers.SerializerMethodField()
     name = serializers.ReadOnlyField() 
     username = serializers.ReadOnlyField()
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     initials = serializers.ReadOnlyField()
     status_text = serializers.SerializerMethodField()
     is_supervisor = serializers.SerializerMethodField()
@@ -32,18 +48,35 @@ class EmployeeSerializer(serializers.ModelSerializer):
         model = Employee
         fields = [
             'id', 'first_name', 'last_name', 'name', 'initials', 
-            'email', 'phone', 'status_text', 'avatar', 'is_supervisor', 'username'
+            'email', 'phone', 'status_text', 'avatar', 'is_supervisor', 'username', 'password'
         ]
         read_only_fields = ['id']
 
+    def update(self, instance, validated_data):
+        # 1. Passwort-Handling
+        password = validated_data.pop('password', None)
+        if password:
+            instance.set_password(password)
+
+        # 2. Foto-Handling (Ausgelagert aus der View)
+        request = self.context.get('request')
+        if request and 'photo' in request.data:
+            photo_data = request.data.get('photo')
+            if photo_data == '': # Vue will löschen
+                if instance.photo:
+                    instance.photo.delete(save=False)
+                instance.photo = None
+        elif request and 'photo' in request.FILES: # Neues Foto
+            if instance.photo:
+                instance.photo.delete(save=False)
+            instance.photo = request.FILES['photo']
+
+        return super().update(instance, validated_data)
+
     def to_representation(self, instance):
-        """Bereinigt die Daten direkt vor dem Senden an das Frontend."""
         ret = super().to_representation(instance)
-        
-        # Falls die E-Mail None, leer oder fälschlicherweise der String "null" ist
-        if ret.get('email') is None or ret.get('email') == 'null' or ret.get('email') == '':
-            ret['email'] = '' # Sende einen sauberen, leeren String ans Frontend
-            
+        if ret.get('email') in [None, 'null', '']:
+            ret['email'] = ''
         return ret
     
 
@@ -106,8 +139,14 @@ class NotificationSerializer(serializers.ModelSerializer):
 # 3. Zusammengesetzte Serializer
 class UserLoginResponseSerializer(serializers.Serializer):
     success = serializers.BooleanField()
+    access = serializers.CharField()
+    refresh = serializers.CharField()
     user = EmployeeSerializer()
-    tokens = serializers.DictField()
+
+
+
+class ScratchpadSerializer(serializers.Serializer):
+    notes = serializers.CharField(allow_blank=True)
 
 
 class OvertimeInfoSerializer(serializers.Serializer):

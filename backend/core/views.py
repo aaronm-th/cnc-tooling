@@ -12,50 +12,33 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import Employee, Notification, Scratchpad, TodoItem, VacationQuota
 from .serializers import (
     EmployeeSerializer,
     NotificationSerializer,
     SimpleResponseSerializer,
-    UserLoginResponseSerializer,
     UserStatsSerializer,
+    UserLoginResponseSerializer,
+    CustomTokenObtainPairSerializer,
+    ScratchpadSerializer
 )
 
 User = get_user_model()
 
 
-def get_tokens_for_user(user):
-    refresh = RefreshToken.for_user(user)
-    return {
-        'refresh': str(refresh),
-        'access': str(refresh.access_token),
-    }
 
-
-class LoginView(APIView):
-    permission_classes = [AllowAny]
-    
-    authentication_classes = [] 
+class CustomLoginView(TokenObtainPairView):
+    """
+    Standardisierte Login-View, die JWT-Tokens und Benutzerprofil zurückgibt.
+    Ersetzt die alte manuelle LoginView.
+    """
+    serializer_class = CustomTokenObtainPairSerializer
     
     @extend_schema(responses={200: UserLoginResponseSerializer})
-    def post(self, request):
-        username = request.data.get('username')
-        password = request.data.get('password')
-        user = auth.authenticate(username=username, password=password)
-
-        if user is not None:
-            tokens = get_tokens_for_user(user)
-            serializer = EmployeeSerializer(user, context={'request': request})
-            return Response({
-                'success': True,
-                'user': serializer.data,
-                'tokens': tokens
-            })
-        return Response(
-            {'success': False, 'message': 'Ungültiger Benutzername oder Passwort'}, 
-            status=status.HTTP_401_UNAUTHORIZED
-        )
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
 
 
 class EmployeeListView(ListAPIView):
@@ -77,36 +60,16 @@ class UserProfileView(RetrieveUpdateAPIView):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         
-        # ================= KORREKTUR FÜR OPTIONALE E-MAIL =================
-        # Wenn die E-Mail im Request leer ("") ist, wandeln wir sie in None (NULL) um
+        # E-Mail-Bereinigung bleibt in der View, da es Request-Pre-Processing ist
         data = request.data.copy() if hasattr(request.data, 'copy') else request.data
-        if 'email' in data and (data.get('email') == '' or data.get('email') is None):
+        if 'email' in data and data.get('email') in ['', None]:
             data['email'] = None
-        # ==================================================================
         
+        # Der Serializer übernimmt nun das Foto und Passwort im save() Schritt!
         serializer = self.get_serializer(instance, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        
-        # ==================== KORRIGIERTES FOTO-HANDLING ====================
-        # Fall 1: Das Foto soll gelöscht werden (Vue sendet einen leeren String)
-        if 'photo' in request.data and request.data.get('photo') == '':
-            if instance.photo:
-                instance.photo.delete(save=False)  # Datei von der Festplatte/Volume löschen
-            instance.photo = None  # Feld in der Datenbank leeren
-
-        # Fall 2: Ein neues Foto wurde hochgeladen (befindet sich in FILES)
-        elif 'photo' in request.FILES:
-            if instance.photo:
-                instance.photo.delete(save=False)  # Altes Foto vorher löschen (verhindert Datenmüll)
-            instance.photo = request.FILES['photo']
-        # ====================================================================
-            
-        # Passwort-Handling
-        password = request.data.get('password')
-        if password:
-            instance.set_password(password)
-            
         serializer.save()
+        
         return Response({
             "message": "Erfolgreich gespeichert",
             "user": serializer.data
@@ -126,20 +89,23 @@ class UserStatsView(APIView):
 class ScratchpadView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(responses={200: SimpleResponseSerializer})
+    @extend_schema(responses={200: ScratchpadSerializer})
     def get(self, request):
-        scratchpad, created = Scratchpad.objects.get_or_create(employee=request.user)
-        return Response({'notes': scratchpad.content}, status=status.HTTP_200_OK)
+        scratchpad, _ = Scratchpad.objects.get_or_create(employee=request.user)
+        serializer = ScratchpadSerializer({'notes': scratchpad.content})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @extend_schema(request=SimpleResponseSerializer, responses={200: SimpleResponseSerializer})
+    @extend_schema(request=ScratchpadSerializer, responses={200: SimpleResponseSerializer})
     def put(self, request):
-        notes = request.data.get('notes', '')
+        serializer = ScratchpadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        notes = serializer.validated_data.get('notes', '')
 
-        scratchpad, _ = Scratchpad.objects.update_or_create(
+        Scratchpad.objects.update_or_create(
             employee=request.user,
             defaults={'content': notes}
         )
-        return Response({'success': True, 'message': 'Notizen aktualisiert', 'notes': notes})
+        return Response({'success': True, 'message': 'Notizen aktualisiert'})
 
 
 class TodoView(APIView):

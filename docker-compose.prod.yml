@@ -1,5 +1,6 @@
+version: '3.8'
+
 services:
-  # 1. PostgreSQL (Neu für Produktion)
   db:
     image: postgres:15-alpine
     container_name: timestamper_postgres
@@ -11,19 +12,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  redis:
-    image: redis:7-alpine
-    container_name: timestamper_redis
-    restart: always
-
-  # 2. Backend über Gunicorn laufen lassen
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: timestamper_backend
     restart: always
-    # Überschreibt den runserver-Befehl mit Gunicorn (muss im requirements.txt stehen!)
     command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3
     env_file:
       - .env.prod
@@ -32,37 +22,25 @@ services:
       - media_volume:/app/media
     depends_on:
       - db
-      - redis
 
   celery_worker:
-    build: ./backend
-    container_name: timestamper_celery_worker
     restart: always
-    command: celery -A config worker -l info
     env_file:
       - .env.prod
     depends_on:
-      - redis
       - db
 
   celery_beat:
-    build: ./backend
-    container_name: timestamper_celery_beat
     restart: always
-    command: celery -A config beat -l info
     env_file:
       - .env.prod
     depends_on:
-      - redis
       - db
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
-      args:
-        - VITE_API_URL=
-    container_name: timestamper_frontend
     restart: always
     ports:
       - "80:80"
@@ -71,7 +49,6 @@ services:
       - media_volume:/usr/share/nginx/html/media:ro
     depends_on:
       - backend
-
 
 volumes:
   postgres_data:

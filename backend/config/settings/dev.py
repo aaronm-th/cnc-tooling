@@ -19,7 +19,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 
-ALLOWED_HOSTS = ['192.168.0.127', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost").split(",")
 
 
 SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'] = timedelta(hours=6)

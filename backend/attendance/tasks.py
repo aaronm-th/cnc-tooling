@@ -6,7 +6,6 @@ from core.models import Employee
 from .utils import _send_supervisor_notification
 
 MAX_SESSION_DURATION = timedelta(hours=10)
-#MAX_SESSION_DURATION = timedelta(minutes=2)
 
 # Helper method
 def format_timedelta(td):

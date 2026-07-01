@@ -26,7 +26,6 @@ services:
       - ./backend/data:/app/data
     depends_on:
       - redis
-      - backend
 
   celery_beat:
     build:
@@ -39,19 +38,12 @@ services:
       - ./backend/data:/app/data
     depends_on:
       - redis
-      - backend
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        - VITE_API_URL=http://localhost:8000  # Für den Build-Prozess
-    environment:
-      - VITE_API_URL=http://localhost:8000
     container_name: timestamper_frontend
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    ports:
-      - "5173:5173"
