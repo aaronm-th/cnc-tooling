@@ -1,5 +1,9 @@
 from .base import *
 
+
+DEBUG = os.environ.get("DEBUG", "False").lower() in ("true", "1")
+
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',

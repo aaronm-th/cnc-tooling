@@ -14,7 +14,7 @@ def setup_log_format(logger, *args, **kwargs):
         handler.setFormatter(formatter)
 
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.demo')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.prod')
 app = Celery("config")
 app.config_from_object("django.conf:settings", namespace="CELERY")
 

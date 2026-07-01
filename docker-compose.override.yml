@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   backend:
     command: python manage.py runserver 0.0.0.0:8000
@@ -6,6 +8,7 @@ services:
     env_file: .env.dev
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings.dev
+      - DEBUG=True # Hier explizit als Boolean oder passender String für deine Settings
 
   redis:
     ports:
@@ -13,5 +16,14 @@ services:
 
   celery_worker:
     env_file: .env.dev
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.dev
+      - DEBUG=True
+      - PYTHONPATH=/app # Stellt sicher, dass Celery den 'config'-Ordner im Arbeitsverzeichnis findet
+
   celery_beat:
     env_file: .env.dev
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.dev
+      - DEBUG=True
+      - PYTHONPATH=/app
