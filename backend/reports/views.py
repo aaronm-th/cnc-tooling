@@ -213,7 +213,7 @@ class MonthlyWorkDayListView(ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        joined_at = user.joined_at 
+        joined_at = user.joined_at.date() if hasattr(user.joined_at, 'date') else user.joined_at        
         
         start_date_str = self.request.query_params.get('start')
         end_date_str = self.request.query_params.get('end')
@@ -222,12 +222,10 @@ class MonthlyWorkDayListView(ListAPIView):
         end_date = parse_date(end_date_str)
 
         if start_date and joined_at:
-            # 1. Validierung (wie zuvor): Ganze Monate vor Eintritt blocken
             first_day_of_joined_month = date(joined_at.year, joined_at.month, 1)
             if start_date < first_day_of_joined_month:
                 raise ValidationError("Zeitraum vor Eintrittsmonat.")
 
-            # 2. KORREKTUR: Wenn im Eintrittsmonat, setze Start auf Eintrittsdatum
             if start_date < joined_at:
                 start_date = joined_at
 
