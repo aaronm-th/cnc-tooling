@@ -32,8 +32,6 @@ const isLoadingExisting = ref(false) // Ladestatus für bestehende Dokumente
 const DOCUMENT_TYPES = [
   { value: 'sozialversicherung', label: 'Sozialversicherungsnachweis' },
   { value: 'arbeitsvertrag', label: 'Arbeitsvertrag' },
-  { value: 'ausweis', label: 'Ausweis / Identifikationsdokument' },
-  { value: 'bescheinigung', label: 'Ärztliche Bescheinigung' },
   { value: 'sonstiges', label: 'Sonstiges' }
 ]
 
