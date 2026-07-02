@@ -292,10 +292,10 @@ const formatDate = (dateStr) => {
                         {{ req.status_display || req.status }} 
                       </span>
                       <span v-if="req.status !== 'pending' && req.status !== 'cancelled'" class="text-[10px] font-semibold text-slate-400">
-                        • am {{ formatDate(req.reviewed_date) }} von {{ req.reviewed_by }}
+                        {{ req.status_display || req.status }} am {{ formatDate(req.reviewed_date) }}
                       </span>
                       <span v-if="req.status === 'pending'" class="text-[10px] font-semibold text-slate-400">
-                        • beantragt am {{ formatDate(req.request_date) }}
+                        Beantragt am {{ formatDate(req.request_date) }}
                       </span>
                     </div>
 
@@ -401,10 +401,10 @@ const formatDate = (dateStr) => {
                         {{ request.status_display || request.status }}
                       </span>
                       <span v-if="request.status !== 'pending' && request.status !== 'cancelled'" class="text-[10px] font-semibold text-slate-400">
-                        • am {{ formatDate(request.reviewed_date) }} von {{ request.reviewed_by }}
+                        Genehmigt am {{ formatDate(request.reviewed_date) }}
                       </span>
                       <span v-if="request.status === 'pending'" class="text-[10px] font-semibold text-slate-400">
-                        • beantragt am {{ formatDate(request.request_date) }}
+                        Beantragt am {{ formatDate(request.request_date) }}
                       </span>
                     </div>
 

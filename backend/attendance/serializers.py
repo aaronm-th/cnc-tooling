@@ -95,7 +95,8 @@ class WSChangeRequestSerializer(serializers.ModelSerializer):
         model = WSChangeRequest
         fields = [
             'id', 
-            'employee_note', 
+            'employee_note',
+            'request_date', 
             'requested_check_in', 
             'requested_check_out', 
             'status',

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch, computed, onUnmounted } from 'vue'
-import { X, Clock, MessageSquare, AlertCircle, CheckCircle2, RotateCcw, Trash2, Plus, FileText } from 'lucide-vue-next'
+import { X, Clock, MessageSquare, AlertCircle, CheckCircle2, RotateCcw, Trash2, Plus, FileText, HelpCircle } from 'lucide-vue-next'
 import { useDateFormatter } from '@/composables/useDateFormatter'
 
 const props = defineProps({
@@ -14,58 +14,63 @@ const { formatDate, formatTimeForInput } = useDateFormatter()
 
 const isSubmitted = ref(false)
 const localSessions = ref([])
+const isManualAdding = ref(false)
 
 const displayDate = computed(() => formatDate(props.shift?.date))
-const isManualAdding = ref(false)
 
 const onKeyDown = (e) => {
   if (e.key === 'Escape' && props.isOpen) handleClose()
 }
 
-
 const addManualSession = () => {
   isManualAdding.value = true
   localSessions.value.push({
-    id: null, // Wichtig: null markiert eine neue Session
+    id: null,
     check_in: '08:00',
     check_out: '16:00',
     orig_check_in: null,
     orig_check_out: null,
     note: '',
     isPending: false,
-    isNew: true // Flag für das UI
+    isNew: true
   })
 }
 
 watch(() => props.isOpen, (isOpen) => {
   if (isOpen) {
-    // 1. Event Listener für Tastatur (ESC) hinzufügen
     window.addEventListener('keydown', onKeyDown)
-    
-    // 2. Daten initialisieren
     isSubmitted.value = false
+    isManualAdding.value = false
+    
     if (props.shift?.sessions) {
-      localSessions.value = props.shift.sessions.map(session => ({
-        id: session.id,
-        check_in: formatTimeForInput(session.pending_request?.requested_check_in || session.check_in),
-        check_out: formatTimeForInput(session.pending_request?.requested_check_out || session.check_out),
-        orig_check_in: formatTimeForInput(session.check_in),
-        orig_check_out: formatTimeForInput(session.check_out),
-        note: session.pending_request?.employee_note || '',
-        isPending: !!session.pending_request,
-        old_ver_exists: session.old_ver_exists || false
-      }))
+      localSessions.value = props.shift.sessions.map(session => {
+        const hasPending = !!session.pending_request
+        return {
+          id: session.id,
+          // Wenn ein Antrag läuft, zeigen wir die beantragten Zeiten im Input, sonst die echten
+          check_in: formatTimeForInput(session.pending_request?.requested_check_in || session.check_in),
+          check_out: formatTimeForInput(session.pending_request?.requested_check_out || session.check_out),
+          orig_check_in: session.check_in ? formatTimeForInput(session.check_in) : null,
+          orig_check_out: session.check_out ? formatTimeForInput(session.check_out) : null,
+          note: session.pending_request?.employee_note || '',
+          isPending: hasPending,
+          // Speichern für die Info-Anzeige im UI
+          pending_details: hasPending ? {
+            check_in: formatTimeForInput(session.pending_request.requested_check_in),
+            check_out: formatTimeForInput(session.pending_request.requested_check_out)
+          } : null
+        }
+      })
     }
   } else {
-    // 3. Cleanup: Listener entfernen und State zurücksetzen
     window.removeEventListener('keydown', onKeyDown)
     localSessions.value = []
   }
 }, { immediate: true })
 
 const createPayload = (session) => ({
-  workday_id: props.shift.id, // Wir brauchen die ID des Tages für neue Sessions
-  worksession_id: session.id, // Bleibt null bei neuen Sessions
+  workday_id: props.shift.id,
+  worksession_id: session.id,
   employee_note: session.note,
   requested_check_in: `${props.shift.date}T${session.check_in}:00`,
   requested_check_out: `${props.shift.date}T${session.check_out}:00`,
@@ -73,12 +78,7 @@ const createPayload = (session) => ({
 
 const submitSingleSession = (session) => {
   if (!session.note || session.note.trim() === '') return 
-  
   emit('submit', createPayload(session), () => {
-    // Optional: Hier könntest du isSubmitted nur auf true setzen,
-    // wenn du nach JEDEM Klick die Erfolgsmeldung sehen willst.
-    // Falls das Modal offen bleiben soll für weitere Änderungen, 
-    // setzen wir es hier NICHT auf true, sondern aktualisieren nur den Status.
     session.isPending = true 
   })
 }
@@ -90,7 +90,6 @@ const handleClose = () => {
   }, 300)
 }
 
-
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown)
 })
@@ -98,8 +97,6 @@ onUnmounted(() => {
 const resetSession = (index) => {
   const session = localSessions.value[index]
   if (!session) return
-  
-  // Wenn es eine Neuanlage war, setzen wir auf Standardwerte zurück
   if (!session.id) {
     session.check_in = '08:00'
     session.check_out = '16:00'
@@ -112,20 +109,18 @@ const resetSession = (index) => {
 
 const handleWithdraw = (session) => {
   if (confirm('Möchtest du diesen Korrekturantrag wirklich löschen?')) {
-    // Wir senden die session.id an das Parent
-    emit('withdraw', session.id, () => {
-      // Das ist der Callback, der nach erfolgreichem API-Call 
-      // den lokalen UI-Zustand im Modal "säubert"
+    // Wenn session.id null ist (Nachmeldung), nutzen wir die ID des Tages (props.shift.id)
+    const targetId = session.id || props.shift.id
+    
+    emit('withdraw', targetId, () => {
       session.isPending = false
       session.note = ''
       session.check_in = session.orig_check_in
       session.check_out = session.orig_check_out
+      session.pending_details = null
     })
   }
 }
-
-
-
 
 defineExpose({ isSubmitted })
 </script>
@@ -171,12 +166,14 @@ defineExpose({ isSubmitted })
             
             <div class="overflow-y-auto p-5 space-y-4 scrollbar-hide">
               <div class="space-y-4">
-                <div v-for="(session, index) in localSessions" :key="session.id" 
+                <div v-for="(session, index) in localSessions" :key="session.id || index" 
                   class="p-4 border border-slate-100 rounded-[2rem] bg-white shadow-sm space-y-3 transition-all"
                   :class="{ 'ring-1 ring-amber-400 border-amber-100 bg-amber-50/5': session.isPending }"
                 >
                   <div class="flex justify-between items-center px-1">
-                    <span class="text-[9px] font-black uppercase tracking-wider text-slate-400">Eintrag #{{ index + 1 }}</span>
+                    <span class="text-[9px] font-black uppercase tracking-wider text-slate-400">
+                      {{ session.id ? `Eintrag #${index + 1}` : 'Nachträgliche Meldung' }}
+                    </span>
                     
                     <div class="flex items-center gap-3">
                       <button 
@@ -188,8 +185,18 @@ defineExpose({ isSubmitted })
                       </button>
 
                       <span v-if="session.isPending" class="text-[9px] font-bold text-amber-600 bg-amber-100/50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <Clock class="w-2.5 h-2.5" /> Offen
+                        <Clock class="w-2.5 h-2.5" /> Antrag läuft
                       </span>
+                    </div>
+                  </div>
+
+                  <!-- NEU: Visueller Hinweis auf bereits beantragte Zeiten innerhalb der Card -->
+                  <div v-if="session.isPending && session.pending_details" class="p-2.5 bg-amber-50 rounded-xl border border-amber-100/70 flex items-start gap-2 text-[10px] text-amber-800">
+                    <HelpCircle class="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <span class="font-bold">Aktuell beantragt:</span> 
+                      <span class="tabular-nums ml-1">{{ session.pending_details.check_in }} - {{ session.pending_details.check_out }} Uhr</span>
+                      <p class="text-[9px] text-amber-600/80 mt-0.5">Du kannst den bestehenden Antrag unten überschreiben oder komplett zurückziehen.</p>
                     </div>
                   </div>
 
@@ -197,7 +204,7 @@ defineExpose({ isSubmitted })
                     <div v-for="type in ['in', 'out']" :key="type" class="space-y-1">
                       <div class="flex justify-between items-center px-1">
                         <label class="text-[9px] font-bold uppercase text-slate-400">{{ type === 'in' ? 'Beginn' : 'Ende' }}</label>
-                        <span class="text-[9px] text-slate-400 tabular-nums">Original: {{ type === 'in' ? session.orig_check_in : session.orig_check_out }}</span>
+                        <span v-if="session.id" class="text-[9px] text-slate-400 tabular-nums">Original: {{ type === 'in' ? session.orig_check_in : session.orig_check_out }}</span>
                       </div>
                       <input type="time" v-model="localSessions[index][type === 'in' ? 'check_in' : 'check_out']" :disabled="isLoading" 
                         class="w-full px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/10 outline-none"
@@ -215,48 +222,41 @@ defineExpose({ isSubmitted })
                     ></textarea>
 
                     <div class="flex flex-col gap-2">
-  
-  <template v-if="session.isPending">
-    <button 
-      @click="submitSingleSession(session)"
-      :disabled="isLoading || !session.note || (session.check_in === session.orig_check_in && session.check_out === session.orig_check_out)"
-      class="w-full py-2.5 rounded-xl font-bold text-[11px] bg-amber-500 text-white shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-20"
-    >
-      <component :is="isLoading ? 'Loader2' : CheckCircle2" class="w-3 h-3" :class="{ 'animate-spin': isLoading }" />
-      Aktualisieren
-    </button>
+                      <template v-if="session.isPending">
+                        <button 
+                          @click="submitSingleSession(session)"
+                          :disabled="isLoading || !session.note"
+                          class="w-full py-2.5 rounded-xl font-bold text-[11px] bg-amber-500 text-white shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-20"
+                        >
+                          <component :is="isLoading ? 'Loader2' : CheckCircle2" class="w-3 h-3" :class="{ 'animate-spin': isLoading }" />
+                          Antrag aktualisieren
+                        </button>
 
-    <button 
-      @click="handleWithdraw(session)"
-      :disabled="isLoading"
-      class="w-full py-2.5 rounded-xl font-bold text-[11px] bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-all flex items-center justify-center gap-2"
-    >
-      <Trash2 class="w-3 h-3" />
-      Antrag zurückziehen (Löschen)
-    </button>
-  </template>
+                        <button 
+                          @click="handleWithdraw(session)"
+                          :disabled="isLoading"
+                          class="w-full py-2.5 rounded-xl font-bold text-[11px] bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Trash2 class="w-3 h-3" />
+                          Antrag zurückziehen (Löschen)
+                        </button>
+                      </template>
 
-  <div v-else-if="session.old_ver_exists" class="flex items-center gap-2 p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-    <AlertCircle class="w-3.5 h-3.5 text-slate-400 shrink-0" />
-    <span class="text-[10px] text-slate-500 font-medium leading-tight">Diese Session wurde bereits finalisiert und kann nicht mehr korrigiert werden.</span>
-  </div>
 
-  <button 
-    v-else
-    @click="submitSingleSession(session)"
-    :disabled="isLoading || !session.note || (session.check_in === session.orig_check_in && session.check_out === session.orig_check_out)"
-    class="w-full py-2.5 rounded-xl font-bold text-[11px] bg-slate-900 text-white shadow-lg shadow-slate-900/20 transition-all flex items-center justify-center gap-2 disabled:opacity-20 disabled:shadow-none"
-  >
-    <component :is="isLoading ? 'Loader2' : Clock" class="w-3 h-3" :class="{ 'animate-spin': isLoading }" />
-    Korrektur senden
-  </button>
-
-</div>
+                      <button 
+                        v-else
+                        @click="submitSingleSession(session)"
+                        :disabled="isLoading || !session.note || (session.id && session.check_in === session.orig_check_in && session.check_out === session.orig_check_out)"
+                        class="w-full py-2.5 rounded-xl font-bold text-[11px] bg-slate-900 text-white shadow-lg shadow-slate-900/20 transition-all flex items-center justify-center gap-2 disabled:opacity-20 disabled:shadow-none"
+                      >
+                        <component :is="isLoading ? 'Loader2' : Clock" class="w-3 h-3" :class="{ 'animate-spin': isLoading }" />
+                        Korrektur senden
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <!-- Bereich für leere Liste / Button zum Hinzufügen -->
               <div v-if="!localSessions.length" class="py-10 flex flex-col items-center justify-center space-y-4">
                 <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-200">
                   <FileText class="w-8 h-8" />
@@ -275,7 +275,6 @@ defineExpose({ isSubmitted })
                 </button>
               </div>
 
-              <!-- Optionale Ergänzung: Button auch anzeigen, wenn schon Sessions da sind (unten drunter) -->
               <div v-else-if="!isManualAdding" class="pt-2 pb-4">
                 <button 
                   @click="addManualSession"

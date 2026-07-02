@@ -124,11 +124,24 @@ class WorkSessionRequestAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        session = get_object_or_404(WorkSession, id=pk, work_day__employee=request.user)
-        existing_request = session.change_requests.filter(status='pending').first()
+        # 1. Versuch: Suchen über die WorkSession-ID
+        session = WorkSession.objects.filter(id=pk, work_day__employee=request.user).first()
+        
+        if session:
+            existing_request = session.change_requests.filter(status='pending').first()
+        else:
+            # 2. Versuch: Falls pk keine Session-ID war, könnte es die WorkDay-ID sein (für Nachmeldungen)
+            existing_request = WSChangeRequest.objects.filter(
+                work_day_id=pk, 
+                worksession__isnull=True, 
+                status='pending',
+                requested_by=request.user
+            ).first()
+
         if existing_request:
             existing_request.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
+            
         return Response({"error": "Kein offener Antrag gefunden."}, status=status.HTTP_404_NOT_FOUND)
 
 
@@ -169,9 +182,30 @@ class WorkDaySessionsAPIView(APIView):
 
     def get(self, request, pk):
         workday = get_object_or_404(WorkDay, id=pk, employee=request.user)
-        sessions = workday.sessions.all()
+        sessions = workday.sessions.all().prefetch_related('change_requests')
+        
         serializer = WorkSessionDetailSerializer(sessions, many=True)
+        sessions_data = serializer.data
+
+        # 2. NEU: Prüfen, ob es eine reine Tag-Nachmeldung (ohne Session) gibt
+        day_level_request = WSChangeRequest.objects.filter(
+            work_day=workday,
+            worksession__isnull=True,
+            status='pending'
+        ).first()
+
+        # 3. Wenn ein Nachmelde-Antrag existiert, simulieren wir eine "virtuelle" Session fürs Frontend
+        if day_level_request:
+            sessions_data.append({
+                "id": None,  # Keine echte Session-ID
+                "check_in": None,
+                "check_out": None,
+                "duration": "00:00",
+                "date": workday.date,
+                "pending_request": WSChangeRequestSerializer(day_level_request).data
+            })
+
         return Response({
             "date": workday.date,
-            "sessions": serializer.data
+            "sessions": sessions_data
         })

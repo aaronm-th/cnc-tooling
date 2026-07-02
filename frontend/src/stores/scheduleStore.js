@@ -74,13 +74,6 @@ export const useScheduleStore = defineStore('schedule', {
       }
     },
 
-    // --- CHANGE REQUESTS ---
-
-    /**
-     * Erstellt oder aktualisiert einen Korrekturantrag.
-     * Nutzt automatisch den richtigen Endpunkt für Korrektur vs. Neuanlage.
-     */
-
     async fetchChangeRequests() {
       try {
         const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/change-request/`, {
@@ -116,14 +109,25 @@ export const useScheduleStore = defineStore('schedule', {
       }
     },
 
-    async withdrawShiftChangeRequest(sessionId) {
+    async withdrawShiftChangeRequest(targetId) {
       this.isLoading = true
       try {
-        const id = this.cleanId(sessionId)
-        await axios.delete(
-          `${import.meta.env.VITE_API_URL}/api/work-session-request/${id}/`, 
-          { headers: this.getAuthHeader() }
-        )
+        if (String(targetId).startsWith('request-')) {
+          // Es ist ein reiner Tages-Nachmeldeantrag ohne Session
+          const requestId = String(targetId).replace('request-', '')
+          
+          await axios.delete(
+            `${import.meta.env.VITE_API_URL}/api/change-request-cancel/${requestId}/`, 
+            { headers: this.getAuthHeader() }
+          )
+        } else {
+          // Standard-Verhalten für existierende Sessions
+          const id = this.cleanId(targetId)
+          await axios.delete(
+            `${import.meta.env.VITE_API_URL}/api/work-session-request/${id}/`, 
+            { headers: this.getAuthHeader() }
+          )
+        }
       } catch (error) {
         throw error
       } finally {
