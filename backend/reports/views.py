@@ -247,7 +247,6 @@ class MonthlyWorkDayListView(ListAPIView):
         Prüft auf Lücken im Zeitraum und erstellt fehlende WorkDay-Objekte.
         Erstellt Tage in der Zukunft nur bis zum heutigen Datum.
         """
-        # 1. Begrenzung: Wir erstellen Tage maximal bis HEUTE
         today = date.today()
         effective_end_date = min(end_date, today)
 
@@ -266,14 +265,22 @@ class MonthlyWorkDayListView(ListAPIView):
         new_workdays = []
         current_date = start_date
         
-        # Schleife läuft nur bis zum effective_end_date
         while current_date <= effective_end_date:
             if current_date not in existing_dates:
+                # Wir erstellen das Objekt
                 temp_wd = WorkDay(employee=user, date=current_date)
-                temp_wd.day_type = temp_wd.determine_type()
+                
+                # Automatische Erkennung für Wochenenden (5 = Samstag, 6 = Sonntag)
+                if current_date.weekday() in [5, 6]:
+                    temp_wd.day_type = WorkDay.DayType.WEEKEND
+                else:
+                    # Für normale Wochentage greift dein Modell-Standard 'work'
+                    temp_wd.day_type = WorkDay.DayType.WORK
+                    
                 new_workdays.append(temp_wd)
             
             current_date += timedelta(days=1)
 
+        # Wenn Lücken gefunden wurden, schreiben wir sie effizient in die DB
         if new_workdays:
             WorkDay.objects.bulk_create(new_workdays)
