@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from attendance.models import WorkSession, WorkDay
 from .models import EmployeeDocument
+from datetime import date
 
 import holidays
 
@@ -76,26 +77,33 @@ class WorkDayWithSessionsSerializer(serializers.ModelSerializer):
         return f"{self._get_raw_expected(obj):.2f}"
 
     def get_actual_hours(self, obj):
-        # Nutzt das Property/Attribut vom Modell
-        return f"{float(obj.total_hours):.2f}"
+        # Absicherung: Falls total_hours None ist, nutzen wir 0.0
+        hours = obj.total_hours if obj.total_hours is not None else 0.0
+        return f"{float(hours):.2f}"
 
     def get_diff(self, obj):
-        # Wichtig: Rechnen mit Zahlen, Rückgabe als formatierter String
         expected = self._get_raw_expected(obj)
-        actual = float(obj.total_hours)
-        diff = actual - expected # Meist ist Diff = Ist - Soll
-        return f"{diff:+.2f}" # Das + zeigt explizit + oder - an
+        # Absicherung: Falls total_hours None ist, nutzen wir 0.0
+        actual_hours = obj.total_hours if obj.total_hours is not None else 0.0
+        actual = float(actual_hours)
+        diff = actual - expected
+        return f"{diff:+.2f}"
 
     def get_display_status(self, obj):
+        # 1. Wenn Sessions existieren, ist er anwesend (egal ob Vergangenheit oder Zukunft)
         if obj.sessions.exists():
             return "Anwesend"
         
+        # 2. Feiertags-Logik bleibt gleich
         if obj.day_type == WorkDay.DayType.HOLIDAY:
             de_holidays = holidays.Germany(prov='BW')
             return de_holidays.get(obj.date) or "Feiertag"
         
+        # 3. ZUKUNFTS-CHECK für reguläre Arbeitstage
         if obj.day_type == WorkDay.DayType.WORK:
-            return "Fehlzeit" # Klingt etwas netter als Unentschuldigt
+            if obj.date > date.today():
+                return "Geplant"  # Oder "Offen" / "Arbeitstag"
+            return "Fehlzeit"     # In der Vergangenheit war es eine Fehlzeit
 
         return obj.get_day_type_display()
 
@@ -112,4 +120,8 @@ class WorkDayWithSessionsSerializer(serializers.ModelSerializer):
             de_holidays = holidays.Germany(prov='BW')
             return de_holidays.get(obj.date) or "Gesetzlicher Feiertag"
         
+        # Optional: Für geplante Tage in der Zukunft einen anderen Platzhalter liefern
+        if obj.date > date.today() and obj.day_type == WorkDay.DayType.WORK:
+            return "Noch keine Buchungen"
+            
         return "-"
