@@ -7,10 +7,10 @@ import holidays
 
 
 class EmployeeDocumentSerializer(serializers.ModelSerializer):
-    # Gibt den lesbaren Namen des Choices-Feldes zurück (z.B. "Arbeitsvertrag")
     document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
-    # Name des Mitarbeiters für die UI
     employee_name = serializers.CharField(source='employee.get_full_name', read_only=True)
+    # NEU: Generiert die absolute URL zur Datei (oder nutzt alternativ deine Download-Route)
+    file_url = serializers.SerializerMethodField()
 
     class Meta:
         model = EmployeeDocument
@@ -20,8 +20,16 @@ class EmployeeDocumentSerializer(serializers.ModelSerializer):
             'document_type_display', 
             'original_filename', 
             'uploaded_at', 
-            'employee_name'
+            'employee_name',
+            'file_url' # <-- Hier ergänzt
         ]
+
+    def get_file_url(self, obj):
+        # Falls du die Datei direkt über Medienspeicher streamen willst:
+        request = self.context.get('request')
+        if obj.file and request:
+            return request.build_absolute_uri(f"/api/documents/download/{obj.id}/")
+        return None
 
 
 

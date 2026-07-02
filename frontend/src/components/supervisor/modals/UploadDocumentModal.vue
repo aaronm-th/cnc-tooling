@@ -1,7 +1,8 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useDocumentStore } from '@/stores/documentStore' 
-import { X, UploadCloud, File, AlertCircle } from 'lucide-vue-next'
+import { X, UploadCloud, File, FileText, ImageIcon, AlertCircle, Calendar, ExternalLink, Trash2 } from 'lucide-vue-next'
+import { useDateFormatter } from '@/composables/useDateFormatter'
 
 const props = defineProps({
   isOpen: {
@@ -16,6 +17,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'success'])
 const documentStore = useDocumentStore()
+const { formatDate } = useDateFormatter()
 
 const fileInput = ref(null)
 const selectedFile = ref(null)
@@ -23,6 +25,9 @@ const documentType = ref('')
 const isDragging = ref(false)
 const errorMessage = ref('')
 const isSubmitting = ref(false)
+const isLoadingExisting = ref(false) // Ladestatus für bestehende Dokumente
+
+
 
 const DOCUMENT_TYPES = [
   { value: 'sozialversicherung', label: 'Sozialversicherungsnachweis' },
@@ -31,6 +36,60 @@ const DOCUMENT_TYPES = [
   { value: 'bescheinigung', label: 'Ärztliche Bescheinigung' },
   { value: 'sonstiges', label: 'Sonstiges' }
 ]
+
+const activeDownloadId = ref(null)
+const isDeletingId = ref(null)
+
+const handleDownload = async (id, filename) => {
+  try {
+    activeDownloadId.value = id
+    // Nutzt die sichere Blob-Download-Logik aus deinem Pinia-Store!
+    await documentStore.downloadEmployeeDocument(id, filename)
+  } catch (error) {
+    alert("Das Dokument konnte nicht heruntergeladen werden.")
+  } finally {
+    activeDownloadId.value = null
+  }
+}
+
+const handleDelete = async (documentId) => {
+  if (!confirm("Möchtest du dieses Dokument wirklich unwiderruflich löschen?")) return
+
+  try {
+    isDeletingId.value = documentId
+    await documentStore.deleteEmployeeDocument(documentId, props.member.id)
+  } catch (error) {
+    alert(error.response?.data?.detail || "Fehler beim Löschen des Dokuments.")
+  } finally {
+    isDeletingId.value = null
+  }
+}
+
+// Filtert die Dokumente aus dem Store nach Member-ID und ausgewähltem Typ
+const existingDocuments = computed(() => {
+  if (!documentType.value) return []
+  
+  const allDocs = documentStore.documents || []
+  
+  return allDocs.filter(doc => doc.document_type === documentType.value)
+})
+
+// Lädt bestehende Dokumente nach, wenn sich die Kategorie ändert
+watch(documentType, async (newType) => {
+  if (newType && props.member?.id) {
+    try {
+      isLoadingExisting.value = true
+      // Falls dein Store eine Fetch-Aktion hat, rufen wir sie hier auf
+      if (typeof documentStore.fetchEmployeeDocuments === 'function') {
+        await documentStore.fetchEmployeeDocuments(props.member.id)
+      }
+    } catch (error) {
+      console.error("Fehler beim Laden bestehender Dokumente:", error)
+    } finally {
+      isLoadingExisting.value = false
+    }
+  }
+})
 
 // Reset des Formulars bei Schließen/Öffnen
 watch(() => props.isOpen, (newVal) => {
@@ -98,7 +157,6 @@ const handleSubmit = async () => {
   formData.append('document_type', documentType.value)
 
   try {
-    // Ruft die Aktion in deinem Pinia Store auf
     await documentStore.uploadEmployeeDocument(props.member.id, formData)
     emit('success')
     emit('close')
@@ -151,6 +209,84 @@ const handleSubmit = async () => {
               {{ type.label }}
             </option>
           </select>
+        </div>
+
+        <!-- NEU: Liste bereits existierender Dokumente dieser Kategorie -->
+        <div v-if="documentType" class="space-y-2 animate-fadeIn">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">
+              Bereits hochgeladene Dokumente
+            </label>
+            <span v-if="isLoadingExisting" class="text-xs text-slate-400 flex items-center gap-1">
+              <span class="w-3 h-3 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin"></span>
+              Aktualisiere...
+            </span>
+          </div>
+
+          <!-- Wenn Dokumente vorhanden sind -->
+          <div v-if="existingDocuments.length > 0" class="max-h-32 overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-100 bg-slate-50/50">
+            <div 
+              v-for="doc in existingDocuments" 
+              :key="doc.id" 
+              class="p-2.5 flex items-center justify-between text-xs hover:bg-slate-50 transition-colors"
+            >
+              <div class="flex items-center gap-2 min-w-0 pr-2">
+                <!-- Dynamisches Icon je nach Dateityp -->
+                <template v-if="doc.original_filename?.toLowerCase().endsWith('.pdf')">
+                  <FileText class="w-3.5 h-3.5 text-red-500 shrink-0" />
+                </template>
+                <template v-else-if="doc.original_filename?.toLowerCase().match(/\.(jpg|jpeg|png)$/)">
+                  <ImageIcon class="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                </template>
+                <template v-else>
+                  <File class="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                </template>
+
+                <span class="font-medium text-slate-700 truncate" :title="doc.original_filename">
+                  {{ doc.original_filename }}
+                </span>
+              </div>
+
+              <div class="flex items-center gap-2 shrink-0 text-slate-400">
+                <span class="flex items-center gap-1 whitespace-nowrap mr-1">
+                  <Calendar class="w-3 h-3" />
+                  {{ formatDate(doc.uploaded_at) }}
+                </span>
+                
+                <!-- Dokument öffnen/herunterladen -->
+                <button 
+                  type="button"
+                  v-if="doc.file_url" 
+                  @click="handleDownload(doc.id, doc.original_filename)"
+                  class="text-blue-500 hover:text-blue-700 p-1 hover:bg-blue-50 rounded transition-colors cursor-pointer"
+                  title="Dokument herunterladen"
+                  :disabled="isDeletingId !== null"
+                >
+                  <span v-if="documentStore.isDownloading && activeDownloadId === doc.id" class="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin block"></span>
+                  <ExternalLink v-else class="w-3.5 h-3.5" />
+                </button>
+
+                <!-- NEU: Dokument löschen -->
+                <button 
+                  type="button"
+                  @click="handleDelete(doc.id)"
+                  class="text-red-400 hover:text-red-600 p-1 hover:bg-red-50 rounded transition-colors cursor-pointer disabled:opacity-40"
+                  title="Dokument löschen"
+                  :disabled="isDeletingId === doc.id"
+                >
+                  <!-- Zeigt einen kleinen Spinner an, während das Backend löscht -->
+                  <span v-if="isDeletingId === doc.id" class="w-3.5 h-3.5 border-2 border-red-500 border-t-transparent rounded-full animate-spin block"></span>
+                  <Trash2 v-else class="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Wenn in dieser Kategorie noch nichts hochgeladen wurde -->
+          <div v-else-if="!isLoadingExisting" class="text-center py-3 border border-dashed border-slate-200 rounded-xl bg-slate-50/30">
+              <p class="text-xs text-slate-400 font-medium">Noch keine Dokumente in dieser Kategorie vorhanden.</p>
+          </div>
         </div>
 
         <div class="space-y-1.5">

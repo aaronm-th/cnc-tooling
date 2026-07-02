@@ -23,16 +23,31 @@ class EmployeeDocumentListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # Wenn der User ein Admin/Staff ist, sieht er alle Dokumente
-        # Ansonsten sieht der Mitarbeiter nur seine eigenen Dokumente
+        # 1. Basis-Queryset je nach Rolle festlegen
         if request.user.is_staff:
-            documents = EmployeeDocument.objects.all()
+            queryset = EmployeeDocument.objects.all()
         else:
-            documents = EmployeeDocument.objects.filter(employee=request.user)
+            queryset = EmployeeDocument.objects.filter(employee=request.user)
             
+        # 2. NEU: Filter nach employee_id über Query-Parameter (?employee_id=X)
+        employee_id = request.query_params.get('employee_id')
+        if employee_id:
+            if request.user.is_staff:
+                # Admins dürfen die Dokumente jedes Mitarbeiters filtern
+                queryset = queryset.filter(employee_id=employee_id)
+            else:
+                # Sicherheit: Ein normaler Mitarbeiter darf hier nicht die IDs anderer abfragen
+                if str(request.user.id) != str(employee_id):
+                    return Response(
+                        {"detail": "Nicht autorisiert, Dokumente anderer Mitarbeiter einzusehen."}, 
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+        
+        # Sortierung hinzufügen (neueste Dokumente zuerst)
+        queryset = queryset.order_by('-uploaded_at')
+
         # Serialisierung der Daten
-        # (Wenn du noch keinen Serializer hast, findest du ihn unten)
-        serializer = EmployeeDocumentSerializer(documents, many=True, context={'request': request})
+        serializer = EmployeeDocumentSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 class EmployeeDocumentUploadView(APIView):
@@ -127,6 +142,41 @@ class EmployeeDocumentDownloadView(APIView):
                 {"detail": f"Fehler beim Laden der Datei: {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+class EmployeeDocumentDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, document_id):
+        # Dokument holen
+        document = get_object_or_404(EmployeeDocument, id=document_id)
+        
+        # Sicherheit: Nur Admins/Staff oder der Eigentümer (falls erlaubt) dürfen löschen
+        # Meistens dürfen Mitarbeiter Dokumente nicht selbst löschen, daher hier primär is_staff
+        if not request.user.is_staff and document.uploaded_by != request.user:
+            return Response(
+                {"detail": "Nicht autorisiert, dieses Dokument zu löschen."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        try:
+            # Physische Datei vom Speichermedium löschen
+            if document.file:
+                if os.path.isfile(document.file.path):
+                    os.remove(document.file.path)
+            
+            # Datenbank-Eintrag löschen
+            document.delete()
+            
+            return Response(
+                {"status": "success", "message": "Dokument erfolgreich gelöscht."}, 
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {"detail": f"Fehler beim Löschen der Datei: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 class MonthlyWorkSessionListView(ListAPIView):
     serializer_class = WorkSessionSerializer

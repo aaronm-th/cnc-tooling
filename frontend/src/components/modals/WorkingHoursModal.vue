@@ -176,17 +176,17 @@ watch([showPreview, selectedMonth, selectedYear], fetchPreviewData)
             </div>
             <div class="space-y-2">
               <h2 class="text-2xl font-bold text-slate-900">
-                Download Started
+                Download gestartet
               </h2>
               <p class="text-slate-500">
-                Your working hours report for {{ docStore.months[selectedMonth] }} {{ selectedYear }} is being downloaded.
+                Der Stundennachweis für {{ docStore.months[selectedMonth] }} {{ selectedYear }} wird heruntergeladen.
               </p>
             </div>
             <button 
               class="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-lg"
               @click="handleClose"
             >
-              Back to Documents
+              Zurück
             </button>
           </div>
 
@@ -199,11 +199,8 @@ watch([showPreview, selectedMonth, selectedYear], fetchPreviewData)
                 </div>
                 <div>
                   <h2 class="text-lg font-bold text-slate-900">
-                    Working Hours Report
+                    Stundennachweise
                   </h2>
-                  <p class="text-xs text-slate-500 font-medium">
-                    Export your monthly attendance
-                  </p>
                 </div>
               </div>
               <button
@@ -218,10 +215,10 @@ watch([showPreview, selectedMonth, selectedYear], fetchPreviewData)
               <div class="flex items-center justify-between">
                 <div class="space-y-1">
                   <h3 class="text-xs font-bold uppercase tracking-widest text-slate-400">
-                    Report configuration
+                    Einstellungen & Vorschau
                   </h3>
                   <p class="text-sm text-slate-500">
-                    Fine-tune your export data
+                    Vorschau deiner Arbeitszeiten.
                   </p>
                 </div>
                 <button 
@@ -229,7 +226,7 @@ watch([showPreview, selectedMonth, selectedYear], fetchPreviewData)
                   @click="showPreview = !showPreview"
                 >
                   <FileText class="w-3.5 h-3.5" />
-                  {{ showPreview ? 'Show Settings' : 'Live Preview' }}
+                  {{ showPreview ? 'Einstellungen' : 'Vorschau' }}
                 </button>
               </div>
 
@@ -305,7 +302,7 @@ watch([showPreview, selectedMonth, selectedYear], fetchPreviewData)
               >
                 <div class="space-y-4">
                   <div class="space-y-2">
-                    <label class="text-xs font-bold uppercase tracking-widest text-slate-400 ml-1">Select Year</label>
+                    <label class="text-xs font-bold uppercase tracking-widest text-slate-400 ml-1">Jahr</label>
                     <div class="grid grid-cols-3 gap-2">
                       <button 
                         v-for="year in years" 
@@ -320,7 +317,7 @@ watch([showPreview, selectedMonth, selectedYear], fetchPreviewData)
                   </div>
 
                   <div class="space-y-2">
-                    <label class="text-xs font-bold uppercase tracking-widest text-slate-400 ml-1">Select Month</label>
+                    <label class="text-xs font-bold uppercase tracking-widest text-slate-400 ml-1">Monat</label>
                     <div class="relative group">
                       
                       <select v-model="selectedMonth" class="w-full pl-4 pr-10 py-4 bg-slate-50 border border-slate-200 rounded-2xl appearance-none focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold text-slate-700 cursor-pointer">
@@ -334,12 +331,6 @@ watch([showPreview, selectedMonth, selectedYear], fetchPreviewData)
                       </div>
                     </div>
                   </div>
-                </div>
-
-                <div class="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex gap-3 italic">
-                  <p class="text-xs text-amber-700 leading-relaxed font-medium">
-                    The report includes your clock-in, clock-out times, total hours worked, and any approved overtime or leaves for the selected period.
-                  </p>
                 </div>
               </div>
 
@@ -356,7 +347,7 @@ watch([showPreview, selectedMonth, selectedYear], fetchPreviewData)
                   v-else
                   class="w-5 h-5 group-hover:scale-110 transition-transform"
                 />
-                <span>{{ isGenerating ? 'Generating PDF...' : 'Download Report' }}</span>
+                <span>{{ isGenerating ? 'Generiere PDF...' : 'Zeitnachweis herunterladen' }}</span>
               </button>
             </div>
           </template>

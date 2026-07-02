@@ -2,7 +2,7 @@ import { ref, computed } from 'vue'
 
 export function useCalendar() {
   const currentDate = ref(new Date())
-  const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const daysOfWeek = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 
   const calendarDays = computed(() => {
     const year = currentDate.value.getFullYear()

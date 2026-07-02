@@ -25,20 +25,25 @@ export const useDocumentStore = defineStore('document', () => {
   /**
    * Holt alle Dokumente des aktuell eingeteilten Nutzers vom Backend
    */
-  async function fetchEmployeeDocuments() {
-    isFetching.value = true
-    lastError.value = null
-    try {
-      // Nutzt die Base-URL aus deinen Environment-Variablen
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/documents/`)
-      documents.value = response.data
-      return response.data
-    } catch (error) {
-      lastError.value = error.response?.data?.detail || "Fehler beim Laden der Dokumentenliste."
-      throw error
-    } finally {
-      isFetching.value = false
-    }
+  async function fetchEmployeeDocuments(memberId = null) {
+      isFetching.value = true
+      lastError.value = null
+      try {
+
+        const url = memberId 
+          ? `${import.meta.env.VITE_API_URL}/api/documents/?employee_id=${memberId}`
+          : `${import.meta.env.VITE_API_URL}/api/documents/`
+
+        const response = await axios.get(url)
+        
+        documents.value = response.data
+        return response.data
+      } catch (error) {
+        lastError.value = error.response?.data?.detail || "Fehler beim Laden der Dokumentenliste."
+        throw error
+      } finally {
+        isFetching.value = false
+      }
   }
 
   /**
@@ -110,23 +115,37 @@ export const useDocumentStore = defineStore('document', () => {
    * Lädt ein Dokument für einen spezifischen Mitarbeiter hoch
    */
   async function uploadEmployeeDocument(memberId, formData) {
-    isUploading.value = true
-    lastError.value = null
+      isUploading.value = true
+      lastError.value = null
 
-    try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/documents/upload/${memberId}/`, formData)
-      
-      // Optional: Nach erfolgreichem Upload die Liste direkt neu laden
-      await fetchEmployeeDocuments()
-      
-      return response.data
-    } catch (error) {
-      lastError.value = error.response?.data?.detail || "Fehler beim Hochladen des Dokuments."
-      throw error 
-    } finally {
-      isUploading.value = false
+      try {
+        const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/documents/upload/${memberId}/`, formData)
+        
+        // Nach erfolgreichem Upload direkt die Liste DIESES Mitarbeiters neu laden,
+        // damit das Modal sofort aktuell ist
+        await fetchEmployeeDocuments(memberId)
+        
+        return response.data
+      } catch (error) {
+        lastError.value = error.response?.data?.detail || "Fehler beim Hochladen des Dokuments."
+        throw error 
+      } finally {
+        isUploading.value = false
+      }
     }
-  }
+
+    async function deleteEmployeeDocument(documentId, memberId) {
+      lastError.value = null
+      try {
+        await axios.delete(`${import.meta.env.VITE_API_URL}/api/documents/delete/${documentId}/`)
+        
+        await fetchEmployeeDocuments(memberId)
+        return true
+      } catch (error) {
+        lastError.value = error.response?.data?.detail || "Fehler beim Löschen des Dokuments."
+        throw error
+      }
+    }
 
   return {
     documents,
@@ -139,6 +158,7 @@ export const useDocumentStore = defineStore('document', () => {
     fetchEmployeeDocuments,
     downloadEmployeeDocument,
     downloadWorkReport,
-    uploadEmployeeDocument
+    uploadEmployeeDocument,
+    deleteEmployeeDocument
   }
 })
