@@ -21,6 +21,8 @@ const categories = [
   { id: 'sozialversicherung', name: 'Sozialversicherungsnachweise', icon: Shield, color: 'text-amber-500', bg: 'bg-amber-50' },
   { id: 'arbeitsvertrag', name: 'Arbeitsvertrag', icon: FileSignature, color: 'text-purple-500', bg: 'bg-purple-50' },
   { id: 'zeitnachweise', name: 'Zeitnachweise', icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
+  { id: 'sonstiges', name: 'Sonstiges', icon: FileText, color: 'text-slate-500', bg: 'bg-slate-50' },
+
 ]
 
 const handleCategoryClick = (cat) => {

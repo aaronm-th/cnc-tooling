@@ -18,8 +18,6 @@ class EmployeeDocument(models.Model):
     DOCUMENT_TYPE_CHOICES = [
         ('sozialversicherung', 'Sozialversicherungsnachweis'),
         ('arbeitsvertrag', 'Arbeitsvertrag'),
-        ('ausweis', 'Ausweis / Identifikationsdokument'),
-        ('bescheinigung', 'Ärztliche Bescheinigung'),
         ('sonstiges', 'Sonstiges'),
     ]
 
@@ -53,7 +51,7 @@ class EmployeeDocument(models.Model):
     class Meta:
         ordering = ['-uploaded_at']
         verbose_name = "Mitarbeiter-Dokument"
-        verbose_name = "Mitarbeiter-Dokumente"
+        verbose_name_plural = "Mitarbeiter-Dokumente"
 
     def __str__(self):
         return f"{self.get_document_type_display()} - {self.employee.name} ({self.uploaded_at.strftime('%d.%m.%Y')})"
