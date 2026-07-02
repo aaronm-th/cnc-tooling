@@ -199,7 +199,7 @@ watch([showPreview, selectedMonth, selectedYear], fetchPreviewData)
                 </div>
                 <div>
                   <h2 class="text-lg font-bold text-slate-900">
-                    Stundennachweise
+                    Zeitnachweise
                   </h2>
                 </div>
               </div>

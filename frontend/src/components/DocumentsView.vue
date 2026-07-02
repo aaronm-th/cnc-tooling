@@ -2,27 +2,25 @@
 import { ref, onMounted } from 'vue'
 import { useDocumentStore } from '@/stores/documentStore'
 import WorkingHoursModal from '@/components/modals/WorkingHoursModal.vue'
-import DocumentListModal from '@/components/modals/DocumentListModal.vue' // <-- NEU
+import DocumentListModal from '@/components/modals/DocumentListModal.vue'
 import { 
   FileText, 
   Shield, 
   FileSignature,
-  Calendar,
-  FileCheck
+  Calendar
 } from 'lucide-vue-next'
 
 const documentStore = useDocumentStore()
 
 const isWorkModalOpen = ref(false)
-const isDocModalOpen = ref(false)       // <-- NEU: Steuert das neue Modal
-const selectedCategory = ref(null)      // <-- NEU: Hält die aktive Kategorie für das Modal
+const isDocModalOpen = ref(false)     
+const selectedCategory = ref(null)      
 
 // Hinweis: IDs exakt auf Django-Choices gemappt
 const categories = [
   { id: 'sozialversicherung', name: 'Sozialversicherungsnachweise', icon: Shield, color: 'text-amber-500', bg: 'bg-amber-50' },
   { id: 'arbeitsvertrag', name: 'Arbeitsvertrag', icon: FileSignature, color: 'text-purple-500', bg: 'bg-purple-50' },
   { id: 'zeitnachweise', name: 'Zeitnachweise', icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
-  { id: 'ausweis', name: 'Ausweis / ID', icon: FileCheck, color: 'text-blue-500', bg: 'bg-blue-50' },
 ]
 
 const handleCategoryClick = (cat) => {
