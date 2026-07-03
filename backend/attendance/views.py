@@ -1,20 +1,22 @@
-from django.shortcuts import get_object_or_404
 from django.db import transaction
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from drf_spectacular.utils import extend_schema
 
-from rest_framework.views import APIView
+from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework import status
-
-from rest_framework.exceptions import ValidationError
+from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema
 
 from .models import WorkSession, WSChangeRequest, WorkDay, LeaveRequest
-from .serializers import (LeaveRequestSerializer, WorkSessionSerializer, 
-WorkSessionDetailSerializer, WSChangeRequestSerializer)
-
+from .serializers import (
+    LeaveRequestSerializer, 
+    WorkSessionSerializer, 
+    WorkSessionDetailSerializer, 
+    WSChangeRequestSerializer
+)
 from .utils import send_leave_notification, send_change_notification
 
 

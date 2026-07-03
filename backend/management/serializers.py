@@ -250,25 +250,20 @@ class ManualEntrySerializer(serializers.Serializer):
         note = validated_data['note']
         supervisor = self.context['request'].user
 
-        # 1. WorkDay holen oder erstellen
         work_day, created = WorkDay.objects.get_or_create(
             employee=employee, 
             date=date_obj,
             defaults={'day_type': entry_type, 'note': f"Bemerkung von {supervisor.get_full_name()}: {note}"}
         )
         
-        # Falls der Tag bereits existierte, erzwingen wir das harte Überschreiben
         if not created:
             work_day.day_type = entry_type
             work_day.note = f"Bemerkung von {supervisor.get_full_name()}: {note}"
             work_day.save()
 
-        # 2. RADIKAL AUFRÄUMEN: Unabhängig vom Typ löschen wir alle alten Sessions dieses Tages.
-        # - Verhindert das Aufaddieren bei erneuter Zeiterfassung ('work' -> 'work')
-        # - Bereinigt alte Sessions, falls ein Arbeitstag zu Urlaub/Krank umgebucht wird ('work' -> 'vacation')
+        
         work_day.sessions.all().delete()
 
-        # 3. Nur wenn der neue Typ 'work' ist, erstellen wir die EINE, neue korrekte Session
         if entry_type == 'work':
             naive_check_in = datetime.datetime.combine(date_obj, validated_data['check_in'])
             naive_check_out = datetime.datetime.combine(date_obj, validated_data['check_out'])

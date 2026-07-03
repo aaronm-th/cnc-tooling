@@ -1,9 +1,12 @@
-from .models import LeaveRequest, WorkSession
-from rest_framework import serializers
-from core.models import VacationQuota
-from .models import WorkSession, WSChangeRequest
 from datetime import timedelta
+from rest_framework import serializers
+
+# Core Services & Models
+from core.models import VacationQuota
 from core.services.vacation_service import VacationService
+
+# Local Models
+from .models import LeaveRequest, WorkSession, WSChangeRequest
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
     type_display = serializers.CharField(source='get_leave_type_display', read_only=True)
