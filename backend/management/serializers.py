@@ -136,14 +136,13 @@ class ChangeRequestSerializer(serializers.ModelSerializer):
     request_date = serializers.DateTimeField(format="%d.%m.%Y, %H:%M")
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     time_diff = serializers.SerializerMethodField()
-    old_ver_exists = serializers.SerializerMethodField()
 
     class Meta:
         model = WSChangeRequest
         fields = [
             'id', 'name', 'initials', 'avatar', 'status', 'status_display', 
             'old_check_in', 'old_check_out', 'requested_check_in', 'requested_check_out',
-            'employee_note', 'request_date', 'date', 'time_diff', 'old_ver_exists'
+            'employee_note', 'request_date', 'date', 'time_diff'
         ]
 
     def get_date(self, obj):
@@ -159,7 +158,7 @@ class ChangeRequestSerializer(serializers.ModelSerializer):
         return None
     
     def get_time_diff(self, obj):
-        diff_min = obj.duration_difference / 60
+        diff_min = obj.duration_difference_minutes
         return f"{'+' if diff_min > 0 else ''}{diff_min:.0f} min"
 
 
