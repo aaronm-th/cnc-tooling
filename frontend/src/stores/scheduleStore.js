@@ -86,48 +86,46 @@ export const useScheduleStore = defineStore('schedule', {
       }
     },
 
-    async submitShiftChangeRequest(payload) {
-      this.isLoading = true
-      try {
-        const isUpdate = !!payload.worksession_id;
-        const id = isUpdate ? payload.worksession_id : payload.workday_id;
-        
-        // Entscheidet zwischen /work-session-request/ und /work-day-request/
-        const endpoint = isUpdate ? 'work-session-request' : 'work-day-request';
-        const url = `${import.meta.env.VITE_API_URL}/api/${endpoint}/${this.cleanId(id)}/`;
+  async submitShiftChangeRequest(payload) {
+    this.isLoading = true
+    try {
+      // Wenn eine worksession_id existiert ODER es sich um einen Eintrag handelt,
+      // der bereits eine ID besitzt, aber keine originale Session hat.
+      const isSessionCorrection = !!payload.worksession_id;
+      
+      // Falls keine Session existiert, aber das Objekt eine ID hat, ist es ein Update eines bestehenden Day-Level-Requests
+      const isDayRequestUpdate = !payload.worksession_id && !!payload.id;
 
-        const res = await axios.post(url, payload, { 
-          headers: this.getAuthHeader() 
-        });
-        
-        return res.data;
-      } catch (error) {
-        console.error("Fehler beim Schicht-Antrag:", error);
-        throw error;
-      } finally {
-        this.isLoading = false;
+      let url;
+      if (isSessionCorrection) {
+        url = `${import.meta.env.VITE_API_URL}/api/work-session-request/${this.cleanId(payload.worksession_id)}/`;
+      } else {
+        url = `${import.meta.env.VITE_API_URL}/api/work-day-request/${this.cleanId(payload.workday_id)}/`;
       }
-    },
+
+      const res = await axios.post(url, payload, { 
+        headers: this.getAuthHeader() 
+      });
+      
+      return res.data;
+    } catch (error) {
+      console.error("Fehler beim Schicht-Antrag:", error);
+      throw error;
+    } finally {
+      this.isLoading = false;
+    }
+  },
 
     async withdrawShiftChangeRequest(targetId) {
       this.isLoading = true
       try {
-        if (String(targetId).startsWith('request-')) {
-          // Es ist ein reiner Tages-Nachmeldeantrag ohne Session
-          const requestId = String(targetId).replace('request-', '')
-          
-          await axios.delete(
-            `${import.meta.env.VITE_API_URL}/api/change-request-cancel/${requestId}/`, 
-            { headers: this.getAuthHeader() }
-          )
-        } else {
-          // Standard-Verhalten für existierende Sessions
-          const id = this.cleanId(targetId)
-          await axios.delete(
-            `${import.meta.env.VITE_API_URL}/api/work-session-request/${id}/`, 
-            { headers: this.getAuthHeader() }
-          )
-        }
+        
+        const id = this.cleanId(targetId)
+        await axios.delete(
+          `${import.meta.env.VITE_API_URL}/api/work-session-request/${id}/`, 
+          { headers: this.getAuthHeader() }
+        )
+        
       } catch (error) {
         throw error
       } finally {

@@ -124,13 +124,13 @@ class WorkSessionDetailSerializer(serializers.ModelSerializer):
             'check_in', 
             'check_out', 
             'duration', 
-            'pending_request', 
+            'pending_requests', 
             'date'
         ]
 
-    def get_pending_request(self, obj):
+    def get_pending_requests(self, obj):
         # Nutzt den related_name 'change_requests' aus deinem Model
-        request = obj.change_requests.filter(status='pending').first()
-        if request:
-            return WSChangeRequestSerializer(request).data
+        requests = obj.change_requests.filter(status='pending')
+        if requests:
+            return WSChangeRequestSerializer(requests, many=True).data
         return None

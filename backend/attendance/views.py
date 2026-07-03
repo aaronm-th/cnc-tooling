@@ -125,14 +125,13 @@ class WorkSessionRequestAPIView(APIView):
 
     def delete(self, request, pk):
         # 1. Versuch: Suchen über die WorkSession-ID
-        session = WorkSession.objects.filter(id=pk, work_day__employee=request.user).first()
+        session = WorkSession.objects.filter(id=pk, work_day__employee=request.user).first()        
         
         if session:
             existing_request = session.change_requests.filter(status='pending').first()
         else:
-            # 2. Versuch: Falls pk keine Session-ID war, könnte es die WorkDay-ID sein (für Nachmeldungen)
             existing_request = WSChangeRequest.objects.filter(
-                work_day_id=pk, 
+                id=pk, 
                 worksession__isnull=True, 
                 status='pending',
                 requested_by=request.user
@@ -154,13 +153,19 @@ class WorkDayRequestAPIView(APIView):
     def post(self, request, pk):
         workday = get_object_or_404(WorkDay, id=pk, employee=request.user)
         
-        # Bestehenden Neuanlage-Antrag für diesen Tag suchen
-        existing_request = WSChangeRequest.objects.filter(
-            work_day=workday, 
-            worksession__isnull=True, 
-            status='pending'
-        ).first()
+        # NEU: Wir schauen, ob das Frontend eine spezifische ID des Änderungsantrags mitschickt
+        change_request_id = request.data.get('id')
+        existing_request = None
+        
+        if change_request_id:
+            existing_request = WSChangeRequest.objects.filter(
+                id=change_request_id,
+                work_day=workday,
+                worksession__isnull=True,
+                status='pending'
+            ).first()
 
+        # Wenn existing_request gefunden wird -> Update, ansonsten -> Echte Neuanlage
         serializer = WSChangeRequestSerializer(existing_request, data=request.data, partial=True) if existing_request \
                      else WSChangeRequestSerializer(data=request.data)
 
@@ -175,6 +180,19 @@ class WorkDayRequestAPIView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK if existing_request else status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    def delete(self, request, pk):
+        workday = get_object_or_404(WorkDay, id=pk, employee=request.user)
+        existing_request = WSChangeRequest.objects.filter(
+            work_day=workday,
+            worksession__isnull=True,
+            status='pending'
+        ).first()
+
+        if existing_request:
+            existing_request.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        return Response({"error": "Kein offener Antrag gefunden."}, status=status.HTTP_404_NOT_FOUND)
 
 class WorkDaySessionsAPIView(APIView):
     """Gibt alle Sessions eines bestimmten Tages zurück (für die Listenansicht im Modal)"""
@@ -188,22 +206,22 @@ class WorkDaySessionsAPIView(APIView):
         sessions_data = serializer.data
 
         # 2. NEU: Prüfen, ob es eine reine Tag-Nachmeldung (ohne Session) gibt
-        day_level_request = WSChangeRequest.objects.filter(
+        day_level_requests = WSChangeRequest.objects.filter(
             work_day=workday,
             worksession__isnull=True,
             status='pending'
-        ).first()
+        )
 
-        # 3. Wenn ein Nachmelde-Antrag existiert, simulieren wir eine "virtuelle" Session fürs Frontend
-        if day_level_request:
+        for request in day_level_requests:
             sessions_data.append({
                 "id": None,  # Keine echte Session-ID
                 "check_in": None,
                 "check_out": None,
                 "duration": "00:00",
                 "date": workday.date,
-                "pending_request": WSChangeRequestSerializer(day_level_request).data
+                "pending_requests": WSChangeRequestSerializer(request).data
             })
+
 
         return Response({
             "date": workday.date,

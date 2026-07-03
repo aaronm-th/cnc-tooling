@@ -97,11 +97,6 @@ class WSChangeRequest(models.Model):
                 condition=models.Q(status="pending", worksession__isnull=False),
                 name="unique_pending_session_request"
             ),
-            models.UniqueConstraint(
-                fields=["work_day"],
-                condition=models.Q(status="pending", worksession__isnull=True),
-                name="unique_pending_manual_request"
-            )
         ]
 
     @property
@@ -120,25 +115,35 @@ class WSChangeRequest(models.Model):
         old_duration = 0
         if self.old_check_in and self.old_check_out:
             old_duration = (self.old_check_out - self.old_check_in).total_seconds() / 60
-        elif self.worksession:
-            # Fallback, falls old_check_in noch nicht im save() weggeschrieben wurde
+            
+        elif self.worksession and self.worksession.check_out and self.worksession.check_in:
             old_duration = (self.worksession.check_out - self.worksession.check_in).total_seconds() / 60
 
         # Differenz berechnen und runden
         return round(requested_duration - old_duration)
 
     def clean(self):
+        super().clean()
+        
+        # 1. Zeiten-Validierung
         if self.requested_check_in and self.requested_check_out:
             if self.requested_check_out <= self.requested_check_in:
                 raise ValidationError("Das Ende muss nach dem Beginn liegen.")
 
+        # 2. Konsistenz-Validierung (Verhindert, dass Day und Session auseinanderlaufen)
+        if self.worksession and self.work_day:
+            if self.worksession.work_day != self.work_day:
+                raise ValidationError(
+                    "Kritischer Fehler: Der ausgewählte Arbeitstag stimmt nicht mit dem Tag der Arbeitszeit überein."
+                )
+
     def save(self, *args, **kwargs):
-        if not self.pk:
-            if self.worksession:
-                self.old_check_in = self.worksession.check_in
-                self.old_check_out = self.worksession.check_out
-                self.work_day = self.worksession.work_day
-                self.requested_by = self.worksession.work_day.employee
+        # Falls eine Session existiert, ziehen wir uns die Daten automatisch glatt
+        if self.worksession:
+            self.old_check_in = self.worksession.check_in
+            self.old_check_out = self.worksession.check_out
+            self.work_day = self.worksession.work_day
+            self.requested_by = self.worksession.work_day.employee
         super().save(*args, **kwargs)
 
     def approve(self, reviewer):

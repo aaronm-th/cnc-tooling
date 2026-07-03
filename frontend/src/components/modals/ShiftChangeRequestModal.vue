@@ -14,7 +14,6 @@ const { formatDate, formatTimeForInput } = useDateFormatter()
 
 const isSubmitted = ref(false)
 const localSessions = ref([])
-const isManualAdding = ref(false)
 
 const displayDate = computed(() => formatDate(props.shift?.date))
 
@@ -23,7 +22,6 @@ const onKeyDown = (e) => {
 }
 
 const addManualSession = () => {
-  isManualAdding.value = true
   localSessions.value.push({
     id: null,
     check_in: '08:00',
@@ -40,24 +38,28 @@ watch(() => props.isOpen, (isOpen) => {
   if (isOpen) {
     window.addEventListener('keydown', onKeyDown)
     isSubmitted.value = false
-    isManualAdding.value = false
     
     if (props.shift?.sessions) {
       localSessions.value = props.shift.sessions.map(session => {
-        const hasPending = !!session.pending_request
+        // Da das Backend ein Objekt liefert, greifen wir direkt darauf zu (ohne [0])
+        const pendingData = session.pending_requests
+        const hasPending = !!pendingData
+        
+        const defaultCheckIn = session.check_in || '08:00'
+        const defaultCheckOut = session.check_out || '16:00'
+
         return {
           id: session.id,
-          // Wenn ein Antrag läuft, zeigen wir die beantragten Zeiten im Input, sonst die echten
-          check_in: formatTimeForInput(session.pending_request?.requested_check_in || session.check_in),
-          check_out: formatTimeForInput(session.pending_request?.requested_check_out || session.check_out),
+          change_request_id: pendingData?.id || null,
+          check_in: formatTimeForInput(pendingData?.requested_check_in || defaultCheckIn),
+          check_out: formatTimeForInput(pendingData?.requested_check_out || defaultCheckOut),
           orig_check_in: session.check_in ? formatTimeForInput(session.check_in) : null,
           orig_check_out: session.check_out ? formatTimeForInput(session.check_out) : null,
-          note: session.pending_request?.employee_note || '',
+          note: pendingData?.employee_note || '',
           isPending: hasPending,
-          // Speichern für die Info-Anzeige im UI
           pending_details: hasPending ? {
-            check_in: formatTimeForInput(session.pending_request.requested_check_in),
-            check_out: formatTimeForInput(session.pending_request.requested_check_out)
+            check_in: formatTimeForInput(pendingData.requested_check_in),
+            check_out: formatTimeForInput(pendingData.requested_check_out)
           } : null
         }
       })
@@ -68,13 +70,21 @@ watch(() => props.isOpen, (isOpen) => {
   }
 }, { immediate: true })
 
-const createPayload = (session) => ({
-  workday_id: props.shift.id,
-  worksession_id: session.id,
-  employee_note: session.note,
-  requested_check_in: `${props.shift.date}T${session.check_in}:00`,
-  requested_check_out: `${props.shift.date}T${session.check_out}:00`,
-})
+const createPayload = (session) => {
+  const payload = {
+    workday_id: props.shift.id,
+    worksession_id: session.orig_check_in ? session.id : null,
+    employee_note: session.note,
+    requested_check_in: `${props.shift.date}T${session.check_in}:00`,
+    requested_check_out: `${props.shift.date}T${session.check_out}:00`,
+  }
+
+  if (!session.orig_check_in && session.change_request_id) {
+    payload.id = session.change_request_id
+  }
+
+  return payload
+}
 
 const submitSingleSession = (session) => {
   if (!session.note || session.note.trim() === '') return 
@@ -107,17 +117,31 @@ const resetSession = (index) => {
   session.note = ''
 }
 
-const handleWithdraw = (session) => {
+// Erweitert um den index, um lokale Einträge direkt entfernen zu können
+const handleWithdraw = (session, index) => {
   if (confirm('Möchtest du diesen Korrekturantrag wirklich löschen?')) {
-    // Wenn session.id null ist (Nachmeldung), nutzen wir die ID des Tages (props.shift.id)
-    const targetId = session.id || props.shift.id
-    
+    if (!session.id && !session.isPending) {
+      localSessions.value.splice(index, 1)
+      return
+    }
+
+    const targetId = session.id ? session.id : session.change_request_id
+
+    if (!targetId) {
+      console.error("Keine gültige ID zum Löschen gefunden.");
+      return;
+    }
+
     emit('withdraw', targetId, () => {
       session.isPending = false
       session.note = ''
       session.check_in = session.orig_check_in
       session.check_out = session.orig_check_out
       session.pending_details = null
+      
+      if (!session.id) {
+        localSessions.value.splice(index, 1)
+      }
     })
   }
 }
@@ -233,12 +257,11 @@ defineExpose({ isSubmitted })
                         </button>
 
                         <button 
-                          @click="handleWithdraw(session)"
+                          @click="handleWithdraw(session, index)"
                           :disabled="isLoading"
                           class="w-full py-2.5 rounded-xl font-bold text-[11px] bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-all flex items-center justify-center gap-2"
                         >
-                          <Trash2 class="w-3 h-3" />
-                          Antrag zurückziehen (Löschen)
+                          <Trash2 class="w-3 h-3" /> Antrag zurückziehen (Löschen)
                         </button>
                       </template>
 
@@ -257,30 +280,31 @@ defineExpose({ isSubmitted })
                 </div>
               </div>
 
-              <div v-if="!localSessions.length" class="py-10 flex flex-col items-center justify-center space-y-4">
+              <div v-if="!localSessions.length" class="py-10 flex flex-col items-center justify-center space-y-6">
                 <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-200">
                   <FileText class="w-8 h-8" />
                 </div>
-                <div class="text-center">
+                <div class="text-center space-y-1">
                   <p class="text-xs font-bold text-slate-400">Keine Arbeitszeiten erfasst</p>
                   <p class="text-[10px] text-slate-300">Systemausfall oder vergessen zu stempeln?</p>
                 </div>
                 
                 <button 
                   @click="addManualSession"
-                  class="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-[11px] shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all flex items-center gap-2"
+                  class="w-full py-6 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all flex items-center justify-center gap-2 group cursor-pointer text-xs"
                 >
-                  <Plus class="w-3.5 h-3.5" />
+                  <Plus class="w-5 h-5 group-hover:scale-110 transition-transform" />
                   Zeit nachträglich melden
                 </button>
               </div>
 
-              <div v-else-if="!isManualAdding" class="pt-2 pb-4">
+              <div v-else class="pt-2 pb-4">
                 <button 
                   @click="addManualSession"
-                  class="w-full py-3 border-2 border-dashed border-slate-100 rounded-2xl text-slate-400 text-[10px] font-bold hover:border-blue-200 hover:text-blue-500 transition-all flex items-center justify-center gap-2"
+                  class="w-full py-6 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all flex items-center justify-center gap-2 group cursor-pointer text-xs"
                 >
-                  <Plus class="w-3 h-3" /> Weiteren Zeitraum hinzufügen
+                  <Plus class="w-5 h-5 group-hover:scale-110 transition-transform" /> 
+                  Weiteren Zeitraum hinzufügen
                 </button>
               </div>
             </div>

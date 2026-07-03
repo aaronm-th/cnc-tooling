@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue' // <-- watch hinzugefügt
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { storeToRefs } from 'pinia'
 import { useEventStyles } from '@/composables/useEventStyles'
@@ -14,7 +14,15 @@ const { getEventIcon, getIconColorClass, getStatusColorClass } = useEventStyles(
 const currentFilter = ref('all')
 const selectedMonth = ref('all')
 const errorMessage = ref('')
-const activeTab = ref('leave') // Steuert die Tabs wie im AI-Studio Design
+
+// ZU PROBLEM 1: Liest den letzten Tab aus dem LocalStorage oder nutzt 'leave' als Fallback
+const activeTab = ref(localStorage.getItem('active_request_tab') || 'leave')
+
+// ZU PROBLEM 1: Speichert jede Änderung des Tabs automatisch im LocalStorage
+watch(activeTab, (newTab) => {
+  localStorage.setItem('active_request_tab', newTab)
+})
+
 const leaveModalRef = ref(null)
 
 const formatTime = (dateStr) => {
@@ -59,29 +67,23 @@ onMounted(() => {
 const filteredLeaveRequests = computed(() => {
   let list = leaveRequests.value || []
 
-  // 1. Status Filter
   if (currentFilter.value !== 'all') {
     list = list.filter(req => req.status === currentFilter.value)
   } else {
     list = list.filter(req => req.status !== 'cancelled')
   }
 
-  // 2. Datums Filter
   if (selectedMonth.value !== 'all') {
-    // Teilt z.B. "2026-06" in Jahr = 2026 und Monat = 6
     const [filterYear, filterMonth] = selectedMonth.value.split('-').map(Number)
     
     list = list.filter(req => {
       const dateField = req.leave_start || req.start_date || req.start
-      if (!dateField) return false // Ohne Datum passt es nicht in den Monat
+      if (!dateField) return false 
       
       const reqDate = new Date(dateField)
-      
-      // Holt das Jahr (z.B. 2026) und den Monat (0-11, daher + 1) des Antrags
       const reqYear = reqDate.getFullYear()
       const reqMonth = reqDate.getMonth() + 1 
       
-      // Nur anzeigen, wenn Jahr UND Monat exakt übereinstimmen
       return reqYear === filterYear && reqMonth === filterMonth
     })
   }
@@ -89,23 +91,20 @@ const filteredLeaveRequests = computed(() => {
   return list
 })
 
-// Filter-Logik für Änderungsanträge (Zuvor aus Store-Events extrahiert)
+// Filter-Logik für Änderungsanträge
 const filteredChangeRequests = computed(() => {
   let list = changeRequests.value || []
     
-  // 1. Status Filter
   if (currentFilter.value !== 'all') {
     list = list.filter(req => req.status === currentFilter.value)
   } else {
     list = list.filter(req => req.status !== 'cancelled')
   }
   
-  // 2. Datums Filter (angepasst an typische Schicht-/Korrektur-Daten)
   if (selectedMonth.value !== 'all') {
     const [filterYear, filterMonth] = selectedMonth.value.split('-').map(Number)
     
     list = list.filter(req => {
-      // Prüft die typischen Datumsfelder von Arbeitszeitkorrekturen (date oder request_date)
       const dateField = req.requested_check_in || req.requested_check_out
       if (!dateField) return false 
       
@@ -147,7 +146,6 @@ const handleFormSubmit = async (formData) => {
     closeModals()
   } catch (error) {
     if (error.response && error.response.status === 400) {
-      // Reiche die DRF-Fehlermeldungen direkt an das Modal weiter
       leaveModalRef.value?.setBackendErrors(error.response.data)
     }
   }
@@ -166,9 +164,17 @@ const confirmDelete = async (id) => {
   }
 }
 
-const cancelChangeRequest = (shiftId) => {
+// ZU PROBLEM 2: Funktion asynchron gemacht, mit Error-Handling und Re-Fetch versehen
+const cancelChangeRequest = async (shiftId) => {
   if (confirm('Möchtest du diesen Änderungsantrag wirklich stornieren?')) {
-    scheduleStore.cancelShiftChangeRequest(shiftId)
+    try {
+      errorMessage.value = ''
+      await scheduleStore.withdrawShiftChangeRequest(shiftId)
+      await scheduleStore.fetchChangeRequests() // Lädt die Änderungsanträge direkt neu
+    } catch (err) {
+      errorMessage.value = err.message
+      alert(errorMessage.value)
+    }
   }
 }
 
