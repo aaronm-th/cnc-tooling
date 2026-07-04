@@ -310,21 +310,21 @@ class LeaveRequest(models.Model):
                     date=current
                 )
                 
-                # REGEWERK FÜR DEN DAY_TYPE:
-                # 1. Feiertage behalten ihren Status (Urlaub ist dort 'geschenkt')
-                # 2. Wochenenden bleiben Wochenenden
-                # 3. Nur Arbeitstage werden zu Urlaub/Krank/GLZ
                 is_holiday = current in de_holidays
                 is_weekend = current.weekday() >= 5
 
-                if not is_holiday and not is_weekend:
-                    wd.day_type = self.map_leave_to_daytype()
-                elif is_holiday:
-                    wd.day_type = "holiday"
-                elif is_weekend:
-                    wd.day_type = "weekend"
-                
-                wd.save()
+                # Wenn der Tag neu ist, oder der Typ bisher ein ganz normaler Arbeitstag war,
+                # darf die Urlaubs-/Wochenendlogik greifen.
+                if created or wd.day_type == WorkDay.DayType.WORK:
+                    if not is_holiday and not is_weekend:
+                        wd.day_type = self.map_leave_to_daytype()
+                    elif is_holiday:
+                        wd.day_type = "holiday"
+                    elif is_weekend:
+                        wd.day_type = "weekend"
+                    
+                    wd.save() # Nur speichern, wenn wir es auch wirklich geändert haben
+                    
                 current += timedelta(days=1)
 
     def actual_vacation_days_to_deduct(self):

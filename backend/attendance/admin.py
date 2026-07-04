@@ -5,6 +5,9 @@ from datetime import timedelta
 from django.utils.timezone import localtime
 from django.utils.html import format_html
 
+
+
+
 class WorkSessionAdmin(admin.ModelAdmin):
     list_display = ('id', 'employee', 'check_in', 'check_out')
     list_filter = ('work_day__employee', 'check_in')
@@ -12,7 +15,6 @@ class WorkSessionAdmin(admin.ModelAdmin):
     def employee(self, obj):
         return obj.work_day.employee
     employee.admin_order_field = 'work_day__employee'
-
 
 admin.site.register(md.WorkSession, WorkSessionAdmin)
 
@@ -127,8 +129,6 @@ class WorkDayAdmin(admin.ModelAdmin):
     def get_total_hours(self, obj):
         return f"{obj.total_hours:.2f}"
     get_total_hours.short_description = "Total Hours"
-
-
 
 admin.site.register(md.WorkDay, WorkDayAdmin)
 

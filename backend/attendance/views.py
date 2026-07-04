@@ -74,7 +74,6 @@ class LeaveRequestDetailAPIView(RetrieveUpdateDestroyAPIView):
             instance.save()
             return Response({"status": "cancelled", "message": "Antrag wurde storniert."}, status=status.HTTP_200_OK)
 
-
 class ChangeRequestListAPIView(ListCreateAPIView):
     """GET: Liste aller Anträge, POST: Neuen Antrag erstellen"""
     serializer_class = WSChangeRequestSerializer
@@ -82,7 +81,6 @@ class ChangeRequestListAPIView(ListCreateAPIView):
 
     def get_queryset(self):
         return WSChangeRequest.objects.filter(requested_by=self.request.user).order_by('-request_date')
-
 
 class WorkSessionRequestAPIView(APIView):
     """
@@ -144,7 +142,6 @@ class WorkSessionRequestAPIView(APIView):
             return Response(status=status.HTTP_204_NO_CONTENT)
             
         return Response({"error": "Kein offener Antrag gefunden."}, status=status.HTTP_404_NOT_FOUND)
-
 
 class WorkDayRequestAPIView(APIView):
     """
