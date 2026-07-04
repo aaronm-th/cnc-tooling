@@ -116,7 +116,7 @@ class WorkSessionDetailSerializer(serializers.ModelSerializer):
     """
     Detail-Serializer für die Anzeige im Frontend-Modal.
     """
-    pending_request = serializers.SerializerMethodField()
+    pending_requests = serializers.SerializerMethodField()
     date = serializers.DateField(source='work_day.date', read_only=True)
     duration = serializers.ReadOnlyField(source='duration_str')
 
