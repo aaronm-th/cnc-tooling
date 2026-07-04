@@ -229,6 +229,7 @@ SIMPLE_JWT = {
 
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/0")
+CELERY_TIMEZONE = 'Europe/Berlin'
 
 broker_connection_retry_on_startup = True
 
@@ -238,7 +239,7 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': timedelta(minutes=5),
     },
     'create-workdays-at-midnight': {
-        'task': 'attendance.tasks.generate_workdays_for_range',
+        'task': 'attendance.tasks.daily_workday_generation',
         'schedule': crontab(hour=0, minute=5),
     }
 }

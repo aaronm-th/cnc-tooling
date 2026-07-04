@@ -126,6 +126,20 @@ def new_workday(target_date=None):
 
 
 @shared_task
+def daily_workday_generation():
+    """Wird jede Nacht per Celery Beat ausgeführt."""
+    from core.models import Employee
+    from django.utils import timezone
+    
+    today_str = timezone.localdate().isoformat()
+    active_employees = Employee.objects.filter(is_active=True, is_superuser=False)
+    
+    for emp in active_employees:
+        # Ruft den Range-Task einfach mit Start=Heute und Ende=Heute auf
+        generate_workdays_for_range.delay(emp.id, today_str, today_str)
+
+
+@shared_task
 def generate_workdays_for_range(employee_id, start_date_str, end_date_str):
     from django.utils.dateparse import parse_date
     from core.models import Employee
