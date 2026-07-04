@@ -1,7 +1,6 @@
 from celery import shared_task
 from django.utils import timezone
 from datetime import timedelta
-from .models import WorkSession, WorkDay
 from core.models import Employee
 from .utils import _send_supervisor_notification
 
@@ -25,6 +24,7 @@ def format_timedelta(td):
 @shared_task
 def auto_checkout():
     # 'now' bleibt UTC für die DB-Abfrage
+    from .models import WorkSession
     now = timezone.now()
     
     # Für das Log machen wir es lokal lesbar:
@@ -80,6 +80,8 @@ def new_workday(target_date=None):
         today = parse_date(target_date) if isinstance(target_date, str) else target_date
 
     import holidays
+    from .models import WorkDay
+
     de_holidays = holidays.Germany(prov='BW')
     is_holiday = today in de_holidays
     is_weekend = today.weekday() >= 5
