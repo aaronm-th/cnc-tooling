@@ -126,60 +126,40 @@ def new_workday(target_date=None):
 
 
 @shared_task
-def new_workday(target_date=None):
-    # Wenn kein Datum übergeben wird, nimm heute
-    if target_date is None:
-        today = timezone.localdate()
-    else:
-        # Falls ein String übergeben wurde, parsen
-        from django.utils.dateparse import parse_date
-        today = parse_date(target_date) if isinstance(target_date, str) else target_date
-
-    # 1. Feiertage einmalig für den Tag laden
-    # (Hier ggf. Bundesland dynamisch pro Region laden, falls nötig)
+def generate_workdays_for_range(employee_id, start_date_str, end_date_str):
+    from django.utils.dateparse import parse_date
+    from core.models import Employee
+    from .models import WorkDay, LeaveRequest
     import holidays
-    de_holidays = holidays.Germany(prov='BW')
-    is_holiday = today in de_holidays
-    is_weekend = today.weekday() >= 5
-
-    employees_to_track = Employee.objects.filter(is_active = True, is_superuser = False, joined_at__lte = today)
     
-    # Bereits existierende Tage ausschließen
-    existing_ids = WorkDay.objects.filter(date=today).values_list('employee_id', flat=True)
-    missing_employees = employees_to_track.exclude(id__in=existing_ids)
-
-    new_days = []
-    for emp in missing_employees:
-        # Hier die Logik aus determine_type vorziehen
-        # Erst auf Urlaub prüfen (da Urlaub Vorrang vor Feiertag/Wochenende hat)
-        from attendance.models import LeaveRequest
-        leave = LeaveRequest.objects.filter(
-            employee=emp,
-            leave_start__lte=today,
-            leave_end__gte=today,
-            status='approved'
-        ).first()
-
-        day_type = WorkDay.DayType.WORK # Default
+    start_date = parse_date(start_date_str)
+    end_date = parse_date(end_date_str)
+    emp = Employee.objects.get(id=employee_id)
+    de_holidays = holidays.Germany(prov='BW')
+    
+    current = start_date
+    while current <= end_date:
+        is_holiday = current in de_holidays
+        is_weekend = current.weekday() >= 5
         
+        # Prüfen, ob für diesen Tag ein Urlaub vorliegt
+        leave = LeaveRequest.objects.filter(
+            employee=emp, leave_start__lte=current, leave_end__gte=current, status='approved'
+        ).first()
+        
+        day_type = WorkDay.DayType.WORK
         if leave:
-            mapping = {
-                'vacation': WorkDay.DayType.VACATION,
-                'sick': WorkDay.DayType.SICK,
-                'overtime': WorkDay.DayType.OVERTIME
-            }
+            mapping = {'vacation': WorkDay.DayType.VACATION, 'sick': WorkDay.DayType.SICK, 'overtime': WorkDay.DayType.OVERTIME}
             day_type = mapping.get(leave.leave_type, WorkDay.DayType.WORK)
         elif is_holiday:
             day_type = WorkDay.DayType.HOLIDAY
         elif is_weekend:
             day_type = WorkDay.DayType.WEEKEND
-
-        new_days.append(
-            WorkDay(
-                employee=emp, 
-                date=today, 
-                day_type=day_type
-            )
+            
+        # Nutze get_or_create oder update_or_create, um nichts zu überschreiben, was manuell geändert wurde
+        WorkDay.objects.get_or_create(
+            employee=emp,
+            date=current,
+            defaults={'day_type': day_type}
         )
-    
-    WorkDay.objects.bulk_create(new_days)
+        current += timedelta(days=1)

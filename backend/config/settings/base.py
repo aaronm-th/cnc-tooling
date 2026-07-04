@@ -238,16 +238,8 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': timedelta(minutes=5),
     },
     'create-workdays-at-midnight': {
-        'task': 'attendance.tasks.new_workday',
+        'task': 'attendance.tasks.generate_workdays_for_range',
         'schedule': crontab(hour=0, minute=5),
-    },
-    'generate-monthly-balances': {
-        'task': 'core.tasks.generate_monthly_balances',
-        'schedule': crontab(day_of_month='1', hour=0, minute=1),
-    },
-    'sync-monthly-balances-every-day': {
-        'task': 'your_app.tasks.sync_all_monthly_balances',
-        'schedule': crontab(hour=0), # Jeden vollen Tag
-    },
+    }
 }
 

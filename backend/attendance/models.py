@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Sum, F, ExpressionWrapper, DurationField
 from django.utils import timezone
 
+from .tasks import generate_workdays_for_range
 from core.models import Employee
 import holidays
 
@@ -289,43 +290,19 @@ class LeaveRequest(models.Model):
         return len(self.get_affected_dates())
 
     def approve(self, user):
-        """Genehmigt den Antrag und schreibt die WorkDay-Tabelle fort."""
-
-        from . import WorkDay
-
         with transaction.atomic():
             self.status = "approved"
             self.reviewed_by = user
             self.reviewed_date = now()
             self.save()
             
-            # Kalender synchronisieren
-            # Wir nutzen das Bundesland des Mitarbeiters (hier Hardcoded 'BW', sollte dynamisch sein)
-            de_holidays = holidays.Germany(prov='BW')
-            
-            current = self.leave_start
-            while current <= self.leave_end:
-                wd, created = WorkDay.objects.get_or_create(
-                    employee=self.employee, 
-                    date=current
-                )
-                
-                is_holiday = current in de_holidays
-                is_weekend = current.weekday() >= 5
-
-                # Wenn der Tag neu ist, oder der Typ bisher ein ganz normaler Arbeitstag war,
-                # darf die Urlaubs-/Wochenendlogik greifen.
-                if created or wd.day_type == WorkDay.DayType.WORK:
-                    if not is_holiday and not is_weekend:
-                        wd.day_type = self.map_leave_to_daytype()
-                    elif is_holiday:
-                        wd.day_type = "holiday"
-                    elif is_weekend:
-                        wd.day_type = "weekend"
-                    
-                    wd.save() # Nur speichern, wenn wir es auch wirklich geändert haben
-                    
-                current += timedelta(days=1)
+            # Wir übergeben den Job an Celery. Der Worker erledigt das im Hintergrund.
+            # Keine Blockade im Admin-Bereich, keine komischen Schleifen-Fehler mehr!
+            transaction.on_commit(lambda: generate_workdays_for_range.delay(
+                self.employee.id, 
+                self.leave_start.isoformat(), 
+                self.leave_end.isoformat()
+            ))
 
     def actual_vacation_days_to_deduct(self):
         """
