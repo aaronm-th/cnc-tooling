@@ -71,61 +71,6 @@ def auto_checkout():
         print("[AUTO CHECKOUT] Keine User zum Ausstempeln gefunden.")
 
 
-@shared_task
-def new_workday(target_date=None):
-    if target_date is None:
-        today = timezone.localdate()
-    else:
-        from django.utils.dateparse import parse_date
-        today = parse_date(target_date) if isinstance(target_date, str) else target_date
-
-    import holidays
-    from .models import WorkDay
-
-    de_holidays = holidays.Germany(prov='BW')
-    is_holiday = today in de_holidays
-    is_weekend = today.weekday() >= 5
-
-    # joined_at__lte vergleichen wir mit dem Date-Objekt
-    employees_to_track = Employee.objects.filter(is_active=True, is_superuser=False, joined_at__lte=today)
-    
-    existing_ids = WorkDay.objects.filter(date=today).values_list('employee_id', flat=True)
-    missing_employees = employees_to_track.exclude(id__in=existing_ids)
-
-    new_days = []
-    for emp in missing_employees:
-        from attendance.models import LeaveRequest
-        leave = LeaveRequest.objects.filter(
-            employee=emp,
-            leave_start__lte=today,
-            leave_end__gte=today,
-            status='approved'
-        ).first()
-
-        day_type = WorkDay.DayType.WORK
-        
-        if leave:
-            mapping = {
-                'vacation': WorkDay.DayType.VACATION,
-                'sick': WorkDay.DayType.SICK,
-                'overtime': WorkDay.DayType.OVERTIME
-            }
-            day_type = mapping.get(leave.leave_type, WorkDay.DayType.WORK)
-        elif is_holiday:
-            day_type = WorkDay.DayType.HOLIDAY
-        elif is_weekend:
-            day_type = WorkDay.DayType.WEEKEND
-
-        new_days.append(
-            WorkDay(
-                employee=emp, 
-                date=today, 
-                day_type=day_type
-            )
-        )
-    
-    WorkDay.objects.bulk_create(new_days)
-
 
 @shared_task
 def daily_workday_generation():
