@@ -362,6 +362,48 @@ class CreateEditEmployeeView(APIView):
 class ManualEntriesView(APIView):
     permission_classes = [IsSupervisor]
 
+    def get(self, request, *args, **kwargs):
+        """
+        Liefert einen ggf. bereits existierenden WorkDay inkl. seiner Sessions
+        (mit IDs) zurück, damit das Modal bestehende Stempelzeiten zum
+        Bearbeiten vorbefüllen kann, statt sie blind zu überschreiben.
+
+        GET /api/mgmt/manual-entries/?member_id=<id>&date=YYYY-MM-DD
+        """
+        member_id = request.query_params.get('member_id')
+        date_str = request.query_params.get('date')
+
+        if not member_id or not date_str:
+            return Response(
+                {"error": "member_id und date sind erforderlich."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        employee = get_object_or_404(Employee, id=member_id)
+
+        try:
+            work_day = WorkDay.objects.prefetch_related('sessions').get(
+                employee=employee, date=date_str
+            )
+        except WorkDay.DoesNotExist:
+            return Response({"exists": False, "day_type": None, "sessions": []})
+
+        sessions = [
+            {
+                "id": s.id,
+                "check_in": timezone.localtime(s.check_in).strftime("%H:%M"),
+                "check_out": timezone.localtime(s.check_out).strftime("%H:%M") if s.check_out else None,
+            }
+            for s in sorted(work_day.sessions.all(), key=lambda s: s.check_in)
+        ]
+
+        return Response({
+            "exists": True,
+            "day_type": work_day.day_type,
+            "day_type_display": work_day.get_day_type_display(),
+            "sessions": sessions,
+        })
+
     @transaction.atomic
     def post(self, request, *args, **kwargs):
         # Context mitgeben, damit der Serializer weiß, welcher Admin den Eintrag bucht

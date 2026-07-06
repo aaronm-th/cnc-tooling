@@ -193,6 +193,21 @@ class CreateEditEmployeeSerializer(serializers.Serializer):
         return value
     
 
+class ManualSessionSerializer(serializers.Serializer):
+    """
+    Eine einzelne Kommen/Gehen-Zeit.
+    - `id` gesetzt  -> bestehende WorkSession wird in-place aktualisiert (kein Delete+Create!).
+    - `id` leer     -> es wird eine neue WorkSession angelegt.
+    """
+    id = serializers.IntegerField(required=False, allow_null=True)
+    check_in = serializers.TimeField()
+    check_out = serializers.TimeField()
+
+    def validate(self, attrs):
+        if attrs['check_in'] >= attrs['check_out']:
+            raise serializers.ValidationError(_("Die Gehen-Zeit muss nach der Kommen-Zeit liegen."))
+        return attrs
+
 class ManualEntrySerializer(serializers.Serializer):
     ENTRY_TYPES = (
         ('vacation', 'Urlaub'),
@@ -206,8 +221,13 @@ class ManualEntrySerializer(serializers.Serializer):
     note = serializers.CharField(style={'base_template': 'textarea.html'})
     
     hours_or_days = serializers.FloatField(required=False, min_value=0.0)
-    check_in = serializers.TimeField(required=False, allow_null=True)
-    check_out = serializers.TimeField(required=False, allow_null=True)
+
+    # NEU: statt einem einzelnen check_in/check_out-Paar -> beliebig viele Sessions
+    sessions = ManualSessionSerializer(many=True, required=False)
+    # NEU: IDs von Sessions, die im Modal aktiv entfernt wurden
+    deleted_session_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list
+    )
 
     def validate(self, attrs):
         entry_type = attrs.get('type')
@@ -224,21 +244,27 @@ class ManualEntrySerializer(serializers.Serializer):
                 "date": _(f"Einträge vor dem Eintrittsdatum ({joined_formatted}) sind nicht erlaubt.")
             })
 
-        # Bei Urlaub/Krankheit löschen wir eventuelle Zeiteingaben aus dem Frontend
+        # Bei Urlaub/Krankheit gibt es keine Stempelzeiten mehr
         if entry_type in ['vacation', 'sick']:
-            attrs['check_in'] = None
-            attrs['check_out'] = None
+            attrs['sessions'] = []
 
-        # Bei der Zeiterfassung validieren wir die korrekte Uhrzeit
+        # Bei der Zeiterfassung validieren wir die eingereichten Sessions
         elif entry_type == 'work':
-            check_in = attrs.get('check_in')
-            check_out = attrs.get('check_out')
+            sessions = attrs.get('sessions') or []
 
-            if not check_in or not check_out:
-                raise serializers.ValidationError({"check_in": _("Kommen- und Gehen-Zeiten sind erforderlich.")})
-            if check_in >= check_out:
-                raise serializers.ValidationError({"check_out": _("Die Gehen-Zeit muss nach der Kommen-Zeit liegen.")})
-            
+            if not sessions:
+                raise serializers.ValidationError(
+                    {"sessions": _("Mindestens eine Kommen-/Gehen-Zeit ist erforderlich.")}
+                )
+
+            # Überschneidungen zwischen den eingereichten Sessions verhindern
+            ordered = sorted(sessions, key=lambda s: s['check_in'])
+            for prev, nxt in zip(ordered, ordered[1:]):
+                if prev['check_out'] > nxt['check_in']:
+                    raise serializers.ValidationError(
+                        {"sessions": _("Die eingegebenen Zeiten überschneiden sich.")}
+                    )
+
             attrs['hours_or_days'] = None
 
         return attrs
@@ -261,21 +287,40 @@ class ManualEntrySerializer(serializers.Serializer):
             work_day.note = f"Bemerkung von {supervisor.get_full_name()}: {note}"
             work_day.save()
 
-        
-        work_day.sessions.all().delete()
+        current_tz = timezone.get_current_timezone()
 
         if entry_type == 'work':
-            naive_check_in = datetime.datetime.combine(date_obj, validated_data['check_in'])
-            naive_check_out = datetime.datetime.combine(date_obj, validated_data['check_out'])
-            
-            current_tz = timezone.get_current_timezone()
-            aware_check_in = timezone.make_aware(naive_check_in, current_tz)
-            aware_check_out = timezone.make_aware(naive_check_out, current_tz)
+            # 1. Nur die vom Supervisor explizit entfernten Sessions löschen
+            deleted_ids = validated_data.get('deleted_session_ids', [])
+            if deleted_ids:
+                work_day.sessions.filter(id__in=deleted_ids).delete()
 
-            WorkSession.objects.create(
-                work_day=work_day,
-                check_in=aware_check_in,
-                check_out=aware_check_out
-            )
-            
+            # 2. Bestehende Sessions in-place aktualisieren (id vorhanden),
+            #    neue Sessions anlegen (keine id) - kein blindes Delete+Create mehr!
+            for s in validated_data.get('sessions', []):
+                naive_check_in = datetime.datetime.combine(date_obj, s['check_in'])
+                naive_check_out = datetime.datetime.combine(date_obj, s['check_out'])
+                aware_check_in = timezone.make_aware(naive_check_in, current_tz)
+                aware_check_out = timezone.make_aware(naive_check_out, current_tz)
+
+                session = None
+                if s.get('id'):
+                    session = work_day.sessions.filter(id=s['id']).first()
+
+                if session:
+                    session.check_in = aware_check_in
+                    session.check_out = aware_check_out
+                    session.full_clean()
+                    session.save()
+                else:
+                    WorkSession.objects.create(
+                        work_day=work_day,
+                        check_in=aware_check_in,
+                        check_out=aware_check_out
+                    )
+        else:
+            # Urlaub/Krankheit: Stempelzeiten ergeben für diesen Tag keinen Sinn mehr
+            work_day.sessions.all().delete()
+
         return validated_data
+

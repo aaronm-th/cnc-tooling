@@ -183,6 +183,20 @@ export const useAdminStore = defineStore('admin', {
       }
     },
 
+    async fetchWorkDayDetail(memberId, date) {
+      try {
+        const token = localStorage.getItem('access_token')
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/mgmt/manual-entries/`, {
+          params: { member_id: memberId, date },
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        return res.data
+      } catch (error) {
+        console.error('Fehler beim Laden des bestehenden Tages:', error)
+        throw error
+      }
+    },
+
     async deactivateUser(userId) {
       this.isLoading = true
       try {
