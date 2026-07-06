@@ -153,7 +153,8 @@ const isFormValid = () => {
 
 const showDuplicateTypeWarning = computed(() =>
   existingDayType.value !== null &&
-  existingDayType.value === entryType.value
+  existingDayType.value === entryType.value &&
+  existingDayType.value !== 'work'
 )
 
 const handleSubmit = async () => {
