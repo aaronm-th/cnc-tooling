@@ -279,12 +279,12 @@ class ManualEntrySerializer(serializers.Serializer):
         work_day, created = WorkDay.objects.get_or_create(
             employee=employee, 
             date=date_obj,
-            defaults={'day_type': entry_type, 'note': f"Bemerkung von {supervisor.get_full_name()}: {note}"}
+            defaults={'day_type': entry_type, 'note': f"Bemerkung von {supervisor.get_full_name() if supervisor.get_full_name() else supervisor.username}: {note}"}
         )
         
         if not created:
             work_day.day_type = entry_type
-            work_day.note = f"Bemerkung von {supervisor.get_full_name()}: {note}"
+            work_day.note = f"Bemerkung von {supervisor.get_full_name() if supervisor.get_full_name() else supervisor.username}: {note}"
             work_day.save()
 
         current_tz = timezone.get_current_timezone()
