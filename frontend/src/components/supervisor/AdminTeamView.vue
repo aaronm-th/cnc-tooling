@@ -207,7 +207,7 @@ const handleDeactivateConfirm = async () => {
                 </td>
 
                 <td class="px-6 py-4 text-center">
-                  <span class="text-sm font-medium text-slate-700">{{ member.weekly_hours || '40.0' }} h</span>
+                  <span class="text-sm font-medium text-slate-700">{{ member.weekly_hours ?? '-' }} h</span>
                 </td>
 
                 <td class="px-6 py-4 text-center">
