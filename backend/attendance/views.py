@@ -124,24 +124,37 @@ class WorkSessionRequestAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        # 1. Versuch: Suchen über die WorkSession-ID
+        # 1. Suchen der echten WorkSession, die dem Mitarbeiter gehört
         session = WorkSession.objects.filter(id=pk, work_day__employee=request.user).first()        
         
         if session:
-            existing_request = session.change_requests.filter(status='pending').first()
-        else:
-            existing_request = WSChangeRequest.objects.filter(
-                id=pk, 
-                worksession__isnull=True, 
-                status='pending',
-                requested_by=request.user
-            ).first()
+            # Sicherheitscheck: Wenn ein aktiver Änderungsantrag läuft, 
+            # sollte dieser evtl. erst abgelehnt/zurückgezogen werden.
+            # Alternativ kannst du ihn mit session.delete() kaskadierend mitlöschen.
+            with transaction.atomic():
+                session.delete()
+            return Response(
+                {"success": True, "detail": "Arbeitszeit-Eintrag wurde erfolgreich gelöscht."}, 
+                status=status.HTTP_200_OK
+            )
+        
+        # 2. Fallback: Falls die ID keine WorkSession war, prüfen wir, ob es eine reine 
+        # Tag-Nachmeldung (ohne Session) war, deren Antrag gelöscht werden soll.
+        existing_request = WSChangeRequest.objects.filter(
+            id=pk, 
+            worksession__isnull=True, 
+            status='pending',
+            requested_by=request.user
+        ).first()
 
         if existing_request:
             existing_request.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            return Response(
+                {"success": True, "detail": "Korrekturantrag wurde erfolgreich zurückgezogen."}, 
+                status=status.HTTP_200_OK
+            )
             
-        return Response({"error": "Kein offener Antrag gefunden."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"error": "Eintrag oder offener Antrag nicht gefunden."}, status=status.HTTP_404_NOT_FOUND)
 
 class WorkDayRequestAPIView(APIView):
     """

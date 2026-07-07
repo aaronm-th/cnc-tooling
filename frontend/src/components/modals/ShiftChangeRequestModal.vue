@@ -9,7 +9,7 @@ const props = defineProps({
   isLoading: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['close', 'submit', 'withdraw'])
+const emit = defineEmits(['close', 'submit', 'withdraw', 'delete-session'])
 const { formatDate, formatTimeForInput } = useDateFormatter()
 
 const isSubmitted = ref(false)
@@ -41,8 +41,10 @@ watch(() => props.isOpen, (isOpen) => {
     
     if (props.shift?.sessions) {
       localSessions.value = props.shift.sessions.map(session => {
-        // Da das Backend ein Objekt liefert, greifen wir direkt darauf zu (ohne [0])
-        const pendingData = session.pending_requests
+
+        const pendingData = Array.isArray(session.pending_requests) 
+          ? session.pending_requests[0] 
+          : session.pending_requests
         const hasPending = !!pendingData
         
         const defaultCheckIn = session.check_in || '08:00'
@@ -116,6 +118,21 @@ const resetSession = (index) => {
   }
   session.note = ''
 }
+
+const deleteEntireSession = (session, index) => {
+  if (confirm('Möchtest du diesen Zeiteintrag wirklich unwiderruflich löschen?')) {
+    
+    if (!session.id) {
+      localSessions.value.splice(index, 1)
+      return
+    }
+
+    emit('delete-session', session.id, () => {
+      localSessions.value.splice(index, 1)
+    })
+  }
+}
+
 
 // Erweitert um den index, um lokale Einträge direkt entfernen zu können
 const handleWithdraw = (session, index) => {
@@ -194,7 +211,8 @@ defineExpose({ isSubmitted })
                   class="p-4 border border-slate-100 rounded-[2rem] bg-white shadow-sm space-y-3 transition-all"
                   :class="{ 'ring-1 ring-amber-400 border-amber-100 bg-amber-50/5': session.isPending }"
                 >
-                  <div class="flex justify-between items-center px-1">
+   
+                <div class="flex justify-between items-center px-1">
                     <span class="text-[9px] font-black uppercase tracking-wider text-slate-400">
                       {{ session.id ? `Eintrag #${index + 1}` : 'Nachträgliche Meldung' }}
                     </span>
@@ -207,6 +225,16 @@ defineExpose({ isSubmitted })
                         class="text-[9px] font-bold text-blue-500 hover:text-blue-700 flex items-center gap-1"
                       >
                         <RotateCcw class="w-2.5 h-2.5" /> Zurücksetzen
+                      </button>
+
+                      <button 
+                        v-if="session.id && !session.isPending"
+                        @click="deleteEntireSession(session, index)"
+                        type="button"
+                        title="Gesamten Eintrag löschen beantragen"
+                        class="text-red-400 hover:text-red-600 p-1 rounded-md hover:bg-red-50 transition-all flex items-center gap-1 text-[9px] font-bold"
+                      >
+                        <Trash2 class="w-3 h-3" /> Löschen
                       </button>
 
                       <span v-if="session.isPending" class="text-[9px] font-bold text-amber-600 bg-amber-100/50 px-2 py-0.5 rounded-full flex items-center gap-1">

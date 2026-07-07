@@ -102,6 +102,21 @@ const handleRequestWithdraw = async (sessionId, callback) => {
   }
 }
 
+const handleSessionDelete = async (sessionId, callback) => {
+  try {
+    await scheduleStore.deleteWorkSession(sessionId)
+    
+    if (selectedShift.value) {
+      const sessionIndex = selectedShift.value.sessions.findIndex(s => s.id === sessionId)
+      if (sessionIndex !== -1) selectedShift.value.sessions.splice(sessionIndex, 1)
+    }
+
+    callback()
+  } catch (err) {
+    alert('Fehler beim Löschen der Sitzung.')
+  }
+}
+
 
 // --- EVENT HANDLER ---
 const handleEventClick = async (event) => { // Wichtig: async hinzugefügt
@@ -311,6 +326,7 @@ watch(currentDate, fetchSchedule)
       @close="isShiftRequestModalOpen = false"
       @submit="handleShiftSubmit"
       @withdraw="handleRequestWithdraw" 
+      @delete-session="handleSessionDelete"
     />
 
     <EventInfoModal :isOpen="isInfoModalOpen" :event="selectedEvent" @close="isInfoModalOpen = false" />
