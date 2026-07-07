@@ -8,8 +8,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from attendance.models import LeaveRequest, WSChangeRequest, WorkDay
-from ..permissions import IsSupervisor
-from ..serializers import LeaveRequestSerializer, ChangeRequestSerializer
+from management.permissions import IsSupervisor
+from management.serializers import LeaveRequestSerializer, ChangeRequestSerializer
 from core.utils import create_notification
 from django.core.exceptions import ValidationError
 
