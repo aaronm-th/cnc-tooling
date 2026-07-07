@@ -212,14 +212,14 @@ const handleDeactivateConfirm = async () => {
 
                 <td class="px-6 py-4 text-center">
                   <span :class="['px-2.5 py-1 rounded-lg text-xs font-bold', getOvertimeClass(member.overtime_hours)]">
-                    {{ member.overtime_hours > 0 ? '+' : '' }}{{ member.overtime_hours || '0' }} h
+                    {{ member.overtime_hours > 0 ? '+' : '' }}{{ member.overtime_hours ?? '0.0' }} h
                   </span>
                 </td>
 
                 <td class="px-6 py-4 text-center">
                   <div class="flex flex-col items-center">
                     <span class="text-sm font-bold text-slate-800">
-                      {{ member.vacation_used }} / {{ member.vacation_total }}
+                      {{ member.vacation_used ?? '0' }} / {{ member.vacation_total ?? '0' }}
                     </span>
                     <span class="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">Tage verbraucht</span>
                   </div>
