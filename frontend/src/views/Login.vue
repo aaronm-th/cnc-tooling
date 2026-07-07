@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios' // Axios importieren
-import { LayoutDashboard, Mail, Lock, ArrowRight, AlertCircle, Clock } from 'lucide-vue-next'
+import { User, Lock, ArrowRight, AlertCircle, Clock } from 'lucide-vue-next'
 
 const router = useRouter()
 const username = ref('')
@@ -85,12 +85,15 @@ const handleLogin = async () => {
           <div class="space-y-2">
             <label class="text-sm font-semibold text-slate-700 ml-1">Nutzername</label>
             <div class="relative group">
-              <Mail class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+              <User class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
               <input 
                 v-model="username"
                 type="text" 
                 required
                 placeholder="Nutzername"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
                 class="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
               />
             </div>
