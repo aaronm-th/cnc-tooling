@@ -12,7 +12,7 @@ from rest_framework.generics import ListAPIView, RetrieveUpdateDestroyAPIView
 from attendance.models import LeaveRequest, WSChangeRequest, WorkDay
 from management.permissions import IsSupervisor
 from management.serializers import TeamMemberSummarySerializer, TeamMemberDetailSerializer, CreateEditEmployeeSerializer
-from core.models import Employee
+from core.models import Employee, VacationQuota
 
 from decimal import Decimal
 
