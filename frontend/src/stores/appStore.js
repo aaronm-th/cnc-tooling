@@ -1,18 +1,29 @@
-// src/stores/appStore.js
 import { defineStore } from 'pinia'
+
+const getInitialTab = () => {
+  const savedTab = localStorage.getItem('activeTab')
+  if (savedTab) return savedTab
+
+
+  return savedTab || 'dashboard'
+}
+
 
 export const useAppStore = defineStore('app', {
   state: () => ({
-    // Der Name des aktuell aktiven Tabs (entspricht dem Standard beim Laden)
-    activeTab: 'dashboard'
+    activeTab: getInitialTab(),
   }),
 
   actions: {
     // Funktion zum Wechseln des Tabs
     setTab(tabName) {
       this.activeTab = tabName
-      // Optional: Scrolle nach oben, wenn der Tab gewechselt wird
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      // Direkt im Store speichern, dann brauchst du den Watcher in der Hauptkomponente nicht mal mehr!
+      localStorage.setItem('activeTab', tabName)
+      
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
     },
 
     // Nützlich, um die Sidebar auf Mobile zu steuern

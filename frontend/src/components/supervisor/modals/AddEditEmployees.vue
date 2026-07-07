@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { useAdminStore } from '@/stores/adminStore'
-import { X, CalendarDays } from 'lucide-vue-next' // CalendarDays Icon hinzugefügt
+import { X, CalendarDays } from 'lucide-vue-next'
 
 const props = defineProps({
   isOpen: {
@@ -34,80 +34,69 @@ const defaultSchema = () => ({
 const form = ref({
   first_name: '',
   last_name: '',
-  joined_at: '', // NEU: Eintrittsdatum (YYYY-MM-DD)
+  joined_at: '', 
   work_days_schema: defaultSchema(),
   weekly_hours: 40,
   overtime_balance: 0,
-  vacation_days_per_year: 30,
+  vacation_total: 30, // Konsistent zum Backend umbenannt
   vacation_left: 30
 })
 
-
-
-
 const calculateProRataVacation = (entryDateStr, yearlyDays) => {
   if (!entryDateStr) return yearlyDays
-  
+
   const entryDate = new Date(entryDateStr)
-  // Wichtig: Wir nehmen das Jahr des Eintrittsdatums, nicht das aktuelle Jahr!
-  const entryYear = entryDate.getFullYear() 
-  
-  // Monate berechnen: 13 - Eintrittsmonat (Januar = 1, Dezember = 12)
+  const entryYear = entryDate.getFullYear()
+  const currentYear = new Date().getFullYear()
+
+  // Bereits vor diesem Jahr eingestiegen -> voller Anspruch
+  if (entryYear < currentYear) {
+    return yearlyDays
+  }
+
+  // Einstieg erst in einem zukünftigen Jahr -> noch kein Anspruch fürs laufende Jahr
+  if (entryYear > currentYear) {
+    return 0
+  }
+
+  // Einstieg im laufenden Jahr -> anteilig ab Eintrittsmonat
   const monthsActive = 13 - (entryDate.getMonth() + 1)
   const proRata = (yearlyDays / 12) * monthsActive
-  
   return Math.round(proRata)
 }
 
-// WATCHER: Reagiert sofort bei der Eingabe im Formular
+// Reagiert jetzt immer auf Änderungen - egal ob Neuanlage oder Bearbeitung
 watch(
   [() => form.value.joined_at, () => form.value.vacation_days_per_year],
   ([newEntryDate, newYearlyDays]) => {
-    // Nur bei der Neuanlage eine Live-Vorschau anzeigen
-    if (!props.member) {
-      form.value.vacation_left = calculateProRataVacation(newEntryDate, Number(newYearlyDays) || 0)
-    }
+    form.value.vacation_total = calculateProRataVacation(newEntryDate, Number(newYearlyDays) || 0)
   }
 )
 
-// WATCHER : Berechnet die Wochenstunden automatisch
-watch(() => form.value.work_days_schema, (newHours) => {
-  if (newHours) {
-    const sum = Object.values(newHours).reduce((acc, val) => acc + (Number(val) || 0), 0)
-    form.value.weekly_hours = Number(sum.toFixed(2))
-  }
-}, { deep: true })
 
 const populateForm = (data) => {
-  // Fall 1: Modal wird mit bestehenden Mitarbeiterdaten geöffnet (Editieren)
   if (data) {
     form.value = {
       first_name: data.first_name ?? '',
       last_name: data.last_name ?? '',
       joined_at: data.joined_at ?? '',
-      
-      // Kopiert das Schema tief oder fällt sauber auf das Standard-Schema zurück
       work_days_schema: data.work_days_schema ? { ...data.work_days_schema } : defaultSchema(),
-      
-      // Typkonvertierung sichern (API-Zahlen zu JS-Zahlen)
       weekly_hours: Number(data.weekly_hours ?? 40),
-      overtime_balance: Number(data.overtime_hours ?? data.overtime_balance ?? 0),
-      vacation_days_per_year: Number(data.vacation_days_per_year ?? data.vacation_days ?? 30),
-      vacation_left: Number(data.vacation_left ?? 30)
+      overtime_balance: Number(data.overtime_hours ?? 0),
+      vacation_days_per_year: Number(data.vacation_days_per_year ?? 30), // editierbar
+      vacation_total: Number(data.vacation_total ?? data.vacation_days_per_year ?? 30) // Anzeige
     }
-  } 
-  // Fall 2: Modal wird ohne Daten geöffnet (Neuanlage / Reset)
-  else {
+  } else {
     const todayISO = new Date().toISOString().split('T')[0]
     form.value = {
       first_name: '',
       last_name: '',
-      joined_at: todayISO, 
+      joined_at: todayISO,
       work_days_schema: defaultSchema(),
       weekly_hours: 40,
       overtime_balance: 0,
       vacation_days_per_year: 30,
-      vacation_left: 30
+      vacation_total: 30
     }
   }
 }
@@ -132,6 +121,7 @@ watch(() => props.isOpen, async (newIsOpen) => {
 
 const handleSubmit = async () => {
   if (!form.value.first_name || !form.value.last_name) return
+  if (form.value.vacation_days_per_year === '') return
   
   try {
     const cleanedSchema = {}
@@ -139,28 +129,23 @@ const handleSubmit = async () => {
       cleanedSchema[key] = Number(value) || 0
     })
 
-    const profilePayload = {
-      joined_at: form.value.joined_at, // Übergabe an das Backend
-      work_days_schema: cleanedSchema,
-      overtime_hours: form.value.overtime_balance,
-      vacation_days_per_year: form.value.vacation_days_per_year,
-      vacation_left: form.value.vacation_left
-    }
-
     if (props.member) {
-      await adminStore.updateTeamMember(props.member.id, { ...profilePayload })
+      // BEARBEITEN (Update)
+      await adminStore.updateTeamMember(props.member.id, {
+        joined_at: form.value.joined_at,
+        work_days_schema: cleanedSchema,
+        overtime_hours: form.value.overtime_balance,
+        vacation_days_per_year: form.value.vacation_days_per_year
+      })
     } else {
-        // NEUANLAGE:
-        await adminStore.createTeamMember({
-          first_name: form.value.first_name,
-          last_name: form.value.last_name,
-          joined_at: form.value.joined_at,
-          work_days_schema: cleanedSchema,
-          
-          vacation_days_per_year: form.value.vacation_days_per_year, 
-          // Hier senden wir den berechneten anteiligen Wert als Startwert ans Backend
-          vacation_total: form.value.vacation_left 
-        })
+      // NEUANLAGE (Create)
+      await adminStore.createTeamMember({
+        first_name: form.value.first_name,
+        last_name: form.value.last_name,
+        joined_at: form.value.joined_at,
+        work_days_schema: cleanedSchema,
+        vacation_days_per_year: form.value.vacation_days_per_year
+      })
     }
 
     if (typeof adminStore.fetchTeamMembers === 'function') {
@@ -268,26 +253,28 @@ const handleSubmit = async () => {
           </div>
         </div>
 
-        <!-- Urlaubstage & Überstunden -->
-        <div class="grid grid-cols-2 gap-4">
-          <div class="space-y-1">
-            <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Urlaub / Jahr</label>
-            <input 
-              v-model.number="form.vacation_days_per_year" 
-              type="number" 
-              min="0"
-              class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-            />
-          </div>
+<div class="grid grid-cols-2 gap-4">
+  <div class="space-y-1">
+    <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Urlaub / Jahr</label>
+    <input 
+      v-model.number="form.vacation_days_per_year" 
+      type="number" 
+      min="0"
+      class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+    />
+  </div>
 
-          <div v-if="!member" class="space-y-1">
-            <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Anteilig (Vorschau)</label>
-            <div class="w-full px-4 py-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-sm font-semibold flex items-center gap-2 h-[38px]">
-              <span>{{ form.vacation_left }} Tage</span>
-              <span class="text-[10px] text-amber-600 font-normal">(bis Jahresende)</span>
-            </div>
-          </div>
-        </div>
+  <div class="space-y-1">
+    <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">
+      Restanspruch {{ new Date().getFullYear() }}
+    </label>
+    <div class="w-full px-4 py-2 bg-blue-50/50 border border-blue-100 text-blue-700 rounded-xl text-sm font-semibold flex items-center h-[38px]">
+      {{ form.vacation_total }} Tage
+    </div>
+  </div>
+
+
+</div>
 
         <!-- Modal Footer Actions -->
         <div class="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">

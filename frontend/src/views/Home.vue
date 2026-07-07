@@ -95,16 +95,11 @@ onMounted(async () => {
   
   applyStoredPreference()
 
-  // Jetzt erst den gespeicherten Tab laden
-  const savedTab = localStorage.getItem('activeTab')
-  if (savedTab) {
-    const adminTabs = ['admin-dashboard', 'admin-team', 'admin-requests', 'admin-calendar']
-    if (!isSupervisor.value && adminTabs.includes(savedTab)) {
-      appStore.setTab('dashboard')
-    } else {
-      appStore.setTab(savedTab)
-    }
-  } else {
+  // KORREKTUR: Falls ein Supervisor eingeloggt ist, aber fälschlicherweise 'dashboard' aktiv ist,
+  // steuern wir hier aktiv gegen, NACHDEM der User-Status geladen wurde.
+  if (isSupervisor.value && appStore.activeTab === 'dashboard' && isAdminView.value) {
+    appStore.setTab('admin-dashboard')
+  } else if (!isSupervisor.value && ['admin-dashboard', 'admin-team', 'admin-requests', 'admin-calendar'].includes(appStore.activeTab)) {
     appStore.setTab('dashboard')
   }
 
@@ -112,7 +107,6 @@ onMounted(async () => {
     adminStore.fetchDashboardData()
   }
 
-  // JETZT sind wir fertig und die Watcher dürfen aktiv werden!
   isReady.value = true
 })
 

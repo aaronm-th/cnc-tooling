@@ -31,6 +31,7 @@ const adminNav = [
   { id: 'admin-team', name: 'Mitarbeiterübersicht', icon: Users },
   { id: 'admin-requests', name: 'Anfragen verwalten', icon: ClipboardCheck },
   { id: 'admin-calendar', name: 'Teamkalender', icon: Calendar },
+  { id: 'admin-reports', name: 'Zeitnachweise', icon: BarChart3 },
 ]
 </script>
 
@@ -51,7 +52,6 @@ const adminNav = [
     </div>
     
     <nav class="flex-1 px-4 py-4 space-y-1 overflow-y-auto custom-scrollbar">
-      <!-- ... Rest deines Navigations-Codes bleibt absolut identisch ... -->
       <template v-if="isSupervisor">
         <button 
           v-for="item in adminNav" 
@@ -77,7 +77,7 @@ const adminNav = [
           :class="[
             'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200',
             currentTab === item.id 
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' /* Jetzt auch hier blau! */
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
               : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
           ]"
         >
