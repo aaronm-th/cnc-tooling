@@ -1,23 +1,28 @@
 import os
+import calendar
+from datetime import date, timedelta
+from django.utils import timezone
+from django.http import FileResponse
+from django.shortcuts import get_object_or_404
 
 from rest_framework import status, permissions
-from rest_framework.generics import ListAPIView
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
 
-from django.http import FileResponse
-
-from attendance.models import WorkSession, WorkDay
-from .models import EmployeeDocument
+from attendance.models import WorkDay
 from core.models import Employee
+from .models import EmployeeDocument
 
-from .serializers import WorkSessionSerializer, WorkDayWithSessionsSerializer, EmployeeDocumentSerializer
-from django.utils.dateparse import parse_date
-from datetime import date, timedelta
+from management.permissions import IsSupervisor
+from .serializers import (
+    WorkDayWithSessionsSerializer, 
+    EmployeeDocumentSerializer, 
+    AdminMonthlyReportOverviewSerializer,
+    EmployeeMonthlyReportDetailSerializer  # Unser neuer, universeller Serializer
+)
 
-from django.shortcuts import get_object_or_404
 
 class EmployeeDocumentListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -29,222 +34,157 @@ class EmployeeDocumentListView(APIView):
         else:
             queryset = EmployeeDocument.objects.filter(employee=request.user)
             
-        # 2. NEU: Filter nach employee_id über Query-Parameter (?employee_id=X)
+        # 2. Filter nach employee_id über Query-Parameter (?employee_id=X)
         employee_id = request.query_params.get('employee_id')
         if employee_id:
             if request.user.is_staff:
                 # Admins dürfen die Dokumente jedes Mitarbeiters filtern
                 queryset = queryset.filter(employee_id=employee_id)
             else:
-                # Sicherheit: Ein normaler Mitarbeiter darf hier nicht die IDs anderer abfragen
-                if str(request.user.id) != str(employee_id):
-                    return Response(
-                        {"detail": "Nicht autorisiert, Dokumente anderer Mitarbeiter einzusehen."}, 
-                        status=status.HTTP_403_FORBIDDEN
-                    )
+                # Sicherheit: Ein normaler Mitarbeiter darf hier nicht fremde IDs abfragen
+                return Response({"detail": "Nicht autorisiert."}, status=status.HTTP_403_FOR_GRID)
         
-        # Sortierung hinzufügen (neueste Dokumente zuerst)
-        queryset = queryset.order_by('-uploaded_at')
-
-        # Serialisierung der Daten
         serializer = EmployeeDocumentSerializer(queryset, many=True, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.data)
+
 
 class EmployeeDocumentUploadView(APIView):
-    # Nur Admins oder Supervisors sollten Dokumente für Mitarbeiter hochladen dürfen
-    permission_classes = [permissions.IsAuthenticated] 
-
-    def post(self, request, member_id):
-        # 1. Mitarbeiter holen, für den das Dokument bestimmt ist
-        employee = get_object_or_404(Employee, id=member_id)
-        
-        # 2. Daten aus dem FormData (request.FILES und request.data) extrahieren
-        uploaded_file = request.FILES.get('document')
-        document_type = request.data.get('document_type')
-
-        # 3. Validierung
-        if not uploaded_file:
-            return Response(
-                {"detail": "Es wurde keine Datei hochgeladen."}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-        if not document_type:
-            return Response(
-                {"detail": "Der Dokumententyp fehlt."}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Validierung des Dateityps (Backend-Schutz)
-        ext = os.path.splitext(uploaded_file.name)[1].lower()
-        if ext not in ['.pdf', '.png', '.jpg', '.jpeg']:
-            return Response(
-                {"detail": "Ungültiges Dateiformat. Nur PDF, PNG und JPG erlaubt."}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Validierung der Dateigröße (5 MB)
-        if uploaded_file.size > 5 * 1024 * 1024:
-            return Response(
-                {"detail": "Datei ist zu groß. Maximal 5 MB erlaubt."}, 
-                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
-            )
-
-        try:
-            # 4. Dokumenten-Instanz erstellen und speichern
-            document = EmployeeDocument.objects.create(
-                employee=employee,
-                document_type=document_type,
-                file=uploaded_file,
-                original_filename=uploaded_file.name,
-                uploaded_by=request.user # Wer hat die Datei hochgeladen?
-            )
-            
-            return Response({
-                "status": "success",
-                "message": "Dokument erfolgreich hochgeladen.",
-                "document_id": document.id,
-                "filename": document.original_filename
-            }, status=status.HTTP_201_CREATED)
-
-        except Exception as e:
-            return Response(
-                {"detail": f"Interner Fehler beim Speichern: {str(e)}"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-class EmployeeDocumentDownloadView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, document_id):
-        # Dokument holen
-        document = get_object_or_404(EmployeeDocument, id=document_id)
-        
-        # Sicherheit: Gehört das Dokument dem eingeloggten User?
-        # (Erweitere dies um `or request.user.is_staff`, falls Admins auch downloaden dürfen)
-        if document.employee != request.user and not request.user.is_staff:
-            return Response(
-                {"detail": "Nicht autorisiert, dieses Dokument anzuzeigen."}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
+    def post(self, request, employee_id):
+        # Nur Admins/Staff dürfen Dokumente hochladen
+        if not request.user.is_staff:
+            return Response({"detail": "Keine Berechtigung zum Hochladen von Dokumenten."}, status=403)
             
-        try:
-            # Datei öffnen und als Download streamen
-            # as_attachment=True sorgt dafür, dass im Browser der "Speichern unter"-Dialog kommt
-            response = FileResponse(
-                document.file.open('rb'), 
-                as_attachment=True, 
-                filename=document.original_filename
-            )
-            return response
-        except Exception as e:
-            return Response(
-                {"detail": f"Fehler beim Laden der Datei: {str(e)}"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        employee = get_object_or_404(Employee, id=employee_id)
+        file_obj = request.FILES.get('file')
+        document_type = request.data.get('document_type', 'other')
+
+        if not file_obj:
+            return Response({"detail": "Keine Datei bereitgestellt."}, status=400)
+
+        document = EmployeeDocument.objects.create(
+            employee=employee,
+            file=file_obj,
+            original_filename=file_obj.name,
+            document_type=document_type
+        )
+
+        serializer = EmployeeDocumentSerializer(document, context={'request': request})
+        return Response(serializer.data, status=201)
+
 
 class EmployeeDocumentDeleteView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, document_id):
-        # Dokument holen
+        if not request.user.is_staff:
+            return Response({"detail": "Keine Berechtigung zum Löschen von Dokumenten."}, status=403)
+            
         document = get_object_or_404(EmployeeDocument, id=document_id)
         
-        # Sicherheit: Nur Admins/Staff oder der Eigentümer (falls erlaubt) dürfen löschen
-        # Meistens dürfen Mitarbeiter Dokumente nicht selbst löschen, daher hier primär is_staff
-        if not request.user.is_staff and document.uploaded_by != request.user:
-            return Response(
-                {"detail": "Nicht autorisiert, dieses Dokument zu löschen."}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
+        # Datei vom Speicher loeschen, falls vorhanden
+        if document.file and os.path.isfile(document.file.path):
+            os.remove(document.file.path)
             
+        document.delete()
+        return Response({"detail": "Dokument erfolgreich gelöscht."}, status=200)
+
+
+class EmployeeDocumentDownloadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, document_id):
+        document = get_object_or_404(EmployeeDocument, id=document_id)
+        
+        # Sicherheit: Nur Staff oder der Besitzer des Dokuments darf downloaden
+        if not request.user.is_staff and document.employee != request.user:
+            return Response({"detail": "Nicht autorisiert."}, status=403)
+
+        if not document.file:
+            return Response({"detail": "Datei nicht gefunden."}, status=404)
+
+        response = FileResponse(document.file, content_type='application/octet-stream')
+        response['Content-Disposition'] = f'attachment; filename="{document.original_filename}"'
+        return response
+
+
+class AdminMonthlyReportOverviewView(APIView):
+    """
+    Liefert eine Tabellen-Übersicht ALLER aktiven Mitarbeiter mit Soll-, Ist- 
+    und Differenzstunden für ein bestimmtes Jahr und einen bestimmten Monat.
+    """
+    permission_classes = [IsSupervisor]
+
+    def get(self, request):
+        now = timezone.now()
         try:
-            # Physische Datei vom Speichermedium löschen
-            if document.file:
-                if os.path.isfile(document.file.path):
-                    os.remove(document.file.path)
-            
-            # Datenbank-Eintrag löschen
-            document.delete()
-            
-            return Response(
-                {"status": "success", "message": "Dokument erfolgreich gelöscht."}, 
-                status=status.HTTP_200_OK
-            )
-        except Exception as e:
-            return Response(
-                {"detail": f"Fehler beim Löschen der Datei: {str(e)}"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            year = int(request.query_params.get('year', now.year))
+            month = int(request.query_params.get('month', now.month))
+            if not (1 <= month <= 12):
+                raise ValueError()
+        except ValueError:
+            return Response({"error": "Fehlende oder ungültige Parameter (year, month)."}, status=400)
+
+        # Nur aktive Mitarbeiter auflisten
+        employees = Employee.objects.filter(is_active=True, is_superuser=False).order_by('last_name', 'first_name')
+        
+        serializer = AdminMonthlyReportOverviewSerializer(
+            employees, 
+            many=True, 
+            context={'year': year, 'month': month}
+        )
+        return Response(serializer.data)
 
 
-class MonthlyWorkSessionListView(ListAPIView):
-    serializer_class = WorkSessionSerializer
+class MonthlyReportDetailView(APIView):
+    """
+    Universeller Endpunkt für die PDF-Daten eines Monats.
+    Mitarbeiter ruft ohne Parameter auf -> Eigene Daten.
+    Admin/Supervisor ruft mit ?employee_id=X auf -> Daten des Mitarbeiters X.
+    """
     permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
-        user = self.request.user
-        queryset = WorkSession.objects.filter(work_day__employee=user)
-
-        # Parameter aus der URL extrahieren (start & end)
-        start_date_str = self.request.query_params.get('start')
-        end_date_str = self.request.query_params.get('end')
-
-        if start_date_str and end_date_str:
-            start_date = parse_date(start_date_str)
-            end_date = parse_date(end_date_str)
-            
-            if start_date and end_date:
-                # Wir filtern über das Datum des verknüpften WorkDay
-                queryset = queryset.filter(
-                    work_day__date__range=[start_date, end_date]
-                )
-
-        return queryset.order_by('check_in')
-    
-
-
-
-class MonthlyWorkDayListView(ListAPIView):
-    serializer_class = WorkDayWithSessionsSerializer
-    permission_classes = [IsAuthenticated]
-
-    # MonthlyWorkDayListView
-
-    def get_queryset(self):
-        user = self.request.user
-        joined_at = user.joined_at.date() if hasattr(user.joined_at, 'date') else user.joined_at        
+    def get(self, request):
+        employee_id = request.query_params.get('employee_id')
+        now = timezone.now()
         
-        start_date_str = self.request.query_params.get('start')
-        end_date_str = self.request.query_params.get('end')
+        try:
+            year = int(request.query_params.get('year', now.year))
+            month = int(request.query_params.get('month', now.month))
+            if not (1 <= month <= 12):
+                raise ValueError()
+        except ValueError:
+            return Response({"error": "Fehlende oder ungültige Parameter (year, month)."}, status=400)
+
+        # 1. Rechte- & Rollenprüfung für den Ziel-Mitarbeiter
+        if employee_id:
+            # Wenn eine ID übergeben wurde, MUSS der User Supervisor oder Admin sein
+            if not (getattr(request.user, 'is_supervisor', False) or request.user.is_superuser):
+                return Response({"detail": "Nicht autorisiert, die Daten anderer Mitarbeiter einzusehen."}, status=403)
+            employee = get_object_or_404(Employee, id=employee_id)
+        else:
+            # Ohne Parameter sieht der Mitarbeiter nur sich selbst
+            employee = request.user
+
+        # 2. Lücken im Kalendermonat auffüllen (Sicherstellen, dass jeder Tag im PDF existiert)
+        _, num_days = calendar.monthrange(year, month)
+        start_date = date(year, month, 1)
+        end_date = date(year, month, num_days)
         
-        start_date = parse_date(start_date_str)
-        end_date = parse_date(end_date_str)
+        self._ensure_workdays_exist_for_range(employee, start_date, end_date)
 
-        if start_date and joined_at:
-            first_day_of_joined_month = date(joined_at.year, joined_at.month, 1)
-            if start_date < first_day_of_joined_month:
-                raise ValidationError("Zeitraum vor Eintrittsmonat.")
+        # 3. Serializer mit Context füttern und ausgeben
+        serializer = EmployeeMonthlyReportDetailSerializer(
+            employee,
+            context={'year': year, 'month': month, 'request': request}
+        )
+        return Response(serializer.data)
 
-            if start_date < joined_at:
-                start_date = joined_at
-
-        # Ab hier arbeitet die Methode mit dem korrigierten start_date
-        if start_date and end_date:
-            self._ensure_workdays_exist(user, start_date, end_date)
-
-        return WorkDay.objects.filter(
-                employee=user, 
-                date__range=[start_date, end_date]
-            ).select_related('employee')\
-            .prefetch_related('sessions')\
-            .order_by('date')
-    
-
-
-    def _ensure_workdays_exist(self, user, start_date, end_date):
+    def _ensure_workdays_exist_for_range(self, user, start_date, end_date):
         """
-        Prüft auf Lücken im Zeitraum und erstellt fehlende WorkDay-Objekte.
+        Erstellt automatisch leere WorkDay-Einträge für Tage, an denen der Mitarbeiter 
+        nicht eingestempelt war, damit die Tabelle im PDF lückenlos ist.
         Erstellt Tage in der Zukunft nur bis zum heutigen Datum.
         """
         today = date.today()
@@ -267,7 +207,6 @@ class MonthlyWorkDayListView(ListAPIView):
         
         while current_date <= effective_end_date:
             if current_date not in existing_dates:
-                # Wir erstellen das Objekt
                 temp_wd = WorkDay(employee=user, date=current_date)
                 
                 # Automatische Erkennung für Wochenenden (5 = Samstag, 6 = Sonntag)

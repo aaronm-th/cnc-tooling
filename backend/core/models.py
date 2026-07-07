@@ -1,4 +1,6 @@
 import datetime
+import calendar
+from datetime import date
 import holidays
 from django.contrib.auth.models import AbstractUser
 from django.db import models
@@ -70,8 +72,32 @@ class Employee(AbstractUser):
             status='approved'
         ).exists()
     
+    @property
+    def hours_per_day(self) -> float:
+        """
+        Berechnet die durchschnittliche tägliche Arbeitszeit basierend auf den 
+        Tagen, an denen der Mitarbeiter laut Schema tatsächlich arbeitet.
+        Beispiel: 38 Std verteilt auf 5 Tage = 7.6 Std/Tag.
+        """
+        total_hours = self.weekly_hours  # Nutzt dein bestehendes Property
+        
+        # Zählen, an wie vielen Tagen laut Schema gearbeitet wird
+        active_days_count = 0
+        for i in range(7):
+            weekday_key = str(i)
+            if weekday_key in self.work_days_schema:
+                if float(self.work_days_schema[weekday_key]) > 0:
+                    active_days_count += 1
+            elif i < 5:
+                # Fallback für Werktage
+                active_days_count += 1
+                
+        if active_days_count == 0:
+            return float(getattr(self, 'hours_per_day', 8.0))
+            
+        return round(total_hours / active_days_count, 2)
+
     def get_expected_hours_for_date(self, date_obj):
-    # NEU: Prüfen, ob für dieses Datum bereits ein manueller Urlaubs-/Krankheitstag existiert
         from attendance.models import WorkDay
         db_day = WorkDay.objects.filter(employee=self, date=date_obj).first()
         if db_day and db_day.day_type in [WorkDay.DayType.VACATION, WorkDay.DayType.SICK]:
@@ -89,6 +115,29 @@ class Employee(AbstractUser):
             return float(self.hours_per_day)
     
         return 0.0
+
+    def get_expected_hours_for_month(self, year: int, month: int) -> float:
+        """
+        Berechnet die gesamte Sollarbeitszeit eines Mitarbeiters für einen bestimmten Monat.
+        Berücksichtigt das individuelle Schema, Feiertage (BW) und Abwesenheiten.
+        """
+        # Anzahl der Tage im Monat ermitteln (z.B. 28, 30, 31)
+        _, num_days = calendar.monthrange(year, month)
+        
+        total_expected = 0.0
+        
+        # Über jeden Tag des Monats iterieren
+        for day in range(1, num_days + 1):
+            date_obj = date(year, month, day)
+            
+            # Falls der Mitarbeiter erst mitten im Monat angefangen hat, 
+            # zählen Tage vor seinem Eintritt nicht zum Soll.
+            if date_obj < self.joined_at:
+                continue
+                
+            total_expected += self.get_expected_hours_for_date(date_obj)
+            
+        return round(total_expected, 2)
 
     def save(self, *args, **kwargs):
         # Automatische Username-Generierung beim ersten Speichern

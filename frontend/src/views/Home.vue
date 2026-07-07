@@ -23,6 +23,7 @@ import AdminDashboard from '@/components/supervisor/AdminDashboard.vue'
 import AdminTeamView from '@/components/supervisor/AdminTeamView.vue'
 import AdminRequests from '@/components/supervisor/AdminRequests.vue'
 import AdminCalendar from '@/components/supervisor/AdminCalendar.vue'
+import AdminReports from '@/components/supervisor/AdminReports.vue'
 
 // Stores initialisieren
 const authStore = useAuthStore()
@@ -78,7 +79,7 @@ watch(isAdminView, (newValue) => {
   }
   
   if (newValue === false) {
-    const adminTabs = ['admin-dashboard', 'admin-team', 'admin-requests', 'admin-calendar']
+    const adminTabs = ['admin-dashboard', 'admin-team', 'admin-requests', 'admin-calendar', 'admin-reports']
     if (adminTabs.includes(activeTab.value)) {
       appStore.setTab('dashboard')
     }
@@ -99,7 +100,7 @@ onMounted(async () => {
   // steuern wir hier aktiv gegen, NACHDEM der User-Status geladen wurde.
   if (isSupervisor.value && appStore.activeTab === 'dashboard' && isAdminView.value) {
     appStore.setTab('admin-dashboard')
-  } else if (!isSupervisor.value && ['admin-dashboard', 'admin-team', 'admin-requests', 'admin-calendar'].includes(appStore.activeTab)) {
+  } else if (!isSupervisor.value && ['admin-dashboard', 'admin-team', 'admin-requests', 'admin-calendar', 'admin-reports'].includes(appStore.activeTab)) {
     appStore.setTab('dashboard')
   }
 
@@ -164,6 +165,7 @@ const quickLinks = [
           <AdminTeamView v-if="activeTab === 'admin-team'" />
           <AdminRequests v-if="activeTab === 'admin-requests'" />
           <AdminCalendar v-if="activeTab === 'admin-calendar'" />
+          <AdminReports v-if="activeTab === 'admin-reports'" />
         </template>
 
       </div>

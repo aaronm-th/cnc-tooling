@@ -98,15 +98,15 @@ onMounted(async () => {
 })
 
 const handleDownload = async () => {
-  isGenerating.value = true // Ladezustand aktivieren
+  isGenerating.value = true
   try {
-    const success = await docStore.downloadWorkReport(selectedMonth.value, selectedYear.value)
+    const success = await docStore.downloadWorkReport(selectedMonth.value + 1, selectedYear.value)
     if (success) isFinished.value = true
   } catch (err) {
     alert(docStore.lastError || "Fehler beim Download")
     isFinished.value = false
   } finally {
-    isGenerating.value = false // Ladezustand immer deaktivieren (egal ob Erfolg oder Fehler)
+    isGenerating.value = false
   }
 }
 
@@ -118,14 +118,15 @@ const handleClose = () => {
 }
 
 const fetchPreviewData = async () => {
-  if (!showPreview.value) return // Nur laden, wenn die Vorschau auch offen ist
+  if (!showPreview.value) return
   
   isPreviewLoading.value = true
   try {
-    // Wir nutzen direkt deine bestehende Store-Methode
-    previewEvents.value = await scheduleStore.fetchMonthlyWorkSessions(selectedMonth.value, selectedYear.value)
+    // Holt die exakt gleichen Daten, ohne das PDF zu triggern!
+    const reportData = await docStore.getReportData(selectedMonth.value + 1, selectedYear.value)
+    previewEvents.value = reportData.events || []
   } catch (err) {
-    console.error("Fehler beim Laden der Vorschau-Daten", err)
+    console.error("Fehler beim Laden der Vorschau", err)
     previewEvents.value = []
   } finally {
     isPreviewLoading.value = false
