@@ -4,8 +4,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
-from ..permissions import IsSupervisor
-from ..serializers import ManualEntrySerializer
+from management.permissions import IsSupervisor
+from management.serializers import ManualEntrySerializer
 
 from core.models import Employee
 from django.shortcuts import get_object_or_404
