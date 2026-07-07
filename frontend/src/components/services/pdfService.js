@@ -24,7 +24,7 @@ export const generateWorkingHoursPDF = async (data) => {
   doc.setFontSize(16)
   doc.setFont('courier', 'bold')
   doc.setTextColor(0, 0, 0)
-  doc.text('ZEITNACHWEIS - CORPORATE CONNECT', 15, 20)
+  doc.text('ZEITNACHWEIS', 15, 20)
   
   doc.setFontSize(9)
   doc.setFont('courier', 'normal')
@@ -54,13 +54,24 @@ export const generateWorkingHoursPDF = async (data) => {
   doc.text(today, 48, 46)
 
   // --- 4. Datenaufbereitung für das Tabellen-Raster ---
-  const tableData = events.map(day => [
-    day.display_date,
-    day.day_type_display ? day.day_type_display.toUpperCase() : '',
-    day.actual_hours ? `${parseFloat(day.actual_hours).toFixed(2)} h` : '0.00 h',
-    day.diff ? `${parseFloat(day.diff) >= 0 ? '+' : ''}${parseFloat(day.diff).toFixed(2)} h` : '0.00 h',
-    day.session_details || '-'
-  ])
+  const tableData = events.map(day => {
+
+    const dateObj = new Date(day.date); 
+    
+    const germanDate = dateObj.toLocaleDateString('de-DE', {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit'
+    }).replace('.', '');
+
+    return [
+      germanDate,
+      day.day_type_display ? day.day_type_display.toUpperCase() : '',
+      day.actual_hours ? `${parseFloat(day.actual_hours).toFixed(2)} h` : '0.00 h',
+      day.diff ? `${parseFloat(day.diff) >= 0 ? '+' : ''}${parseFloat(day.diff).toFixed(2)} h` : '0.00 h',
+      day.session_details || '-'
+    ];
+  });
 
   // Gesamtsaldo aus der Differenz (diff) errechnen
   const totalBalance = events.reduce((acc, day) => acc + parseFloat(day.diff || 0), 0)

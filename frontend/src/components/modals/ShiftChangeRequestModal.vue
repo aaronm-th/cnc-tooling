@@ -175,7 +175,7 @@ defineExpose({ isSubmitted })
           </div>
 
           <template v-else>
-            <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
               <div class="flex items-center gap-3">
                 <div class="p-2 bg-blue-100 rounded-xl text-blue-600"><Clock class="w-5 h-5" /></div>
                 <div>
@@ -188,7 +188,7 @@ defineExpose({ isSubmitted })
               </button>
             </div>
             
-            <div class="overflow-y-auto p-5 space-y-4 scrollbar-hide">
+            <div class="overflow-y-auto p-5 space-y-4 scrollbar-hide flex-1 min-h-0">
               <div class="space-y-4">
                 <div v-for="(session, index) in localSessions" :key="session.id || index" 
                   class="p-4 border border-slate-100 rounded-[2rem] bg-white shadow-sm space-y-3 transition-all"
@@ -203,6 +203,7 @@ defineExpose({ isSubmitted })
                       <button 
                         v-if="session.check_in !== session.orig_check_in || session.check_out !== session.orig_check_out"
                         @click="resetSession(index)"
+                        type="button"
                         class="text-[9px] font-bold text-blue-500 hover:text-blue-700 flex items-center gap-1"
                       >
                         <RotateCcw class="w-2.5 h-2.5" /> Zurücksetzen
@@ -214,7 +215,6 @@ defineExpose({ isSubmitted })
                     </div>
                   </div>
 
-                  <!-- NEU: Visueller Hinweis auf bereits beantragte Zeiten innerhalb der Card -->
                   <div v-if="session.isPending && session.pending_details" class="p-2.5 bg-amber-50 rounded-xl border border-amber-100/70 flex items-start gap-2 text-[10px] text-amber-800">
                     <HelpCircle class="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
                     <div>
@@ -250,6 +250,7 @@ defineExpose({ isSubmitted })
                         <button 
                           @click="submitSingleSession(session)"
                           :disabled="isLoading || !session.note"
+                          type="button"
                           class="w-full py-2.5 rounded-xl font-bold text-[11px] bg-amber-500 text-white shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-20"
                         >
                           <component :is="isLoading ? 'Loader2' : CheckCircle2" class="w-3 h-3" :class="{ 'animate-spin': isLoading }" />
@@ -259,17 +260,18 @@ defineExpose({ isSubmitted })
                         <button 
                           @click="handleWithdraw(session, index)"
                           :disabled="isLoading"
+                          type="button"
                           class="w-full py-2.5 rounded-xl font-bold text-[11px] bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-all flex items-center justify-center gap-2"
                         >
                           <Trash2 class="w-3 h-3" /> Antrag zurückziehen (Löschen)
                         </button>
                       </template>
 
-
                       <button 
                         v-else
                         @click="submitSingleSession(session)"
                         :disabled="isLoading || !session.note || (session.id && session.check_in === session.orig_check_in && session.check_out === session.orig_check_out)"
+                        type="button"
                         class="w-full py-2.5 rounded-xl font-bold text-[11px] bg-slate-900 text-white shadow-lg shadow-slate-900/20 transition-all flex items-center justify-center gap-2 disabled:opacity-20 disabled:shadow-none"
                       >
                         <component :is="isLoading ? 'Loader2' : Clock" class="w-3 h-3" :class="{ 'animate-spin': isLoading }" />
@@ -291,6 +293,7 @@ defineExpose({ isSubmitted })
                 
                 <button 
                   @click="addManualSession"
+                  type="button"
                   class="w-full py-6 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all flex items-center justify-center gap-2 group cursor-pointer text-xs"
                 >
                   <Plus class="w-5 h-5 group-hover:scale-110 transition-transform" />
@@ -301,6 +304,7 @@ defineExpose({ isSubmitted })
               <div v-else class="pt-2 pb-4">
                 <button 
                   @click="addManualSession"
+                  type="button"
                   class="w-full py-6 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all flex items-center justify-center gap-2 group cursor-pointer text-xs"
                 >
                   <Plus class="w-5 h-5 group-hover:scale-110 transition-transform" /> 
@@ -308,7 +312,27 @@ defineExpose({ isSubmitted })
                 </button>
               </div>
             </div>
+
+            <div class="p-5 border-t border-slate-100 bg-slate-50/50 flex gap-3 shrink-0">
+              <button 
+                type="button" 
+                @click="handleClose" 
+                :disabled="isLoading" 
+                class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-200 transition-all disabled:opacity-50"
+              >
+                Abbrechen
+              </button>
+              <button 
+                type="button"
+                @click="handleClose" 
+                :disabled="isLoading" 
+                class="flex-1 py-3 px-4 bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+              >
+                Fertigstellen
+              </button>
+            </div>
           </template>
+
         </div>
       </div>
     </Transition>

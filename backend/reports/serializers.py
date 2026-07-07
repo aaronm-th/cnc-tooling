@@ -3,6 +3,7 @@ from rest_framework import serializers
 from attendance.models import WorkSession, WorkDay
 from .models import EmployeeDocument
 from datetime import date
+from django.utils import timezone
 
 import holidays
 
@@ -44,7 +45,6 @@ class WorkSessionSerializer(serializers.ModelSerializer):
 class WorkDayWithSessionsSerializer(serializers.ModelSerializer):
     day_type_display = serializers.CharField(source='get_day_type_display', read_only=True)
     
-    display_date = serializers.SerializerMethodField()
     display_status = serializers.SerializerMethodField()
     session_details = serializers.SerializerMethodField()
     expected_hours = serializers.SerializerMethodField()
@@ -60,14 +60,10 @@ class WorkDayWithSessionsSerializer(serializers.ModelSerializer):
             'expected_hours',
             'actual_hours',  # Komma ergänzt
             'diff',          # Komma ergänzt
-            'display_date', 
             'display_status', 
             'session_details'
         ]
 
-    def get_display_date(self, obj):
-        # Wochentag abgekürzt + Datum
-        return obj.date.strftime('%a, %d.%m.')
 
     def _get_raw_expected(self, obj):
         """Hilfsmethode für die reine Zahl"""
@@ -110,17 +106,24 @@ class WorkDayWithSessionsSerializer(serializers.ModelSerializer):
     def get_session_details(self, obj):
         sessions = obj.sessions.all()
         if sessions.exists():
-            return " | ".join([
-                f"{s.check_in.strftime('%H:%M') if s.check_in else '??'} - "
-                f"{s.check_out.strftime('%H:%M') if s.check_out else '...'}" 
-                for s in sessions
-            ])
+            formatted_sessions = []
+            for s in sessions:
+                # timezone.localtime() rechnet den UTC-Wert automatisch in die
+                # Zeitzone um, die in deiner settings.py (TIME_ZONE) definiert ist.
+                local_in = timezone.localtime(s.check_in) if s.check_in else None
+                local_out = timezone.localtime(s.check_out) if s.check_out else None
+                
+                in_str = local_in.strftime('%H:%M') if local_in else '??'
+                out_str = local_out.strftime('%H:%M') if local_out else '...'
+                
+                formatted_sessions.append(f"{in_str} - {out_str}")
+                
+            return " | ".join(formatted_sessions)
 
         if obj.day_type == WorkDay.DayType.HOLIDAY:
             de_holidays = holidays.Germany(prov='BW')
             return de_holidays.get(obj.date) or "Gesetzlicher Feiertag"
         
-        # Optional: Für geplante Tage in der Zukunft einen anderen Platzhalter liefern
         if obj.date > date.today() and obj.day_type == WorkDay.DayType.WORK:
             return "Noch keine Buchungen"
             
