@@ -58,7 +58,7 @@ class EmployeeDocumentUploadView(APIView):
             
         employee = get_object_or_404(Employee, id=employee_id)
         file_obj = request.FILES.get('file')
-        document_type = request.data.get('document_type', 'other')
+        document_type = request.data.get('document_type', 'sonstiges')
 
         if not file_obj:
             return Response({"detail": "Keine Datei bereitgestellt."}, status=400)

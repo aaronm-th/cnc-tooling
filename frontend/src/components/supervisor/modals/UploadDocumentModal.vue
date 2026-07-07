@@ -151,7 +151,7 @@ const handleSubmit = async () => {
   errorMessage.value = ''
 
   const formData = new FormData()
-  formData.append('document', selectedFile.value)
+  formData.append('file', selectedFile.value)
   formData.append('document_type', documentType.value)
 
   try {
