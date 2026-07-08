@@ -1,11 +1,11 @@
 OFFEN:
 
 
-- Dokumente-Upload: Anzeigen, was bereits hochgeladen wurde
 - Terminal: Regelmäßig aktualisieren
 
 
 - Mitarbeiter anlegen: Sollstunden Echtzeit aktualisieren
+
 - Passwort ändern überarbeiten
 
 - Krankschreibung: Upload bei erstellen?
@@ -19,3 +19,14 @@ OFFEN:
 - Bei GLZ und Krank steht "Urlaub" in den Benachrichtigungen
 
 - GLZ-Abbau überarbeiten
+
+- Korrekturanträge löschen im Mitarbeiter-Kalender geht nicht. Aber nur beim direkten Erstellen. Wenn man einmal "Ferigstellen" klickt und das Modal neu öffnet geht es
+
+- Storniert-Tab in Anträgen entfernen
+
+- WorkSession die sich überschneiden überprüfen
+
+- Allgemeine Überschreibung vermeiden
+
+- Manueller Eintrag: Urlaub über mehrere Tage
+

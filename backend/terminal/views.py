@@ -26,21 +26,33 @@ class TerminalUserListView(APIView):
 class TerminalToggleStatusView(APIView):
     """Steuert das Ein- und Ausstempeln inkl. Sperrzeit-Logik."""
     permission_classes = [AllowAny]
-    
 
     def post(self, request):
         employee_id = request.data.get('employee_id')
+        chip_id = request.data.get('chip_id') # Neu vom ESP32
         today = timezone.localdate()
 
-        if not employee_id:
-            return Response({"error": "Mitarbeiter-ID fehlt."}, status=status.HTTP_400_BAD_REQUEST)
-
-        employee = get_object_or_404(Employee, id=employee_id)
+        # 1. Mitarbeiter finden (entweder über ID oder über RFID)
+        if chip_id:
+            # Bereinigung (z.B. Leerzeichen entfernen, falls der ESP32 welche mitsendet)
+            chip_id = chip_id.strip()
+            employee = Employee.objects.filter(chip_id=chip_id).first()
+            if not employee:
+                return Response({
+                    "status": "unknown_chip",
+                    "error": "Unbekannter RFID-Chip!",
+                    "chip_id": chip_id # Schicken wir mit, nützlich fürs spätere Anlernen!
+                }, status=status.HTTP_404_NOT_FOUND)
+        elif employee_id:
+            employee = get_object_or_404(Employee, id=employee_id)
+        else:
+            return Response({"error": "Mitarbeiter-ID oder RFID-UID fehlt."}, status=status.HTTP_400_BAD_REQUEST)
             
         if employee.joined_at > today:
             return Response({"error": "Mitarbeiter ist noch nicht aktiv!"}, status=status.HTTP_400_BAD_REQUEST)
 
         disable_time = timedelta(seconds=60)
+
 
         # 1. WorkDay sicherstellen
         actual_work_day, _ = WorkDay.objects.get_or_create(
@@ -86,8 +98,11 @@ class TerminalToggleStatusView(APIView):
             active_session.save()
             new_status = "Abwesend"
             msg_prefix = "Schönen Feierabend"
-
+    
+        
+        # Am Ende geben wir noch den aktuellen Status-String zurück, den das Employee-Model nutzt
         return Response({
+            "status": "success",
             "new_status": new_status,
             "employee_name": employee.first_name,
             "message": f"{msg_prefix}, {employee.first_name}!"

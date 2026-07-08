@@ -13,6 +13,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 class Employee(AbstractUser):
     # E-Mail wird optional, da Offline-Betrieb
     email = models.EmailField(blank=True, null=True, unique=False)
+    chip_id = models.CharField(max_length=50, blank=True, null=True, unique=True)
     phone = models.CharField(max_length=50, blank=True)
     photo = models.ImageField(upload_to=user_profile_photo_upload, blank=True, null=True)
     work_days_schema = models.JSONField(
