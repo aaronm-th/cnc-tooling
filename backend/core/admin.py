@@ -46,7 +46,7 @@ class EmployeeAdmin(UserAdmin):
     ordering = ('last_name',)
 
     fieldsets = (
-            (None, {'fields': ('username', 'password')}),
+            (None, {'fields': ('username', 'password', 'chip_id')}),
             ('Persönliche Informationen', {'fields': ('first_name', 'last_name', 'email', 'phone', 'photo', 'joined_at')}), # Hier 'phone' und 'photo' hinzugefügt
             ('Berechtigungen', {
                 'fields': ('is_active', 'is_staff', 'is_superuser', 'user_permissions'),
