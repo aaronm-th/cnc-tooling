@@ -3,8 +3,6 @@ OFFEN:
 
 - Terminal: Regelmäßig aktualisieren
 
-- Passwort ändern überarbeiten
-
 - Krankschreibung: Upload bei erstellen?
 
 - Krankschreibung updaten geht nicht, bei jedem Tag zeigt es den aktuellen Tag an
