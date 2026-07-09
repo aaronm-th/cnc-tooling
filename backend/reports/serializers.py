@@ -176,7 +176,8 @@ class EmployeeMonthlyReportDetailSerializer(serializers.ModelSerializer):
     userName = serializers.CharField(source='get_full_name', read_only=True)
     monthName = serializers.SerializerMethodField()
     year = serializers.SerializerMethodField()
-    
+    is_locked = serializers.SerializerMethodField()
+
     monthly_soll = serializers.SerializerMethodField()
     monthly_ist = serializers.SerializerMethodField()
     monthly_diff = serializers.SerializerMethodField()
@@ -185,7 +186,7 @@ class EmployeeMonthlyReportDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Employee
-        fields = ['id', 'userName', 'monthName', 'year', 'monthly_soll', 'monthly_ist', 'monthly_diff', 'events']
+        fields = ['id', 'userName', 'monthName', 'year', 'monthly_soll', 'monthly_ist', 'monthly_diff', 'events', 'is_locked']
 
     def get_monthName(self, obj):
         months_de = ["", "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"]
@@ -195,6 +196,9 @@ class EmployeeMonthlyReportDetailSerializer(serializers.ModelSerializer):
     def get_year(self, obj):
         return str(self.context.get('year', date.today().year))
 
+    def get_is_locked(self, obj):
+        return self.context.get('is_locked', False)
+    
     def get_monthly_soll(self, obj):
         return round(obj.get_expected_hours_for_month(self.context.get('year'), self.context.get('month')), 2)
 

@@ -16,6 +16,7 @@ export const generateWorkingHoursPDF = async (data) => {
     format: 'a4'
   })
   
+
   const today = new Date().toLocaleDateString('de-DE', {
     day: '2-digit',
     month: '2-digit',
@@ -58,8 +59,6 @@ export const generateWorkingHoursPDF = async (data) => {
   doc.setFont('courier', 'normal')
   doc.text(today, 48, 46)
 
-  // --- NEU: Info-Block Rechts (Monats-Statistiken / Zusammenfassung) ---
-  // Platziert auf der rechten Seite (X=140), damit das Dokument offizieller wirkt
   doc.setFont('courier', 'bold')
   doc.text('SOLL-MONAT:', 140, 36)
   doc.setFont('courier', 'normal')
@@ -164,6 +163,25 @@ export const generateWorkingHoursPDF = async (data) => {
     }
   })
 
+// --- NEU: Wasserzeichen absolut über die ganze Seite (ohne Align-Bug) ---
+  if (!data.is_locked) {
+    const opacityState = new doc.GState({ opacity: 0.10 }) // 10% Deckkraft
+    doc.setGState(opacityState)
+    
+    doc.setTextColor(220, 38, 38) // Ein dezenter Rotton
+    doc.setFont('helvetica', 'bold') // Helvetica skaliert bei Riesen-Schrift stabiler als Courier
+    doc.setFontSize(60)
+    
+    // Absolute Platzierung auf DIN A4 (Breite 210mm, Höhe 297mm)
+    // Wir starten im linken unteren Quadranten (x=35, y=190) und rotieren um 45 Grad nach rechts oben.
+    // Das zieht den Text quer über das gesamte Blatt, ohne vom Koordinatensystem der Tabelle gestört zu werden.
+    doc.text('VORLÄUFIG / DRAFT', 35, 190, { angle: 45 })
+    
+    // Status sofort wieder für den Rest des Dokuments zurücksetzen!
+    const normalState = new doc.GState({ opacity: 1.0 })
+    doc.setGState(normalState)
+  }
+
   // --- 6. Zusammenfassung & Abschluss ---
   const finalY = doc.lastAutoTable.finalY + 8
   
@@ -198,9 +216,14 @@ export const generateWorkingHoursPDF = async (data) => {
   doc.text('Bestätigt (Vorgesetzte/r / HR)', 125, sigY + 4)
 
   // --- 8. PDF Speichern ---
-  const safeName = (userName || 'Mitarbeiter').replace(/\s+/g, '_')
-  const fileName = `Arbeitsnachweis_${year}_${String(data.selectedMonth + 1).padStart(2, '0')}_${safeName}.pdf`
-  doc.save(fileName)
+  const employeeName = (userName).replace(/\s+/g, '_')
+  // Suffix bestimmen: Wenn NICHT gesperrt, hängen wir "_draft" an
+  const suffix = data.is_locked ? '' : '_draft'
   
+  const filename = `Zeitnachweis_${year}_${monthName}_${employeeName}${suffix}.pdf`
+
+  // PDF speichern
+  doc.save(filename)
+
   return true
 }
