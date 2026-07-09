@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
-import { User, X, Camera, Mail, Phone, Lock, Upload, Trash2 } from 'lucide-vue-next'
-// 1. Store importieren
+// Eye und EyeOff importiert für die Passwort-Sichtbarkeit
+import { User, X, Camera, Mail, Phone, Lock, Upload, Trash2, Eye, EyeOff, AlertCircle } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/authStore'
 import { storeToRefs } from 'pinia'
 import axios from 'axios'
@@ -12,7 +12,6 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-// 2. Store initialisieren
 const authStore = useAuthStore()
 const { user: userProfile } = storeToRefs(authStore)
 
@@ -20,32 +19,41 @@ const { user: userProfile } = storeToRefs(authStore)
 const editForm = ref({})
 const avatarPreview = ref(null)
 const fileInput = ref(null)
-const selectedFile = ref(null) // Speichert die echte Datei für den Upload
+const selectedFile = ref(null)
 const avatarDeleted = ref(false)
 
-// Sobald das Modal öffnet, kopieren wir die aktuellen Daten aus Pinia
+// Status für die Passwort-Sichtbarkeit
+const showOldPassword = ref(false)
+const showNewPassword = ref(false)
+
+const errorMessage = ref(null)
+
+// Sobald das Modal öffnet, kopieren wir die aktuellen Daten
 watch(() => props.isOpen, (newVal) => {
   if (newVal && userProfile.value) {
     editForm.value = { 
       email: userProfile.value.email || '',
       phone: userProfile.value.phone || '',
-      password: '' // Passwort immer leer starten
+      oldPassword: '', // Altes Passwort Feld
+      newPassword: ''  // Neues Passwort Feld
     }
     avatarPreview.value = userProfile.value.avatar
-    avatarDeleted.value = false // Reset beim Öffnen
+    avatarDeleted.value = false
+    showOldPassword.value = false
+    showNewPassword.value = false
+    errorMessage.value = null
   }
 })
 
 const handleAvatarUpload = (event) => {
   const file = event.target.files[0]
   if (file) {
-    selectedFile.value = file // Datei für später speichern
-    avatarDeleted.value = false // Falls vorher gelöscht, überschreiben
+    selectedFile.value = file
+    avatarDeleted.value = false
 
     const reader = new FileReader()
-
     reader.onload = (e) => {
-      avatarPreview.value = e.target.result // Vorschau im Modal
+      avatarPreview.value = e.target.result
     }
     reader.readAsDataURL(file)
   }
@@ -54,13 +62,12 @@ const handleAvatarUpload = (event) => {
 const removeAvatar = () => {
   avatarPreview.value = null
   selectedFile.value = null
-  avatarDeleted.value = true // Flag setzen für das Backend
-  if (fileInput.value) fileInput.value.value = '' // Input-Feld leeren
+  avatarDeleted.value = true
+  if (fileInput.value) fileInput.value.value = ''
 }
 
 const triggerFileInput = () => fileInput.value.click()
 
-// 3. Die Speicher-Logik
 const saveProfile = async () => {
   try {
     const token = localStorage.getItem('access_token')
@@ -68,18 +75,16 @@ const saveProfile = async () => {
     
     formData.append('email', editForm.value.email)
     formData.append('phone', editForm.value.phone)
-    if (editForm.value.password) {
-      formData.append('password', editForm.value.password)
-    }
-    if (selectedFile.value) {
-      formData.append('photo', selectedFile.value)
+    
+    // Passwort-Logik anpassen: Nur mitsenden, wenn das neue Passwort ausgefüllt ist
+    if (editForm.value.newPassword) {
+      formData.append('old_password', editForm.value.oldPassword)
+      formData.append('new_password', editForm.value.newPassword)
     }
 
     if (avatarDeleted.value) {
-      // Wenn gelöscht, senden wir einen Leerstring (Django ImageField/FileField versteht das beim PATCH als "leeren")
       formData.append('photo', '') 
     } else if (selectedFile.value) {
-      // Wenn eine neue Datei ausgewählt wurde, hänge sie an
       formData.append('photo', selectedFile.value)
     }
 
@@ -89,20 +94,35 @@ const saveProfile = async () => {
       { headers: { Authorization: `Bearer ${token}` } }
     )
 
-
     const updatedData = response.data.user ? response.data.user : response.data;
 
     authStore.user = {
       ...authStore.user,
       ...updatedData
     };
-
     
     emit('close')
   } catch (error) {
-    console.error("Update fehlgeschlagen:", error)
-    alert("Fehler beim Speichern!")
-  }
+      console.error("Update fehlgeschlagen:", error)
+      
+      // Hier fangen wir die Django-Validierungsfehler ab
+      if (error.response?.data) {
+        const data = error.response.data
+        
+        if (data.old_password) {
+          // Falls das alte Passwort falsch war oder fehlte
+          errorMessage.value = Array.isArray(data.old_password) ? data.old_password[0] : data.old_password
+        } else if (data.email) {
+          errorMessage.value = Array.isArray(data.email) ? data.email[0] : data.email
+        } else if (data.message) {
+          errorMessage.value = data.message
+        } else {
+          errorMessage.value = "Fehler beim Speichern der Profildaten."
+        }
+      } else {
+        errorMessage.value = "Netzwerkfehler. Bitte versuche es später noch einmal."
+      }
+    }
 }
 </script>
 
@@ -110,6 +130,7 @@ const saveProfile = async () => {
   <div v-if="isOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
     <div @click="$emit('close')" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div>
     <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+      
       <div class="p-6 border-b border-slate-100 flex items-center justify-between">
         <div class="flex items-center gap-3">
           <div class="p-2 bg-blue-50 rounded-lg">
@@ -123,7 +144,13 @@ const saveProfile = async () => {
       </div>
       
       <div class="p-8 overflow-y-auto max-h-[70vh]">
-        <!-- Avatar Upload Section -->
+        
+        <div v-if="errorMessage" class="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-700 animate-fadeIn">
+          <AlertCircle class="w-5 h-5 mt-0.5 flex-shrink-0" />
+          <div class="text-sm font-medium">
+            {{ errorMessage }}
+          </div>
+        </div>
 
         <div class="flex flex-col items-center mb-8">
           <div class="relative group">
@@ -164,10 +191,8 @@ const saveProfile = async () => {
           <p class="text-xs text-slate-500 mt-3">Auf Icons klicken um ein Profilbild hochzuladen oder zu löschen.</p>
         </div>
 
-
-
-
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
           <div class="space-y-1.5">
             <label class="text-xs font-bold tracking-wider text-slate-500"><span class="uppercase">E-Mail</span> (optional)</label>
             <div class="relative">
@@ -195,19 +220,52 @@ const saveProfile = async () => {
             </div>
           </div>
 
-          <div class="space-y-1.5 md:col-span-2">
-            <label class="text-xs font-bold uppercase tracking-wider text-slate-500">Passwort</label>
+          <div class="md:col-span-2 my-1 border-t border-slate-100 pt-4">
+            <h3 class="text-sm font-semibold text-slate-700 mb-1">Passwort ändern</h3>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-500">Altes Passwort</label>
             <div class="relative">
               <Lock class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
-                v-model="editForm.password"
-                type="password" 
-                class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                placeholder="••••••••"
+                v-model="editForm.oldPassword"
+                :type="showOldPassword ? 'text' : 'password'" 
+                class="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                placeholder="Aktuelles Passwort"
               />
+              <button 
+                type="button"
+                @click="showOldPassword = !showOldPassword"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
+              >
+                <Eye v-if="!showOldPassword" class="w-4 h-4" />
+                <EyeOff v-else class="w-4 h-4" />
+              </button>
             </div>
-            <p class="text-[10px] text-slate-400 mt-1">Unausgefüllt lassen um das aktuelle Passwort beizubehalten</p>
           </div>
+
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-500">Neues Passwort</label>
+            <div class="relative">
+              <Lock class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input 
+                v-model="editForm.newPassword"
+                :type="showNewPassword ? 'text' : 'password'" 
+                class="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                placeholder="Neues Passwort"
+              />
+              <button 
+                type="button"
+                @click="showNewPassword = !showNewPassword"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
+              >
+                <Eye v-if="!showNewPassword" class="w-4 h-4" />
+                <EyeOff v-else class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
       
@@ -229,3 +287,15 @@ const saveProfile = async () => {
     </div>
   </div>
 </template>
+
+
+<style scoped>
+/* Kleine Animation für das sanfte Einblenden der Fehlermeldung */
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>

@@ -3,9 +3,10 @@ from django.utils import timezone
 import pytz 
 from decimal import Decimal
 from .models import Employee, VacationQuota, Notification
-from .services.vacation_service import VacationService  # Import deines zentralen Services
+from .services.vacation_service import VacationService 
 from drf_spectacular.utils import extend_schema_field
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework.exceptions import ValidationError  
 
 
 
@@ -27,15 +28,17 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return data
 
 
-# 2. Modell-Serializer
 class EmployeeSerializer(serializers.ModelSerializer):
     avatar = serializers.SerializerMethodField()
     name = serializers.ReadOnlyField() 
     username = serializers.ReadOnlyField()
-    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     initials = serializers.ReadOnlyField()
     status_text = serializers.SerializerMethodField()
     is_supervisor = serializers.SerializerMethodField()
+
+    # Die beiden neuen Felder für die Passwort-Änderung
+    old_password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    new_password = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     email = serializers.CharField(
         allow_blank=True, 
@@ -48,25 +51,37 @@ class EmployeeSerializer(serializers.ModelSerializer):
         model = Employee
         fields = [
             'id', 'first_name', 'last_name', 'name', 'initials', 
-            'email', 'phone', 'status_text', 'avatar', 'is_supervisor', 'username', 'password'
+            'email', 'phone', 'status_text', 'avatar', 'is_supervisor', 
+            'username', 'old_password', 'new_password'
         ]
         read_only_fields = ['id']
 
     def update(self, instance, validated_data):
-        # 1. Passwort-Handling
-        password = validated_data.pop('password', None)
-        if password:
-            instance.set_password(password)
+        # 1. Passwort-Handling überarbeiten
+        old_password = validated_data.pop('old_password', None)
+        new_password = validated_data.pop('new_password', None)
 
-        # 2. Foto-Handling (Ausgelagert aus der View)
+        if new_password:
+            # Sicherheitshalber prüfen, ob das alte Passwort mitgeschickt wurde
+            if not old_password:
+                raise ValidationError({"old_password": "Das aktuelle Passwort wird benötigt, um ein neues zu setzen."})
+            
+            # Überprüfen, ob das alte Passwort mit dem in der DB übereinstimmt
+            if not instance.check_password(old_password):
+                raise ValidationError({"old_password": "Das eingegebene aktuelle Passwort ist nicht korrekt."})
+            
+            # Wenn alles passt, neues Passwort verschlüsselt setzen
+            instance.set_password(new_password)
+
+        # 2. Foto-Handling (Bleibt unverändert)
         request = self.context.get('request')
         if request and 'photo' in request.data:
             photo_data = request.data.get('photo')
-            if photo_data == '': # Vue will löschen
+            if photo_data == '': 
                 if instance.photo:
                     instance.photo.delete(save=False)
                 instance.photo = None
-        elif request and 'photo' in request.FILES: # Neues Foto
+        elif request and 'photo' in request.FILES: 
             if instance.photo:
                 instance.photo.delete(save=False)
             instance.photo = request.FILES['photo']
@@ -78,7 +93,6 @@ class EmployeeSerializer(serializers.ModelSerializer):
         if ret.get('email') in [None, 'null', '']:
             ret['email'] = ''
         return ret
-    
 
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_avatar(self, obj):

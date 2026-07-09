@@ -3,9 +3,6 @@ OFFEN:
 
 - Terminal: Regelmäßig aktualisieren
 
-
-- Mitarbeiter anlegen: Sollstunden Echtzeit aktualisieren
-
 - Passwort ändern überarbeiten
 
 - Krankschreibung: Upload bei erstellen?
