@@ -21,7 +21,6 @@ class WorkDay(models.Model):
     class DayType(models.TextChoices):
         WORK = "work", "Arbeitstag"
         VACATION = "vacation", "Urlaub"
-        OVERTIME = "overtime", "GLZ-Abbau"
         SICK = "sick", "Krank"
         WEEKEND = "weekend", "Wochenende"
         HOLIDAY = "holiday", "Feiertag"
@@ -213,7 +212,6 @@ class LeaveRequest(models.Model):
     LEAVE_CHOICES = [
         ("sick", "Krank"),
         ("vacation", "Urlaub"),
-        ("overtime", "GLZ-Abbau"),
     ]
 
     employee = models.ForeignKey(
@@ -328,7 +326,6 @@ class LeaveRequest(models.Model):
         mapping = {
             "vacation": "vacation",
             "sick": "sick",
-            "overtime": "overtime"
         }
         return mapping.get(self.leave_type, "work")
 

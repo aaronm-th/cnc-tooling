@@ -11,8 +11,8 @@ from rest_framework.generics import ListAPIView, RetrieveUpdateDestroyAPIView
 
 from attendance.models import LeaveRequest, WSChangeRequest, WorkDay
 from management.permissions import IsSupervisor
-from management.serializers import TeamMemberSummarySerializer, TeamMemberDetailSerializer, CreateEditEmployeeSerializer
-from core.models import Employee, VacationQuota
+from management.serializers import TeamMemberSummarySerializer, TeamMemberDetailSerializer, CreateEditEmployeeSerializer, MonthProcessSerializer
+from core.models import Employee, VacationQuota, MonthlyPayout
 
 from decimal import Decimal
 
@@ -152,7 +152,6 @@ class TeamCalendarEventsView(APIView):
         return Response(events_data, status=status.HTTP_200_OK)
     
 
-
 class CreateEditEmployeeView(APIView):
     permission_classes = [IsSupervisor]
 
@@ -209,3 +208,116 @@ class CreateEditEmployeeView(APIView):
                 "initial_password": user.username
             }
         }, status=status.HTTP_201_CREATED)
+    
+
+class CloseMonthGlobalView(APIView):
+    """
+    Sperrt den gewählten Monat global für ALLE aktiven Mitarbeiter (keine Superuser),
+    berechnet deren finale Stunden und speichert diese im MonthlyPayout ab.
+    """
+    permission_classes = [IsSupervisor]
+
+    def post(self, request):
+        serializer = MonthProcessSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        year = serializer.validated_data['year']
+        month = serializer.validated_data['month']
+        
+        # Zeitschranke: Man kann den aktuellen Monat nicht vorab schließen
+        today = timezone.localdate()
+        if year >= today.year and month >= today.month:
+            return Response(
+                {"detail": "Nur vergangene Monate können global abgeschlossen werden."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        employees = Employee.objects.filter(is_active=True, is_superuser=False)
+        
+        for emp in employees:
+            stats = emp.get_hours_balance_for_month(year, month)
+            overtime = max(0.0, stats["balance"])
+            
+            MonthlyPayout.objects.update_or_create(
+                employee=emp, year=year, month=month,
+                defaults={
+                    "worked_hours": stats["worked"],
+                    "expected_hours": stats["expected"],
+                    "overtime_calculated": overtime,
+                    "overtime_paid": overtime,  # Standardmäßig 1:1, vom Chef editierbar
+                    "is_processed": True,
+                    "processed_at": timezone.now()
+                }
+            )
+            
+        return Response(
+            {"detail": f"Monat {month}/{year} erfolgreich für alle Mitarbeiter abgerechnet."},
+            status=status.HTTP_200_OK
+        )
+
+
+class CloseEmployeeMonthView(APIView):
+    """
+    Schließt den Monat für einen spezifischen Mitarbeiter ab.
+    """
+    permission_classes = [IsSupervisor]
+
+    def post(self, request):
+        # Hier ist employee_id ein Pflichtfeld
+        serializer = MonthProcessSerializer(data=request.data)
+        if 'employee_id' not in request.data:
+            return Response({"employee_id": ["Dieses Feld ist erforderlich."]}, status=status.HTTP_400_BAD_REQUEST)
+            
+        serializer.is_valid(raise_exception=True)
+        
+        year = serializer.validated_data['year']
+        month = serializer.validated_data['month']
+        emp_id = serializer.validated_data['employee_id']
+        
+        emp = Employee.objects.get(id=emp_id)
+        stats = emp.get_hours_balance_for_month(year, month)
+        overtime = max(0.0, stats["balance"])
+        
+        MonthlyPayout.objects.update_or_create(
+            employee=emp, year=year, month=month,
+            defaults={
+                "worked_hours": stats["worked"],
+                "expected_hours": stats["expected"],
+                "overtime_calculated": overtime,
+                "overtime_paid": overtime,
+                "is_processed": True,
+                "processed_at": timezone.now()
+            }
+        )
+        
+        return Response({"detail": f"Monat für {emp.name} erfolgreich abgerechnet."}, status=status.HTTP_200_OK)
+
+
+class ReopenEmployeeMonthView(APIView):
+    """
+    Hebt die Sperre (Auszahlungsfixierung) für einen Mitarbeiter auf,
+    indem der MonthlyPayout-Eintrag gelöscht wird.
+    """
+    permission_classes = [IsSupervisor]
+
+    def post(self, request):
+        serializer = MonthProcessSerializer(data=request.data)
+        if 'employee_id' not in request.data:
+            return Response({"employee_id": ["Dieses Feld ist erforderlich."]}, status=status.HTTP_400_BAD_REQUEST)
+            
+        serializer.is_valid(raise_exception=True)
+        
+        year = serializer.validated_data['year']
+        month = serializer.validated_data['month']
+        emp_id = serializer.validated_data['employee_id']
+        
+        # Durch das Löschen des Eintrags greifen die Modell-Validierungen nicht mehr 
+        # und der Monat ist sofort wieder editierbar (Live-Modus).
+        deleted_count, _ = MonthlyPayout.objects.filter(
+            employee_id=emp_id, year=year, month=month
+        ).delete()
+        
+        if deleted_count == 0:
+            return Response({"detail": "Es existierte kein aktiver Abschluss für diesen Zeitraum."}, status=status.HTTP_404_NOT_FOUND)
+            
+        return Response({"detail": "Monat wurde für Korrekturen erfolgreich wieder geöffnet."}, status=status.HTTP_200_OK)

@@ -112,6 +112,7 @@ class TeamMemberDetailSerializer(TeamMemberSummarySerializer):
     
 
 class CreateEditEmployeeSerializer(serializers.Serializer):
+
     first_name = serializers.CharField(max_length=150)
     last_name = serializers.CharField(max_length=150)
     email = serializers.EmailField(required=False, allow_null=True, allow_blank=True)
@@ -139,4 +140,15 @@ class CreateEditEmployeeSerializer(serializers.Serializer):
     def validate_work_days_schema(self, value):
         if isinstance(value, dict):
             return {str(k): v for k, v in value.items()}
+        return value
+    
+
+class MonthProcessSerializer(serializers.Serializer):
+    year = serializers.IntegerField(min_value=2000, max_value=2100)
+    month = serializers.IntegerField(min_value=1, max_value=12)
+    employee_id = serializers.IntegerField(required=False)
+
+    def validate_employee_id(self, value):
+        if not Employee.objects.filter(id=value).exists():
+            raise serializers.ValidationError("Mitarbeiter existiert nicht.")
         return value

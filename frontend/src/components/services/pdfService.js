@@ -16,7 +16,11 @@ export const generateWorkingHoursPDF = async (data) => {
     format: 'a4'
   })
   
-  const today = new Date().toLocaleDateString('de-DE')
+  const today = new Date().toLocaleDateString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  })
   
   // --- 1. Globalen Font auf Courier setzen (Schreibmaschine) ---
   doc.setFont('courier', 'normal')
@@ -67,7 +71,7 @@ export const generateWorkingHoursPDF = async (data) => {
   doc.text(`${parseFloat(monthly_ist || 0).toFixed(2)} h`, 172, 41)
 
   doc.setFont('courier', 'bold')
-  doc.text('MONATS-BALO:', 140, 46)
+  doc.text('DIFFERENZ:', 140, 46)
   doc.setFont('courier', 'normal')
   const totalDiffNum = parseFloat(monthly_diff || 0)
   const totalPrefix = totalDiffNum > 0 ? '+' : ''

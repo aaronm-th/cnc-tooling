@@ -2,7 +2,8 @@ from .team import (
     VacationQuotaSummarySerializer,
     TeamMemberSummarySerializer,
     TeamMemberDetailSerializer,
-    CreateEditEmployeeSerializer
+    CreateEditEmployeeSerializer,
+    MonthProcessSerializer,
 )
 from .requests import LeaveRequestSerializer, ChangeRequestSerializer
 from .manual import ManualEntrySerializer

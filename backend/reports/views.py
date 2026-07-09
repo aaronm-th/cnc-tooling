@@ -5,23 +5,23 @@ from django.utils import timezone
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 
-from rest_framework import status, permissions
+from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
 
 from attendance.models import WorkDay
-from core.models import Employee
+from core.models import Employee, MonthlyPayout
 from .models import EmployeeDocument
 
 from management.permissions import IsSupervisor
 from .serializers import (
-    WorkDayWithSessionsSerializer, 
     EmployeeDocumentSerializer, 
     AdminMonthlyReportOverviewSerializer,
-    EmployeeMonthlyReportDetailSerializer  # Unser neuer, universeller Serializer
+    EmployeeMonthlyReportDetailSerializer
 )
+
 
 
 class EmployeeDocumentListView(APIView):
@@ -114,10 +114,10 @@ class AdminMonthlyReportOverviewView(APIView):
     Liefert eine Tabellen-Übersicht ALLER aktiven Mitarbeiter mit Soll-, Ist- 
     und Differenzstunden für ein bestimmtes Jahr und einen bestimmten Monat.
     """
-    permission_classes = [IsSupervisor]
+    permission_classes = [IsSupervisor] 
 
     def get(self, request):
-        now = timezone.now()
+        now = timezone.localdate()
         try:
             year = int(request.query_params.get('year', now.year))
             month = int(request.query_params.get('month', now.month))
@@ -126,13 +126,18 @@ class AdminMonthlyReportOverviewView(APIView):
         except ValueError:
             return Response({"error": "Fehlende oder ungültige Parameter (year, month)."}, status=400)
 
-        # Nur aktive Mitarbeiter auflisten
-        employees = Employee.objects.filter(is_active=True, is_superuser=False).order_by('last_name', 'first_name')
+        # Korrigierter Filter: Mitarbeiter auflisten, die zu dem Zeitpunkt schon im Betrieb waren
+        target_date = date(year, month, 1)
+        employees = Employee.objects.filter(
+            is_active=True, 
+            is_superuser=False, 
+            joined_at__lte=target_date
+        ).order_by('last_name', 'first_name')
         
         serializer = AdminMonthlyReportOverviewSerializer(
             employees, 
             many=True, 
-            context={'year': year, 'month': month}
+            context={'year': year, 'month': month, 'request': request}
         )
         return Response(serializer.data)
 
@@ -140,14 +145,12 @@ class AdminMonthlyReportOverviewView(APIView):
 class MonthlyReportDetailView(APIView):
     """
     Universeller Endpunkt für die PDF-Daten eines Monats.
-    Mitarbeiter ruft ohne Parameter auf -> Eigene Daten.
-    Admin/Supervisor ruft mit ?employee_id=X auf -> Daten des Mitarbeiters X.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         employee_id = request.query_params.get('employee_id')
-        now = timezone.now()
+        now = timezone.localdate()
         
         try:
             year = int(request.query_params.get('year', now.year))
@@ -157,44 +160,40 @@ class MonthlyReportDetailView(APIView):
         except ValueError:
             return Response({"error": "Fehlende oder ungültige Parameter (year, month)."}, status=400)
 
-        # 1. Rechte- & Rollenprüfung für den Ziel-Mitarbeiter
         if employee_id:
-            # Wenn eine ID übergeben wurde, MUSS der User Supervisor oder Admin sein
             if not (getattr(request.user, 'is_supervisor', False) or request.user.is_superuser):
                 return Response({"detail": "Nicht autorisiert, die Daten anderer Mitarbeiter einzusehen."}, status=403)
             employee = get_object_or_404(Employee, id=employee_id)
         else:
-            # Ohne Parameter sieht der Mitarbeiter nur sich selbst
             employee = request.user
 
-        # 2. Lücken im Kalendermonat auffüllen (Sicherstellen, dass jeder Tag im PDF existiert)
-        _, num_days = calendar.monthrange(year, month)
-        start_date = date(year, month, 1)
-        end_date = date(year, month, num_days)
-        
-        self._ensure_workdays_exist_for_range(employee, start_date, end_date)
+        # --- NEU: Prüfen, ob der Monat bereits abgerechnet und verriegelt wurde ---
+        is_locked = MonthlyPayout.objects.filter(
+            employee=employee, year=year, month=month, is_processed=True
+        ).exists()
 
-        # 3. Serializer mit Context füttern und ausgeben
+        # Generiere Lücken im Kalendermonat NUR dann, wenn der Monat noch OFFEN ist.
+        # Bei einem fixierten Abrechnungsmonat tasten wir die Datenbank nicht mehr an!
+        if not is_locked:
+            _, num_days = calendar.monthrange(year, month)
+            start_date = date(year, month, 1)
+            end_date = date(year, month, num_days)
+            self._ensure_workdays_exist_for_range(employee, start_date, end_date)
+
+        # Serializer ausgeben
         serializer = EmployeeMonthlyReportDetailSerializer(
             employee,
-            context={'year': year, 'month': month, 'request': request}
+            context={'year': year, 'month': month, 'request': request, 'is_locked': is_locked}
         )
         return Response(serializer.data)
 
     def _ensure_workdays_exist_for_range(self, user, start_date, end_date):
-        """
-        Erstellt automatisch leere WorkDay-Einträge für Tage, an denen der Mitarbeiter 
-        nicht eingestempelt war, damit die Tabelle im PDF lückenlos ist.
-        Erstellt Tage in der Zukunft nur bis zum heutigen Datum.
-        """
-        today = date.today()
+        today = timezone.localdate()
         effective_end_date = min(end_date, today)
 
-        # Falls das Startdatum bereits in der Zukunft liegt, direkt abbrechen
         if start_date > effective_end_date:
             return
 
-        # Alle vorhandenen Daten in diesem eingeschränkten Zeitraum holen
         existing_dates = set(
             WorkDay.objects.filter(
                 employee=user, 
@@ -208,18 +207,15 @@ class MonthlyReportDetailView(APIView):
         while current_date <= effective_end_date:
             if current_date not in existing_dates:
                 temp_wd = WorkDay(employee=user, date=current_date)
-                
-                # Automatische Erkennung für Wochenenden (5 = Samstag, 6 = Sonntag)
                 if current_date.weekday() in [5, 6]:
                     temp_wd.day_type = WorkDay.DayType.WEEKEND
                 else:
-                    # Für normale Wochentage greift dein Modell-Standard 'work'
                     temp_wd.day_type = WorkDay.DayType.WORK
-                    
                 new_workdays.append(temp_wd)
             
             current_date += timedelta(days=1)
 
-        # Wenn Lücken gefunden wurden, schreiben wir sie effizient in die DB
         if new_workdays:
             WorkDay.objects.bulk_create(new_workdays)
+
+

@@ -29,9 +29,7 @@ export const useDocumentStore = defineStore('document', () => {
     return token ? { Authorization: `Bearer ${token}` } : {}
   }
 
-  /**
-   * Holt alle Dokumente eines Nutzers (oder gefiltert nach Mitarbeiter-ID für Admins)
-   */
+
   async function fetchEmployeeDocuments(memberId = null) {
     isFetching.value = true
     lastError.value = null
@@ -51,9 +49,7 @@ export const useDocumentStore = defineStore('document', () => {
     }
   }
 
-  /**
-   * Lädt ein statisches Dokument (z.B. PDF/Vertrag) als Binär-Blob herunter
-   */
+  
   async function downloadEmployeeDocument(documentId, originalFilename) {
     isDownloading.value = true
     lastError.value = null
@@ -85,10 +81,6 @@ export const useDocumentStore = defineStore('document', () => {
     }
   }
 
-  /**
-   * Universelle interne Core-Funktion, um die PDF-Daten abzurufen und zu generieren.
-   * Wird sowohl vom Mitarbeiter als auch vom Admin genutzt.
-   */
   async function _generateReportPDF(month, year, employeeId = null) {
     isGenerating.value = true
     lastError.value = null

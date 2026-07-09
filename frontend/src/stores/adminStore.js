@@ -79,8 +79,6 @@ export const useAdminStore = defineStore('admin', {
         const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/mgmt/stats/`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
-        
-        // Matcht jetzt zu 100% mit dem State, überschreibt direkt ohne Fehler/Mapping!
         Object.assign(this, data)
       } catch (error) {
         console.error('Fehler beim Laden der Dashboard-Daten:', error)
@@ -131,7 +129,7 @@ export const useAdminStore = defineStore('admin', {
         )
         
         this.teamMembers.push(res.data)
-        this.employees_count++ // Synchron mit Backend-Name
+        this.employees_count++ 
       } catch (error) {
         console.error("Fehler beim Erstellen eines neuen Mitarbeiters:", error)
         alert("Mitarbeiter konnte nicht erstellt werden.")
@@ -166,18 +164,13 @@ export const useAdminStore = defineStore('admin', {
       this.isLoading = true
       try {
         const token = localStorage.getItem('access_token')
-        
-        // Da es sich um administrative Einträge handelt, nutzen wir den Präfix /api/mgmt/
         await axios.post(`${import.meta.env.VITE_API_URL}/api/mgmt/manual-entries/`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         })
-        
-        // Optionale Optimierung: Lädt direkt die Teamliste neu, damit aktualisierte Überstunden/Urlaubstage
-        // sofort live in der UI reflektiert werden.
         await this.fetchTeamMembers()
       } catch (error) {
         console.error("Fehler beim Erstellen des manuellen Eintrags im Store:", error)
-        throw error // Re-Throw, damit das Modal die Fehlermeldung im UI anzeigen kann
+        throw error 
       } finally {
         this.isLoading = false
       }
@@ -206,7 +199,7 @@ export const useAdminStore = defineStore('admin', {
         });
 
         this.teamMembers = this.teamMembers?.filter(m => m.id !== userId)
-        this.employees_count-- // Synchron mit Backend-Name
+        this.employees_count-- 
       } catch (error) {
         console.error("Fehler: Benutzer konnte nicht deactivated werden.", error)
         alert("Mitarbeiter konnte nicht deaktiviert werden.")
@@ -239,7 +232,6 @@ export const useAdminStore = defineStore('admin', {
           { headers: { Authorization: `Bearer ${token}` }}
         );
 
-        // Falls du 'pendingRequests' im State nutzt, hier optional via Safe-Navigation absichern
         if (this.pendingRequests) {
           this.pendingRequests = this.pendingRequests.filter(r => r.id !== requestId);
         }
@@ -315,5 +307,63 @@ export const useAdminStore = defineStore('admin', {
         this.isLoading = false
       }
     },
+
+    // --- NEUE AKTIONEN FÜR DEN MONATSABSCHLUSS ---
+
+    /**
+     * Schließt den gewählten Monat global für alle aktiven Mitarbeiter ab
+     */
+    async closeMonthGlobal(month, year) {
+      const token = localStorage.getItem('access_token')
+      try {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/mgmt/payouts/close-month/`, {
+          month,
+          year
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      } catch (error) {
+        console.error('Fehler beim globalen Monatsabschluss im Store:', error)
+        throw error
+      }
+    },
+
+    /**
+     * Rechnet den Monat für einen spezifischen Mitarbeiter ab und fixiert die Daten
+     */
+    async closeEmployeeMonth(memberId, month, year) {
+      const token = localStorage.getItem('access_token')
+      try {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/mgmt/payouts/close-employee/`, {
+          employee_id: memberId,
+          month,
+          year
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      } catch (error) {
+        console.error(`Fehler beim Sperren von User ${memberId}:`, error)
+        throw error
+      }
+    },
+
+    /**
+     * Hebt den Abschluss für einen spezifischen Mitarbeiter auf (Sperre löschen)
+     */
+    async reopenEmployeeMonth(memberId, month, year) {
+      const token = localStorage.getItem('access_token')
+      try {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/mgmt/payouts/reopen-employee/`, {
+          employee_id: memberId,
+          month,
+          year
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      } catch (error) {
+        console.error(`Fehler beim Öffnen von User ${memberId}:`, error)
+        throw error
+      }
+    }
   }
 })

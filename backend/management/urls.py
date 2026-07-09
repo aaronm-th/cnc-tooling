@@ -2,7 +2,8 @@ from django.urls import path
 from .views import (
     SupervisorDashboardStatsView, TeamMemberListView, TeamMemberDetailView,
     HandleLeaveRequestView, HandleChangeRequestView,
-    TeamCalendarEventsView, CreateEditEmployeeView, ManualEntriesView
+    TeamCalendarEventsView, CreateEditEmployeeView, ManualEntriesView,
+    CloseMonthGlobalView, CloseEmployeeMonthView, ReopenEmployeeMonthView
 )
 
 urlpatterns = [
@@ -17,4 +18,9 @@ urlpatterns = [
     path('api/mgmt/change-requests/', HandleChangeRequestView.as_view(), name='mgmt-change-requests'),
     
     path('api/mgmt/calendar-events/', TeamCalendarEventsView.as_view(), name='mgmt-calendar-events'),
+
+    # --- NEU: Monatsabschluss & Auszahlungs-Sperren ---
+    path('api/mgmt/payouts/close-month/', CloseMonthGlobalView.as_view(), name='payout-close-month-global'),
+    path('api/mgmt/payouts/close-employee/', CloseEmployeeMonthView.as_view(), name='payout-close-employee'),
+    path('api/mgmt/payouts/reopen-employee/', ReopenEmployeeMonthView.as_view(), name='payout-reopen-employee'),
 ]

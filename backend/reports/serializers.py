@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from attendance.models import WorkDay
 from .models import EmployeeDocument
-from core.models import Employee
+from core.models import Employee, MonthlyPayout
 from django.db.models import Sum
 from datetime import date
 from django.utils import timezone
@@ -26,35 +26,65 @@ class EmployeeDocumentSerializer(serializers.ModelSerializer):
 
 
 class AdminMonthlyReportOverviewSerializer(serializers.ModelSerializer):
-    soll_hours = serializers.SerializerMethodField()
+    name = serializers.CharField(source='get_full_name', read_only=True)
+    username = serializers.CharField(read_only=True)
+    avatar = serializers.SerializerMethodField()
+    
+    # Die Kernfelder für deine Übersichtstabelle
     ist_hours = serializers.SerializerMethodField()
-    diff_hours = serializers.SerializerMethodField()
-    initials = serializers.SerializerMethodField()
+    soll_hours = serializers.SerializerMethodField()
+    is_processed = serializers.SerializerMethodField()
 
     class Meta:
         model = Employee
-        fields = ['id', 'name', 'username', 'initials', 'soll_hours', 'ist_hours', 'diff_hours']
+        fields = ['id', 'name', 'username', 'initials', 'avatar', 'ist_hours', 'soll_hours', 'is_processed']
 
-    def get_initials(self, obj):
-        f = obj.first_name[0] if obj.first_name else ""
-        l = obj.last_name[0] if obj.last_name else ""
-        return f"{f}{l}".upper() or "MA"
-
-    def get_soll_hours(self, obj):
+    def _get_payout(self, obj):
+        """Hilfsmethode zur Vermeidung von Doppelabfragen pro Zeile."""
+        if not hasattr(self, '_payout_cache'):
+            self._payout_cache = {}
+            
         year = self.context.get('year')
         month = self.context.get('month')
-        return round(obj.get_expected_hours_for_month(year, month), 2)
+        cache_key = f"{obj.id}_{year}_{month}"
+        
+        if cache_key not in self._payout_cache:
+            self._payout_cache[cache_key] = MonthlyPayout.objects.filter(
+                employee=obj, year=year, month=month, is_processed=True
+            ).first()
+            
+        return self._payout_cache[cache_key]
 
-    def get_ist_hours(self, obj):
+    def get_is_processed(self, obj) -> bool:
+        return self._get_payout(obj) is not None
+
+    def get_ist_hours(self, obj) -> float:
+        payout = self._get_payout(obj)
+        if payout:
+            return float(payout.worked_hours) # Nutzt fixierten Wert
+            
+        # Fallback auf Live-Berechnung deiner Modell-Methode
         year = self.context.get('year')
         month = self.context.get('month')
-        workdays = WorkDay.objects.filter(employee=obj, date__year=year, date__month=month)
-        ist_sum = sum(day.total_hours for day in workdays)
-        return round(float(ist_sum), 2)
-    
+        stats = obj.get_hours_balance_for_month(year, month)
+        return float(stats["worked"])
 
-    def get_diff_hours(self, obj):
-        return round(self.get_ist_hours(obj) - self.get_soll_hours(obj), 2)
+    def get_soll_hours(self, obj) -> float:
+        payout = self._get_payout(obj)
+        if payout:
+            return float(payout.expected_hours) # Nutzt fixierten Wert
+            
+        # Fallback auf Live-Berechnung
+        year = self.context.get('year')
+        month = self.context.get('month')
+        stats = obj.get_hours_balance_for_month(year, month)
+        return float(stats["expected"])
+
+    def get_avatar(self, obj):
+        request = self.context.get('request')
+        if obj.photo and request:
+            return request.build_absolute_uri(obj.photo.url)
+        return obj.get_photo_url() if hasattr(obj, 'get_photo_url') else None
 
 
 class WorkDayWithSessionsSerializer(serializers.ModelSerializer):
@@ -72,39 +102,43 @@ class WorkDayWithSessionsSerializer(serializers.ModelSerializer):
         fields = ['id', 'date', 'day_type', 'day_type_display', 'actual_hours', 'diff', 'session_details']
 
     def get_diff(self, obj):
-        # 1. Wenn es sich um ein Wochenende oder einen gesetzlichen Feiertag handelt,
-        #    darf kein Minus entstehen -> Saldo bleibt glatt bei 0.00 h.
-        #    (Hinweis: Falls bei dir 'weekend' / 'holiday' im Modell großgeschrieben sind, 
-        #    passe die Strings hier entsprechend an, z.B. WorkDay.DayType.WEEKEND)
         if obj.day_type in [WorkDay.DayType.HOLIDAY, WorkDay.DayType.WEEKEND]:
             return 0.0
             
-        # 2. Wenn der Mitarbeiter im Urlaub oder krank gemeldet ist, gilt die Fehlzeit
-        #    als "Soll erfüllt" -> Saldo ist ebenfalls 0.00 h, damit kein fälschliches Minus entsteht.
         if obj.day_type in [WorkDay.DayType.VACATION, WorkDay.DayType.SICK]:
             return 0.0
 
-        # 3. Regulärer Arbeitstag: Ist-Stunden holen
         ist = float(obj.total_hours or 0.0)
-
-        # 4. Soll-Stunden exakt über deine Employee-Property für dieses Datum ermitteln!
         soll = 0.0
         if obj.employee and hasattr(obj.employee, 'get_expected_hours_for_date'):
             soll = float(obj.employee.get_expected_hours_for_date(obj.date) or 0.0)
         else:
-            soll = 8.0 # Sicherer Fallback, falls die Property mal nicht greift
+            soll = 8.0
 
         return round(ist - soll, 2)
 
     def get_day_type_display(self, obj):
+        today = timezone.localdate()
+        
+        # Logik für reguläre Arbeitstage
         if obj.day_type == WorkDay.DayType.WORK:
-            if obj.date > date.today():
+            if obj.date > today:
                 return "Geplant"
-            return "Fehlzeit"
+            
+            # Wenn in der Vergangenheit, aber keine Einstempelungen vorhanden sind
+            if not obj.sessions.exists():
+                return "Fehlzeit"
+                
+            return "Arbeitstag"
+            
+        # Für alle Sonderfälle (Urlaub, Krank, Wochenende, Feiertag) nutzen wir die Django-Übersetzung
         return obj.get_day_type_display()
 
     def get_session_details(self, obj):
+        today = timezone.localdate()
         sessions = obj.sessions.all()
+        
+        # 1. Wenn Stempelzeiten existieren, listen wir diese IMMER auf (auch am Wochenende)
         if sessions.exists():
             formatted_sessions = []
             for s in sessions:
@@ -116,12 +150,10 @@ class WorkDayWithSessionsSerializer(serializers.ModelSerializer):
                 formatted_sessions.append(f"{in_str} - {out_str}")
             return " | ".join(formatted_sessions)
 
+        # 2. Wenn keine Sessions existieren, bestimmen wir den Text anhand des Typs und Datums
         if obj.day_type == WorkDay.DayType.HOLIDAY:
             de_holidays = holidays.Germany(prov='BW')
             return de_holidays.get(obj.date) or "Gesetzlicher Feiertag"
-        
-        if obj.date > date.today():
-            return "Geplant"
         
         if obj.day_type == WorkDay.DayType.WEEKEND:
             return "Wochenende"
@@ -129,7 +161,11 @@ class WorkDayWithSessionsSerializer(serializers.ModelSerializer):
         if obj.day_type in [WorkDay.DayType.VACATION, WorkDay.DayType.SICK]:
             return obj.get_day_type_display()
 
-        return "Fehlzeit"
+        # Typ ist WORK, aber es gibt keine Sessions
+        if obj.date > today:
+            return "Geplant"
+
+        return "Keine Einträge (Fehlzeit)"
 
 
 class EmployeeMonthlyReportDetailSerializer(serializers.ModelSerializer):
