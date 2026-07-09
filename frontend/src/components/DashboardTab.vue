@@ -15,7 +15,7 @@
   } from 'lucide-vue-next'
   import { useAuthStore } from '@/stores/authStore'
   import { storeToRefs } from 'pinia'
-  import { useClock } from '../composables/useClock'
+  import { useClock } from '@/composables/useClock'
 
   defineProps({
     quickLinks: { type: Array, required: true }
