@@ -124,6 +124,8 @@ class VacationQuotaSerializer(serializers.ModelSerializer):
             'used_days'
         ]
 
+    
+
     @extend_schema_field(serializers.IntegerField())
     def get_used_days(self, obj):
         # Berechne die Anzahl der bereits genutzten Urlaubstage
@@ -163,18 +165,33 @@ class ScratchpadSerializer(serializers.Serializer):
     notes = serializers.CharField(allow_blank=True)
 
 
-class OvertimeInfoSerializer(serializers.Serializer):
-    balance = serializers.FloatField()
-    weekly_hours = serializers.FloatField()
 
 
 class UserStatsSerializer(serializers.Serializer):
     vacation = serializers.SerializerMethodField()
-    overtime = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
     joined_at = serializers.SerializerMethodField()
     is_supervisor = serializers.SerializerMethodField()
     username = serializers.ReadOnlyField()
+    ist_hours = serializers.SerializerMethodField()
+    soll_hours = serializers.SerializerMethodField()
+
+    def get_ist_hours(self, obj):
+        today = timezone.localdate()
+        
+        # Holt alle Arbeitstage des aktuellen Monats über den korrekten related_name "workdays"
+        workdays = obj.workdays.filter(
+            date__year=today.year,
+            date__month=today.month
+        )
+        
+        # Summiert die total_hours aller Tage dieses Monats
+        total_hours = sum(wd.total_hours for wd in workdays)
+        return round(float(total_hours), 2)
+
+    def get_soll_hours(self, obj):
+        today = timezone.localdate()
+        return round(float(obj.get_expected_hours_for_month(year=today.year, month=today.month)), 2)
 
     @extend_schema_field(VacationQuotaSerializer)
     def get_vacation(self, obj):
@@ -196,11 +213,6 @@ class UserStatsSerializer(serializers.Serializer):
             
         return VacationQuotaSerializer(quota, context=self.context).data
 
-    @extend_schema_field(OvertimeInfoSerializer)
-    def get_overtime(self, obj):
-        return {
-            "balance": float(obj.overtime_balance)
-    }
 
     @extend_schema_field(serializers.CharField())
     def get_status(self, obj):

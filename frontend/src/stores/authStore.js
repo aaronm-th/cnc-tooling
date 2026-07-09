@@ -51,35 +51,8 @@ export const useAuthStore = defineStore('auth', {
           headers: { Authorization: `Bearer ${token}` }
         })
 
-        const backendData = res.data
-        
-        // Berechnungen für das Mapping vorbereiten
-        const totalDays = Number(backendData.vacation?.vacation_days_per_year ?? 30)
-        const carriedOver = Number(backendData.vacation?.carried_over ?? 0)
-        const usedDays = Number(backendData.vacation?.used_days ?? 0)
-        const vacationLeft = (totalDays + carriedOver) - usedDays
-        const overtimeBalance = Number(backendData.overtime?.balance ?? 0)
-
-        this.userStats = {
-          // 1. Flache Werte (für das Haupt-Dashboard)
-          vacation_days_per_year: totalDays,
-          vacation_left: vacationLeft,
-          overtime_hours: overtimeBalance,
-          weekly_hours: Number(backendData.overtime?.weekly_hours ?? 40),
-          status: backendData.status,
-          joined_at: backendData.joined_at,
-
-          // 2. Verschachtelte Objekte (Exakt so, wie es deine Navbar im Template sucht!)
-          vacation: {
-            used_days: usedDays,
-            // Die Navbar sucht nach 'total_available_days' (Gesamtanspruch inkl. Resturlaub)
-            total_available_days: totalDays + carriedOver,
-            vacation_left: vacationLeft
-          },
-          overtime: {
-            balance: overtimeBalance
-          }
-        }
+        // Direktes Zuweisen der Backend-Daten ohne manuelles Mapping
+        this.userStats = res.data
 
         return this.userStats
       } catch (err) {

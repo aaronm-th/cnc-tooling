@@ -51,6 +51,7 @@ class AdminMonthlyReportOverviewSerializer(serializers.ModelSerializer):
         workdays = WorkDay.objects.filter(employee=obj, date__year=year, date__month=month)
         ist_sum = sum(day.total_hours for day in workdays)
         return round(float(ist_sum), 2)
+    
 
     def get_diff_hours(self, obj):
         return round(self.get_ist_hours(obj) - self.get_soll_hours(obj), 2)

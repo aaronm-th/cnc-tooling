@@ -19,25 +19,42 @@ class VacationQuotaSummarySerializer(serializers.ModelSerializer):
         return total_available - used_days
 
 
-
 class TeamMemberSummarySerializer(serializers.ModelSerializer):
     name = serializers.CharField(source='get_full_name', read_only=True)
     username = serializers.CharField(read_only=True)
     avatar = serializers.SerializerMethodField()
     status_text = serializers.SerializerMethodField()
-    overtime_hours = serializers.SerializerMethodField()
     
-    # Die neuen, vereinfachten Urlaubsfelder
     vacation_total = serializers.SerializerMethodField()
     vacation_used = serializers.SerializerMethodField()
+
+    ist_hours = serializers.SerializerMethodField()
+    soll_hours = serializers.SerializerMethodField()
 
     class Meta:
         model = Employee
         fields = [
             'id', 'name', 'username', 'first_name', 'last_name', 'email', 'initials',
             'avatar', 'status_text', 'vacation_total', 'vacation_used', 'vacation_days_per_year',
-            'overtime_hours', 'weekly_hours', 'joined_at'
+            'weekly_hours', 'joined_at', 'ist_hours', 'soll_hours'
         ]
+
+    def get_ist_hours(self, obj):
+        today = timezone.localdate()
+        
+        # Holt alle Arbeitstage des aktuellen Monats über den korrekten related_name "workdays"
+        workdays = obj.workdays.filter(
+            date__year=today.year,
+            date__month=today.month
+        )
+        
+        # Summiert die total_hours aller Tage dieses Monats
+        total_hours = sum(wd.total_hours for wd in workdays)
+        return round(float(total_hours), 2)
+
+    def get_soll_hours(self, obj):
+        today = timezone.localdate()
+        return round(float(obj.get_expected_hours_for_month(year=today.year, month=today.month)), 2)
 
     def get_avatar(self, obj):
         request = self.context.get('request')
@@ -48,8 +65,6 @@ class TeamMemberSummarySerializer(serializers.ModelSerializer):
     def get_status_text(self, obj):
         return "Anwesend" if obj.status else "Abwesend"
 
-    def get_overtime_hours(self, obj):
-        return round(obj.overtime_balance, 2)
 
     def get_vacation_total(self, obj):
         """Holt den (falls nötig anteiligen) Jahresanspruch."""
@@ -61,9 +76,6 @@ class TeamMemberSummarySerializer(serializers.ModelSerializer):
         current_year = timezone.now().year
         return VacationService.get_used_days(obj, current_year)
     
-
-
-
 
 class TeamMemberDetailSerializer(TeamMemberSummarySerializer):
     vacation_days_per_year = serializers.FloatField(required=False)
@@ -98,7 +110,6 @@ class TeamMemberDetailSerializer(TeamMemberSummarySerializer):
         )
         return instance
     
-
 
 class CreateEditEmployeeSerializer(serializers.Serializer):
     first_name = serializers.CharField(max_length=150)

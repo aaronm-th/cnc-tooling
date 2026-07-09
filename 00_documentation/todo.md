@@ -7,8 +7,6 @@ OFFEN:
 
 - Krankschreibung updaten geht nicht, bei jedem Tag zeigt es den aktuellen Tag an
 
-- Kalenderansicht: Header mounten
-
 - GLZ-Abbau Symbol andere Farbe
 
 - Bei GLZ und Krank steht "Urlaub" in den Benachrichtigungen

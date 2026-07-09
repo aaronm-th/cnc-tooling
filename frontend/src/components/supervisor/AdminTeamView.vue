@@ -55,11 +55,6 @@ const handleUploadSuccess = async () => {
   }
 }
 
-const getOvertimeClass = (hours) => {
-  if (hours > 50 || hours < -10) return 'bg-red-100 text-red-700 border border-red-300'
-  if (hours > 30 || hours < 0) return 'bg-amber-100 text-amber-700 border border-amber-300'
-  return 'bg-emerald-100 text-emerald-700 border border-emerald-300'
-}
 
 // Filtered team members based on search bar
 const filteredMembers = computed(() => {
@@ -176,7 +171,7 @@ const handleDeactivateConfirm = async () => {
               <tr class="bg-slate-50/50 border-b border-slate-100">
                 <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-500">Mitarbeiter</th>
                 <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-500 text-center">Wochenstunden</th>
-                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-500 text-center">Überstunden</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-500 text-center">Ist- / Sollstunden</th>
                 <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-500 text-center">Urlaub</th>
                 <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-500 text-center">Status</th>
                 <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-500 text-center">Aktionen</th>
@@ -211,8 +206,8 @@ const handleDeactivateConfirm = async () => {
                 </td>
 
                 <td class="px-6 py-4 text-center">
-                  <span :class="['px-2.5 py-1 rounded-lg text-xs font-bold', getOvertimeClass(member.overtime_hours)]">
-                    {{ member.overtime_hours > 0 ? '+' : '' }}{{ member.overtime_hours ?? '0.0' }} h
+                  <span :class="['px-2.5 py-1 rounded-lg text-xs font-bold']">
+                    {{ member.ist_hours }} / {{ member.soll_hours }} h
                   </span>
                 </td>
 

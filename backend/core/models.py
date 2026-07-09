@@ -9,6 +9,7 @@ from django.utils.text import slugify
 from .utils import user_profile_photo_upload
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
+from django.conf import settings
 
 class Employee(AbstractUser):
     # E-Mail wird optional, da Offline-Betrieb
@@ -170,30 +171,48 @@ class Employee(AbstractUser):
 
         super().save(*args, **kwargs)
 
-    @property
-    def overtime_balance(self) -> float:
+    def get_hours_balance_for_month(self, year: int, month: int) -> dict:
         """
-        Berechnet das aktuelle Überstundenkonto des Mitarbeiters live.
-        Geleistete Ist-Stunden abzüglich der vertraglichen Soll-Stunden.
-        Der Chef (Superuser) hat standardmäßig immer 0.0.
+        Berechnet die Ist-Stunden, Soll-Stunden und die daraus resultierende
+        Differenz für einen spezifischen Monat.
         """
-        # Wenn der Mitarbeiter der Chef (Superuser) ist, sammelt er keine Überstunden
-        if self.is_superuser:
-            return 0.0
-
         from attendance.models import WorkDay
-        
-        # 1. Alle Ist-Stunden summieren, die der Mitarbeiter je gearbeitet hat
-        # (Nutzt das 'total_hours' Property vom WorkDay)
-        workdays = WorkDay.objects.filter(employee=self)
-        total_worked_hours = sum(day.total_hours for day in workdays)
+        import calendar
 
-        # 2. Alle Soll-Stunden für diese Tage berechnen
-        total_expected_hours = sum(self.get_expected_hours_for_date(day.date) for day in workdays)
+        if self.is_superuser:
+            return {"worked": 0.0, "expected": 0.0, "balance": 0.0}
 
-        # 3. Die Differenz ist das Überstundenkonto
-        balance = total_worked_hours - total_expected_hours
-        return round(balance, 2)
+        # Alle WorkDays dieses Monats holen
+        workdays = WorkDay.objects.filter(
+            employee=self,
+            date__year=year,
+            date__month=month
+        )
+
+        # 1. Ist-Stunden summen
+        total_worked = sum(day.total_hours for day in workdays)
+
+        # 2. Soll-Stunden berechnen (nutzt deine bestehende Methode)
+        total_expected = self.get_expected_hours_for_month(year, month)
+
+        # 3. Differenz ermitteln
+        balance = total_worked - total_expected
+
+        return {
+            "worked": round(total_worked, 2),
+            "expected": round(total_expected, 2),
+            "balance": round(balance, 2)
+        }
+
+    @property
+    def current_month_overtime(self) -> float:
+        """
+        Gibt die auszahlbaren Überstunden des aktuellen Monats live aus.
+        Wenn im Minus, wird 0.0 zurückgegeben (da Auszahlung).
+        """
+        now = timezone.now()
+        monthly_data = self.get_hours_balance_for_month(now.year, now.month)
+        return max(0.0, monthly_data["balance"])
 
 
 class VacationQuota(models.Model):
@@ -205,6 +224,34 @@ class VacationQuota(models.Model):
     class Meta:
         unique_together = ('employee', 'year')
 
+
+class MonthlyPayout(models.Model):
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        related_name="payouts"
+    )
+    year = models.IntegerField()
+    month = models.IntegerField()
+    
+    worked_hours = models.DecimalField(max_digits=6, decimal_places=2)
+    expected_hours = models.DecimalField(max_digits=6, decimal_places=2)
+    
+    # Die tatsächlich ermittelten Überstunden
+    overtime_calculated = models.DecimalField(max_digits=5, decimal_places=2)
+    # Falls der Chef manuell die Auszahlung anpasst (z.B. Rundung oder Kappung)
+    overtime_paid = models.DecimalField(max_digits=5, decimal_places=2)
+    
+    is_processed = models.BooleanField(default=False, help_text="Vom Chef/HR freigegeben")
+    processed_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        unique_together = ('employee', 'year', 'month')
+        verbose_name = "Monatsabrechnung"
+        verbose_name_plural = "Monatsabrechnungen"
+
+    def __str__(self):
+        return f"{self.employee.name} - {self.month:02d}/{self.year}: {self.overtime_paid} Std ausgezahlt"
 
 
 class Notification(models.Model):

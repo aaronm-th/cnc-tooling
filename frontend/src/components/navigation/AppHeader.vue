@@ -79,6 +79,13 @@ const getStatusColor = (status) => {
   }
 }
 
+const getActualMonthAndYear = () => {
+  const now = new Date()
+  const month = now.toLocaleString('default', { month: 'long' })
+  const year = now.getFullYear()
+  return `${month} ${year}`
+}
+
 onMounted(() => {
   // Nur laden, wenn wir eingeloggt sind und noch keine Stats haben
   if (authStore.isAuthenticated && !userStats.value) {
@@ -129,7 +136,7 @@ watch(() => authStore.isAuthenticated, (val) => {
             <div class="flex flex-col">
               <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Urlaub</span>
               <span class="text-xs font-bold text-slate-700 mt-0.5">
-                {{ userStats?.vacation?.used_days }} / {{ userStats?.vacation?.total_available_days }} used
+                {{ userStats?.vacation?.used_days }} / {{ userStats?.vacation?.total_days }} used
               </span>
             </div>
           </div>
@@ -140,8 +147,8 @@ watch(() => authStore.isAuthenticated, (val) => {
           <div class="flex items-center gap-2.5">
             <Zap class="w-4 h-4 text-orange-500" />
             <div class="flex flex-col">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Stundenkonto</span>
-              <span class="text-xs font-bold text-slate-700 mt-0.5">{{ userStats?.overtime?.balance }}h</span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none">Ist- / Soll {{ getActualMonthAndYear() }}</span>
+              <span class="text-xs font-bold text-slate-700 mt-0.5">{{ userStats?.ist_hours }} / {{ userStats?.soll_hours }}h</span>
             </div>
           </div>
         </template>
