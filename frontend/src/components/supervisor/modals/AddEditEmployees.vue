@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useAdminStore } from '@/stores/adminStore'
 import { X, CalendarDays } from 'lucide-vue-next'
 
@@ -36,10 +36,16 @@ const form = ref({
   last_name: '',
   joined_at: '', 
   work_days_schema: defaultSchema(),
-  weekly_hours: 40,
   overtime_balance: 0,
   vacation_total: 30, // Konsistent zum Backend umbenannt
   vacation_left: 30
+})
+
+const weeklyHours = computed(() => {
+  if (!form.value.work_days_schema) return 0
+  return Object.values(form.value.work_days_schema).reduce((sum, hours) => {
+    return sum + (Number(hours) || 0)
+  }, 0)
 })
 
 const calculateProRataVacation = (entryDateStr, yearlyDays) => {
@@ -81,7 +87,6 @@ const populateForm = (data) => {
       last_name: data.last_name ?? '',
       joined_at: data.joined_at ?? '',
       work_days_schema: data.work_days_schema ? { ...data.work_days_schema } : defaultSchema(),
-      weekly_hours: Number(data.weekly_hours ?? 40),
       overtime_balance: Number(data.overtime_hours ?? 0),
       vacation_days_per_year: Number(data.vacation_days_per_year ?? 30), // editierbar
       vacation_total: Number(data.vacation_total ?? data.vacation_days_per_year ?? 30) // Anzeige
@@ -93,7 +98,6 @@ const populateForm = (data) => {
       last_name: '',
       joined_at: todayISO,
       work_days_schema: defaultSchema(),
-      weekly_hours: 40,
       overtime_balance: 0,
       vacation_days_per_year: 30,
       vacation_total: 30
@@ -229,7 +233,7 @@ const handleSubmit = async () => {
           <div class="flex items-center justify-between">
             <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Arbeitszeit-Schema (Std.)</label>
             <span class="text-xs font-bold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-lg border border-blue-100">
-              Soll: <strong>{{ form.weekly_hours }}</strong> h/Woche
+              Soll: <strong>{{ weeklyHours }}</strong> h/Woche
             </span>
           </div>
           
