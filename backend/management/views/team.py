@@ -166,15 +166,19 @@ class CreateEditEmployeeView(APIView):
                 user = Employee.objects.create(
                     first_name=validated_data['first_name'],
                     last_name=validated_data['last_name'],
-                    work_days_schema=validated_data['work_days_schema'],
                     vacation_days_per_year=validated_data['vacation_days_per_year'],
                     is_active=True,
                     is_superuser=False,
                     joined_at=validated_data['joined_at'],
                 )
-                
-                # Holt das Objekt frisch inklusive dem vom Model generierten Usernamen/Passwort-Hash
                 user.refresh_from_db()
+
+                from core.models import WorkingTimeHistory
+                WorkingTimeHistory.objects.create(
+                    employee=user,
+                    valid_from=user.joined_at,
+                    work_days_schema=validated_data['work_days_schema'],
+                )
                 
                 # 2. Das offizielle Urlaubskontingent zuteilen
                 if user.joined_at:

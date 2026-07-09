@@ -143,14 +143,25 @@ export const useAdminStore = defineStore('admin', {
       this.isLoading = true
       try {
         const token = localStorage.getItem('access_token')
-        await axios.patch(`${import.meta.env.VITE_API_URL}/api/mgmt/team/${userId}/`, updatedData, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const { data } = await axios.patch(
+          `${import.meta.env.VITE_API_URL}/api/mgmt/team/${userId}/`,
+          updatedData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
 
+        // Server-Response ist die "single source of truth" (TeamMemberDetailSerializer),
+        // kein manuelles Zusammenwürfeln von rohen Request-Daten mehr.
         const index = this.teamMembers.findIndex(m => m.id === userId)
         if (index !== -1) {
-          this.teamMembers[index] = { ...this.teamMembers[index], ...updatedData }
+          this.teamMembers[index] = { ...this.teamMembers[index], ...data }
         }
+
+        // Falls das Detail-Objekt gerade offen/geladen ist, ebenfalls aktualisieren
+        if (this.currentMember?.id === userId) {
+          this.currentMember = data
+        }
+
+        return data
       } catch (error) {
         console.error(`Fehler beim Aktualisieren des Users ${userId}:`, error)
         alert("Änderungen konnten nicht gespeichert werden.")

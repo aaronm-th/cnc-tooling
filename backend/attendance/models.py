@@ -55,7 +55,33 @@ class WorkSession(models.Model):
     def clean(self):
         super().clean()
         if self.check_out and self.check_in >= self.check_out:
-            raise ValidationError("Check-in muss vor Check-out liegen.")
+            raise ValidationError("Check-out muss vor Check-out liegen.")
+            
+        # Validierung gegen ALLE Sessions des Mitarbeiters (auch tagübergreifend)
+        overlapping = WorkSession.objects.filter(
+            work_day__employee=self.work_day.employee,
+            check_in__lt=self.check_out or timezone.now(),
+            check_out__gt=self.check_in
+        )
+        if self.pk:
+            overlapping = overlapping.exclude(pk=self.pk)
+            
+        if overlapping.exists():
+            raise ValidationError("Diese Arbeitszeit überschneidet sich mit einer bestehenden Session dieses Mitarbeiters.")
+
+        has_leave = LeaveRequest.objects.filter(
+            employee=self.work_day.employee,
+            status="approved",
+            leave_start__lte=self.work_day.date,
+            leave_end__gte=self.work_day.date
+        ).exists()
+
+        if has_leave:
+            raise ValidationError("An diesem Tag ist bereits ein genehmigter Urlaub/Krankheit hinterlegt. Keine Zeiterfassung möglich.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.work_day.employee} - {self.check_in} to {self.check_out or 'Still working'}"
@@ -139,6 +165,8 @@ class WSChangeRequest(models.Model):
 
     def save(self, *args, **kwargs):
         # Falls eine Session existiert, ziehen wir uns die Daten automatisch glatt
+        self.full_clean()
+
         if self.worksession:
             self.old_check_in = self.worksession.check_in
             self.old_check_out = self.worksession.check_out
@@ -266,6 +294,11 @@ class LeaveRequest(models.Model):
 
         if self.actual_vacation_days_to_deduct() == 0 and self.leave_type == 'vacation':
             raise ValidationError("Dieser Zeitraum enthält keine Werktage, die vom Urlaubskonto abgezogen werden könnten.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
 
     # -------------------------
     # Helper

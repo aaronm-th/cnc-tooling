@@ -38,7 +38,6 @@ const filters = [
   { id: 'pending', name: 'Offen' },
   { id: 'approved', name: 'Genehmigt' },
   { id: 'rejected', name: 'Abgelehnt' },
-  { id: 'cancelled', name: 'Storniert' }
 ]
 
 const monthOptions = computed(() => {
@@ -336,7 +335,7 @@ const formatDate = (dateStr) => {
                     <Edit3 class="w-5 h-5" />
                   </button>
                   <button 
-                    v-if="['pending', 'approved'].includes(req.status)"
+                    v-if="['pending'].includes(req.status)"
                     @click="confirmDelete(req.id)"
                     class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                     title="Antrag stornieren"
@@ -372,12 +371,11 @@ const formatDate = (dateStr) => {
               </p>
             </div>
             <button 
-              v-if="currentFilter === 'all'"
               class="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all mx-auto cursor-pointer"
               @click="openNewRequestModal"
             >
               <Plus class="w-4 h-4" />
-              Ersten Antrag einreichen
+              Neuen Abwesenheitsantrag erstellen
             </button>
           </div>
         </div>

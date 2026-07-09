@@ -57,23 +57,20 @@ class LeaveRequestDetailAPIView(RetrieveUpdateDestroyAPIView):
         
         instance = self.get_object()
         
-        if instance.status in ['rejected', 'cancelled']:
+        if instance.status in ['approved', 'rejected', 'cancelled']:
             raise ValidationError({"detail": "Antrag ist bereits erledigt oder storniert."})
         
         if instance.leave_end < timezone.now().date():
             raise ValidationError({"detail": "Vergangene Anträge können nicht storniert werden."})
         
         with transaction.atomic():
-            if instance.status == 'approved':
-                WorkDay.objects.filter(
-                    employee=request.user, 
-                    date__range=[instance.leave_start, instance.leave_end]
-                ).exclude(day_type=WorkDay.DayType.WORK).delete()
-            
             instance.status = 'cancelled'
             instance.save()
-            return Response({"status": "cancelled", "message": "Antrag wurde storniert."}, status=status.HTTP_200_OK)
-
+            return Response(
+                {"status": "cancelled", "message": "Antrag wurde erfolgreich storniert."}, 
+                status=status.HTTP_200_OK
+            )
+        
 class ChangeRequestListAPIView(ListCreateAPIView):
     """GET: Liste aller Anträge, POST: Neuen Antrag erstellen"""
     serializer_class = WSChangeRequestSerializer

@@ -10,6 +10,7 @@ from .utils import user_profile_photo_upload
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.conf import settings
+from django.core.exceptions import ValidationError
 
 class Employee(AbstractUser):
     # E-Mail wird optional, da Offline-Betrieb
@@ -17,13 +18,19 @@ class Employee(AbstractUser):
     chip_id = models.CharField(max_length=50, blank=True, null=True, unique=True)
     phone = models.CharField(max_length=50, blank=True)
     photo = models.ImageField(upload_to=user_profile_photo_upload, blank=True, null=True)
-    work_days_schema = models.JSONField(
-        default=dict, 
-        help_text="Format: {'0': 8, '1': 8...} (0=Mo, 6=So). Fehlt ein Tag, gilt hours_per_day als Fallback für Werktage."
-    )
+
     
     joined_at = models.DateField(default=timezone.now)
     vacation_days_per_year = models.DecimalField(max_digits=5, decimal_places=2, default=30.0)
+
+    def get_schema_for_date(self, date_obj):
+        """Holt das für dieses Datum gültige Arbeitszeitschema."""
+        history = self.time_histories.filter(valid_from__lte=date_obj).order_by('-valid_from').first()
+        if history:
+            return history.work_days_schema
+        
+        # Fallback, falls kein Eintrag existiert (z.B. Migration aus Altdaten)
+        return getattr(self, '_legacy_work_days_schema', {})
 
     @property
     def weekly_hours(self) -> float:
@@ -74,6 +81,30 @@ class Employee(AbstractUser):
             status='approved'
         ).exists()
     
+
+    def get_schema_for_date(self, date_obj):
+        """Holt das für dieses Datum gültige Arbeitszeitschema."""
+        history = self.time_histories.filter(valid_from__lte=date_obj).order_by('-valid_from').first()
+        if history:
+            return history.work_days_schema
+        return getattr(self, '_legacy_work_days_schema', {})
+
+    @property
+    def work_days_schema(self):
+        """
+        Rückwärtskompatibel: aktuell (heute) gültiges Schema.
+        Für ein bestimmtes Datum bitte get_schema_for_date(date_obj) nutzen!
+        """
+        return self.get_schema_for_date(timezone.localdate())
+
+    @staticmethod
+    def normalize_schema(schema):
+        """
+        Normalisiert ein Schema für Vergleiche: Keys als Strings, Werte als float.
+        Verhindert False-Positives durch z.B. 8 vs. 8.0 oder Key-Reihenfolge.
+        """
+        return {str(k): float(v) for k, v in (schema or {}).items()}
+
     @property
     def hours_per_day(self) -> float:
         """
@@ -105,44 +136,82 @@ class Employee(AbstractUser):
         if db_day and db_day.day_type in [WorkDay.DayType.VACATION, WorkDay.DayType.SICK]:
             return 0.0
 
-        # Deine bestehenden Urlaubsantrags- und Feiertags-Prüfungen
         if self.is_holiday(date_obj) or self.is_absent(date_obj):
             return 0.0
 
+        schema = self.get_schema_for_date(date_obj)
         weekday_key = str(date_obj.weekday())
-        if weekday_key in self.work_days_schema:
-            return float(self.work_days_schema[weekday_key])
-        
+        if weekday_key in schema:
+            return float(schema[weekday_key])
+
         if date_obj.weekday() < 5:
             return float(self.hours_per_day)
-    
+
         return 0.0
 
     def get_expected_hours_for_month(self, year: int, month: int) -> float:
-        """
-        Berechnet die gesamte Sollarbeitszeit eines Mitarbeiters für einen bestimmten Monat.
-        Berücksichtigt das individuelle Schema, Feiertage (BW) und Abwesenheiten.
-        """
-        # Anzahl der Tage im Monat ermitteln (z.B. 28, 30, 31)
         _, num_days = calendar.monthrange(year, month)
-        
+        start_date = date(year, month, 1)
+        end_date = date(year, month, num_days)
+
+        from attendance.models import WorkDay, LeaveRequest
+
+        db_days = {
+            wd.date: wd.day_type
+            for wd in WorkDay.objects.filter(employee=self, date__range=(start_date, end_date))
+        }
+
+        approved_leaves = LeaveRequest.objects.filter(
+            employee=self, status='approved',
+            leave_start__lte=end_date, leave_end__gte=start_date
+        )
+        absent_dates = set()
+        for leave in approved_leaves:
+            curr = max(leave.leave_start, start_date)
+            last = min(leave.leave_end, end_date)
+            while curr <= last:
+                absent_dates.add(curr)
+                curr += datetime.timedelta(days=1)
+
+        de_holidays = holidays.Germany(subdiv='BW', years=year)
+
+        # NEU: alle relevanten Schema-Wechsel einmalig laden, aufsteigend sortiert
+        schema_history = list(
+            self.time_histories.filter(valid_from__lte=end_date)
+            .order_by('valid_from')
+            .values_list('valid_from', 'work_days_schema')
+        )
+
+        def schema_for(d):
+            applicable = None
+            for valid_from, schema in schema_history:
+                if valid_from <= d:
+                    applicable = schema
+                else:
+                    break
+            return applicable or {}
+
         total_expected = 0.0
-        
-        # Über jeden Tag des Monats iterieren
         for day in range(1, num_days + 1):
             date_obj = date(year, month, day)
-            
-            # Falls der Mitarbeiter erst mitten im Monat angefangen hat, 
-            # zählen Tage vor seinem Eintritt nicht zum Soll.
             if date_obj < self.joined_at:
                 continue
-                
-            total_expected += self.get_expected_hours_for_date(date_obj)
-            
+            if db_days.get(date_obj) in [WorkDay.DayType.VACATION, WorkDay.DayType.SICK]:
+                continue
+            if date_obj in de_holidays or date_obj in absent_dates:
+                continue
+
+            schema = schema_for(date_obj)
+            weekday_key = str(date_obj.weekday())
+            if weekday_key in schema:
+                total_expected += float(schema[weekday_key])
+            elif date_obj.weekday() < 5:
+                total_expected += float(self.hours_per_day)
+
         return round(total_expected, 2)
 
     def save(self, *args, **kwargs):
-        # Automatische Username-Generierung beim ersten Speichern
+
         if not self.pk:
             # Falls die View bereits einen Usernamen übergeben hat (z.B. E-Mail o.ä.), 
             # generieren wir nur dann einen, wenn noch keiner gesetzt ist oder er 'admin' o.ä. kollidiert.
@@ -204,15 +273,25 @@ class Employee(AbstractUser):
             "balance": round(balance, 2)
         }
 
-    @property
-    def current_month_overtime(self) -> float:
-        """
-        Gibt die auszahlbaren Überstunden des aktuellen Monats live aus.
-        Wenn im Minus, wird 0.0 zurückgegeben (da Auszahlung).
-        """
-        now = timezone.now()
-        monthly_data = self.get_hours_balance_for_month(now.year, now.month)
-        return max(0.0, monthly_data["balance"])
+
+class WorkingTimeHistory(models.Model):
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="time_histories")
+    valid_from = models.DateField(default=timezone.now)
+    work_days_schema = models.JSONField(
+        default=dict,
+        help_text="Format: {'0': 8, '1': 8...} (0=Mo, 6=So)."
+    )
+
+    class Meta:
+        ordering = ['-valid_from']
+        verbose_name = "Arbeitszeit-Historie"
+        verbose_name_plural = "Arbeitszeit-Historien"
+        constraints = [
+            models.UniqueConstraint(fields=['employee', 'valid_from'], name='unique_schema_per_employee_and_date')
+        ]
+
+    def __str__(self):
+        return f"{self.employee.name} ab {self.valid_from}"
 
 
 class VacationQuota(models.Model):
@@ -249,6 +328,40 @@ class MonthlyPayout(models.Model):
         unique_together = ('employee', 'year', 'month')
         verbose_name = "Monatsabrechnung"
         verbose_name_plural = "Monatsabrechnungen"
+
+    # In MonthlyPayout:
+    def clean(self):
+        super().clean()
+        
+        # Zukunftsschutz bleibt wichtig
+        current_date = timezone.now().date()
+        if self.year > current_date.year or (self.year == current_date.year and self.month > current_date.month):
+            raise ValidationError("Es können keine Abrechnungen für zukünftige Monate erstellt werden.")
+
+        if self.pk:
+            original = MonthlyPayout.objects.get(pk=self.pk)
+            
+            # Wenn die Abrechnung bereits verarbeitet/ausgezahlt wurde
+            if original.is_processed:
+                # Wenn ein Admin sie wieder öffnen möchte (is_processed von True auf False)
+                if not self.is_processed:
+                    # Das ist erlaubt, wir setzen processed_at zurück
+                    self.processed_at = None
+                    return
+
+                # Wenn sie geschlossen bleibt, schützen wir die Systemwerte vor versehentlicher Änderung im Admin
+                if (self.worked_hours != original.worked_hours or 
+                    self.expected_hours != original.expected_hours or 
+                    self.overtime_calculated != original.overtime_calculated):
+                    raise ValidationError(
+                        "Die berechneten System-Basisstunden einer abgeschlossenen Abrechnung "
+                        "können nicht geändert werden. Öffne die Abrechnung zuerst wieder."
+                    )
+
+    def save(self, *args, **kwargs):
+        if self.is_processed and not self.processed_at:
+            self.processed_at = timezone.now()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.employee.name} - {self.month:02d}/{self.year}: {self.overtime_paid} Std ausgezahlt"

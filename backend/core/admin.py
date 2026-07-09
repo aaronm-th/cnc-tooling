@@ -5,7 +5,9 @@ from django.utils.html import format_html
 
 from django import forms
 
-
+class WorkingTimeHistoryInline(admin.TabularInline):
+    model = md.WorkingTimeHistory
+    extra = 1
 
 class EmployeeAdminForm(forms.ModelForm):
     # Wir definieren explizite Felder für das UI
@@ -44,6 +46,7 @@ class EmployeeAdmin(UserAdmin):
     list_display = ('id','first_name', 'last_name', 'work_days_schema', 'phone', 'photo')
     search_fields = ('first_name', 'last_name')
     ordering = ('last_name',)
+    inlines = [WorkingTimeHistoryInline]
 
     fieldsets = (
             (None, {'fields': ('username', 'password', 'chip_id')}),
@@ -70,6 +73,14 @@ class EmployeeAdmin(UserAdmin):
         if 'email' in form.base_fields:
             form.base_fields['email'].required = False
         return form
+
+@admin.register(md.WorkingTimeHistory)
+class WorkingTimeHistoryAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'valid_from', 'work_days_schema')
+    list_filter = ('employee', 'valid_from')
+    search_fields = ('employee__first_name', 'employee__last_name')
+    ordering = ('-valid_from',)
+
 
 @admin.register(md.VacationQuota)
 class VacationQuotaAdmin(admin.ModelAdmin):

@@ -80,29 +80,84 @@ class TeamMemberSummarySerializer(serializers.ModelSerializer):
 class TeamMemberDetailSerializer(TeamMemberSummarySerializer):
     vacation_days_per_year = serializers.FloatField(required=False)
     joined_at = serializers.DateField(required=False, allow_null=True)
+    work_days_schema = serializers.JSONField(required=False)
+    schema_valid_from = serializers.DateField(
+        required=False, write_only=True,
+        help_text="Ab wann gilt das neue Schema? Default: heute."
+    )
+
+    upcoming_schema_change = serializers.SerializerMethodField()
+
+
+    def get_upcoming_schema_change(self, obj):
+        today = timezone.now().date()
+        current_schema = obj.get_schema_for_date(today)
+        future = obj.time_histories.filter(valid_from__gt=today).order_by('valid_from').first()
+
+        if not future:
+            return None
+
+        if Employee.normalize_schema(future.work_days_schema) == Employee.normalize_schema(current_schema):
+            return None
+
+        return {
+            'valid_from': future.valid_from.isoformat(),
+            'work_days_schema': future.work_days_schema,
+    }
+
+    def validate_schema_valid_from(self, value):
+        if value < timezone.now().date():
+            raise serializers.ValidationError(
+                "Das Schema kann nicht rückwirkend geändert werden."
+            )
+        return value
 
     class Meta:
         model = Employee
-        fields = TeamMemberSummarySerializer.Meta.fields + ['work_days_schema', 'is_active', 'vacation_days_per_year']
+        fields = TeamMemberSummarySerializer.Meta.fields + [
+            'work_days_schema', 'is_active', 'vacation_days_per_year', 'schema_valid_from', 'upcoming_schema_change'
+        ]
         read_only_fields = ['id', 'name', 'first_name', 'last_name', 'initials', 'avatar', 'status_text']
 
+
     def update(self, instance, validated_data):
-        # Wir fangen vacation_days_per_year ab, damit das super().update() es nicht doppelt verarbeitet
-        # bzw. wir kontrollieren, was in der DB landet.
+
+        from datetime import timedelta
+
         vacation_days = validated_data.get('vacation_days_per_year')
-        
+        new_schema = validated_data.pop('work_days_schema', None)
+        valid_from = validated_data.pop('schema_valid_from', None) or timezone.now().date()
+
         instance = super().update(instance, validated_data)
-        
-        # Quota für das aktuelle Kalenderjahr synchronisieren
+
+        if new_schema is not None:
+            from core.models import WorkingTimeHistory
+
+            normalized_new = Employee.normalize_schema(new_schema)
+            # Schema, das unmittelbar VOR diesem Datum gilt (ohne den ggf. schon existierenden
+            # Eintrag an genau diesem valid_from mit einzubeziehen)
+            day_before = valid_from - timedelta(days=1)
+            preceding_schema = instance.get_schema_for_date(day_before)
+            normalized_preceding = Employee.normalize_schema(preceding_schema)
+
+            if normalized_new == normalized_preceding:
+                # Redundant: Eintrag würde inhaltlich nichts ändern -> aufräumen statt anlegen
+                WorkingTimeHistory.objects.filter(
+                    employee=instance, valid_from=valid_from
+                ).delete()
+            else:
+                WorkingTimeHistory.objects.update_or_create(
+                    employee=instance,
+                    valid_from=valid_from,
+                    defaults={'work_days_schema': {str(k): v for k, v in new_schema.items()}}
+                )
+
         current_year = timezone.now().year
-        
-        # Wenn der Supervisor einen Wert geschickt hat, nehmen wir den direkt!
-        # Ansonsten nutzen wir das, was im Employee-Model hinterlegt ist.
         if vacation_days is not None:
             allocated_days = vacation_days
         else:
             allocated_days = VacationService.get_total_days_for_year(instance, current_year)
-        
+
         VacationQuota.objects.update_or_create(
             employee=instance,
             year=current_year,
