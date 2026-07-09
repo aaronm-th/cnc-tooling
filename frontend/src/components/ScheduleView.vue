@@ -228,87 +228,91 @@ watch(currentDate, fetchSchedule)
 </script>
 
 
-  
 <template>
-  <div class="flex-1 overflow-y-auto p-8 bg-slate-50 relative">
+  <div class="flex-1 p-8 bg-slate-50 relative">
+    
     <div v-if="isLoading" class="absolute inset-0 bg-white/50 backdrop-blur-sm z-[200] flex items-center justify-center">
        <Clock class="w-10 h-10 text-blue-600 animate-spin" />
     </div>
 
-    <div class="max-w-6xl mx-auto space-y-8">
-      <section class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div class="text-left">
-          <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <Calendar class="w-6 h-6 text-blue-600" /> <span>Mein Kalender</span>
-          </h1>
-          <p class="text-slate-500 mt-1">Verwalte hier deine Zeiten.</p>
-        </div>
-        <button @click="isRequestModalOpen = true; editingRequest = null" 
-                class="px-4 py-2 bg-blue-600 text-white rounded-xl flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20">
-          <Plus class="w-4 h-4" /> Neuer Antrag
-        </button>
+    <button 
+      @click="isRequestModalOpen = true; editingRequest = null" 
+      class="fixed bottom-8 right-8 z-[150] px-5 py-3 bg-blue-600 text-white rounded-xl flex items-center gap-2 hover:bg-blue-700 transition-all shadow-xl hover:shadow-blue-500/30 font-semibold text-sm active:scale-95"
+    >
+      <Plus class="w-5 h-5" /> Neuer Antrag
+    </button>
+
+    <div class="max-w-6xl mx-auto space-y-4">
+      
+      <section class="text-left pb-2">
+        <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
+          <Calendar class="w-6 h-6 text-blue-600" /> <span>Mein Kalender</span>
+        </h1>
+        <p class="text-slate-500 mt-1">Verwalte hier deine Zeiten.</p>
       </section>
 
-      <div class="bg-white p-4 rounded-2xl border border-slate-200 flex items-center justify-between shadow-sm">
-        <div class="flex items-center gap-4">
-          <h2 class="text-lg font-bold text-slate-900 min-w-[180px]">{{ currentMonthName }}</h2>
-          <div class="flex items-center bg-slate-50 rounded-lg p-1">
-            <button @click="prevMonth" class="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition-all"><ChevronLeft class="w-5 h-5" /></button>
-            <button @click="currentDate = new Date()" class="px-3 py-1.5 text-xs font-bold uppercase text-slate-600 hover:bg-white rounded-md">Heute</button>
-            <button @click="nextMonth" class="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition-all"><ChevronRight class="w-5 h-5" /></button>
-          </div>
-        </div>
+      <div class="sticky top-0 z-[100] bg-slate-50 pt-2 pb-2 space-y-4">
         
-        <div class="hidden lg:flex items-center gap-6">
-          <div class="flex items-center gap-2">
-            <div class="w-3 h-3 rounded bg-amber-100 border border-amber-300" />
-            <span class="text-xs font-bold text-slate-600">Abwesenheit (in Bearbeitung)</span>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 flex items-center justify-between shadow-sm">
+          <div class="flex items-center gap-4">
+            <h2 class="text-lg font-bold text-slate-900 min-w-[180px]">{{ currentMonthName }}</h2>
+            <div class="flex items-center bg-slate-50 rounded-lg p-1">
+              <button @click="prevMonth" class="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition-all"><ChevronLeft class="w-5 h-5" /></button>
+              <button @click="currentDate = new Date()" class="px-3 py-1.5 text-xs font-bold uppercase text-slate-600 hover:bg-white rounded-md">Heute</button>
+              <button @click="nextMonth" class="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition-all"><ChevronRight class="w-5 h-5" /></button>
+            </div>
           </div>
-          <div class="flex items-center gap-2">
-            <div class="w-3 h-3 rounded bg-green-100 border border-green-300" />
-            <span class="text-xs font-bold text-slate-600">Urlaub</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-3 h-3 rounded bg-red-100 border border-red-300" />
-            <span class="text-xs font-bold text-slate-600">Krankheit</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-3 h-3 rounded bg-violet-200 border border-violet-300" />
-            <span class="text-xs font-bold text-slate-600">Feiertag</span>
+          
+          <div class="hidden lg:flex items-center gap-6">
+            <div class="flex items-center gap-2">
+              <div class="w-3 h-3 rounded bg-amber-100 border border-amber-300" />
+              <span class="text-xs font-bold text-slate-600">Abwesenheit (in Bearbeitung)</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="w-3 h-3 rounded bg-green-100 border border-green-300" />
+              <span class="text-xs font-bold text-slate-600">Urlaub</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="w-3 h-3 rounded bg-red-100 border border-red-300" />
+              <span class="text-xs font-bold text-slate-600">Krankheit</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="w-3 h-3 rounded bg-violet-200 border border-violet-300" />
+              <span class="text-xs font-bold text-slate-600">Feiertag</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="grid grid-cols-7 border-b border-slate-100">
-          <div v-for="day in daysOfWeek" :key="day" class="py-3 text-center text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-50/50">{{ day }}</div>
+        <div class="grid grid-cols-7 border border-slate-200 border-b-slate-100 rounded-t-2xl bg-white overflow-hidden shadow-sm">
+          <div v-for="day in daysOfWeek" :key="day" class="py-3 text-center text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-50/50 border-r last:border-r-0 border-slate-100">{{ day }}</div>
         </div>
+
+      </div> <div class="bg-white rounded-b-2xl border-x border-b border-slate-200 shadow-sm overflow-hidden grid grid-cols-7 auto-rows-fr mt-[-16px]">
         
-        <div class="grid grid-cols-7 grid-rows-6 h-[750px]">
-          <div v-for="(day, index) in calendarDays" :key="index"
-            :class="['border-r border-b border-slate-100 p-2 flex flex-col gap-1', day.isCurrentMonth ? 'bg-white' : 'bg-slate-50/30 text-slate-400']"
-          >
-            <span :class="['text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full', isToday(day.date) ? 'bg-blue-600 text-white shadow-md' : '']">
-              {{ day.day }}
-            </span>
+        <div v-for="(day, index) in calendarDays" :key="index"
+          :class="['border-r border-b border-slate-100 p-2 flex flex-col gap-1 min-h-[120px]', day.isCurrentMonth ? 'bg-white' : 'bg-slate-50/30 text-slate-400']"
+        >
+          <span :class="['text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full', isToday(day.date) ? 'bg-blue-600 text-white shadow-md' : '']">
+            {{ day.day }}
+          </span>
 
-            <div class="flex-1 space-y-1 overflow-hidden">
-              <div v-for="event in getEventsForDate(day.date)" :key="event.id"
-                @mouseenter="handleMouseEnter(event, $event, index)"
-                @mouseleave="hoveredEvent = null"
-                @click="handleEventClick(event)"
-                :class="['p-1.5 rounded-lg border text-[10px] leading-tight flex flex-col gap-0.5 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-sm relative', getEventClass(event)]"
-              >
-                <div v-if="event.hasPendingRequest" class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-white" />
-                
-                <div class="flex items-center gap-1 font-bold">
-                  <component :is="getEventIcon(event.type)" class="w-3 h-3" />
-                  <span class="truncate">{{ event.title }}</span>
-                </div>
+          <div class="flex-1 space-y-1 overflow-hidden">
+            <div v-for="event in getEventsForDate(day.date)" :key="event.id"
+              @mouseenter="handleMouseEnter(event, $event, index)"
+              @mouseleave="hoveredEvent = null"
+              @click="handleEventClick(event)"
+              :class="['p-1.5 rounded-lg border text-[10px] leading-tight flex flex-col gap-0.5 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-sm relative', getEventClass(event)]"
+            >
+              <div v-if="event.hasPendingRequest" class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-white" />
+              
+              <div class="flex items-center gap-1 font-bold">
+                <component :is="getEventIcon(event.type)" class="w-3 h-3" />
+                <span class="truncate">{{ event.title }}</span>
               </div>
             </div>
           </div>
         </div>
+
       </div>
     </div>
 
