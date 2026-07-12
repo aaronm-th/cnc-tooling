@@ -22,8 +22,8 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 MFRC522 rfrc522(SS_PIN, RST_PIN);
 
 // --- NETWORK CONFIGURATION ---
-const char* ssid = "Vodafone-D63A";
-const char* password = "Voradelberg+20";
+const char* ssid = "WLAN_NAME";
+const char* password = "password123";
 const char* serverUrl = "http://192.168.0.179:80/api/terminal/toggle/";
 
 // --- TIMING FOR RFID READS ---
