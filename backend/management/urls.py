@@ -13,7 +13,7 @@ urlpatterns = [
     path('api/mgmt/team/new/', CreateEditEmployeeView.as_view(), name='team-detail'),
     path('api/mgmt/team/<int:pk>/', TeamMemberDetailView.as_view(), name='team-detail'),
     path('api/mgmt/manual-entries/', ManualEntriesView.as_view(), name='manual-entries'),
-    path('mgmt/pending-chip/', PendingChipView.as_view(), name='pending-chip'),
+    path('api/mgmt/pending-chip/', PendingChipView.as_view(), name='pending-chip'),
     
     path('api/mgmt/leave-requests/', HandleLeaveRequestView.as_view(), name='mgmt-leave-requests'),
     path('api/mgmt/change-requests/', HandleChangeRequestView.as_view(), name='mgmt-change-requests'),
