@@ -1,9 +1,8 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onBeforeUnmount } from 'vue'
 import { useAdminStore } from '@/stores/adminStore'
-import { X, CalendarDays, Lock, LockOpen } from 'lucide-vue-next'
+import { X, CalendarDays, Lock, LockOpen, CreditCard, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-vue-next'
 import { useDateFormatter } from '@/composables/useDateFormatter'
-
 
 const props = defineProps({
   isOpen: {
@@ -20,7 +19,6 @@ const emit = defineEmits(['close'])
 const adminStore = useAdminStore()
 const { formatDate } = useDateFormatter()
 
-
 const DISPLAY_DAYS = [
   { id: '0', label: 'Mo' },
   { id: '1', label: 'Di' },
@@ -31,18 +29,18 @@ const DISPLAY_DAYS = [
   { id: '6', label: 'So' }
 ]
 
-
+// --- WIZARD & RFID STATES ---
+const step = ref(1) // 1 = Daten eingeben, 2 = Chip verknüpfen
+const registrationStatus = ref('waiting') // 'waiting' | 'success' | 'already_assigned' | 'error'
+const scannedChipId = ref('')
+const conflictMemberName = ref('')
+const isManualInput = ref(false)
+let pollingInterval = null
 
 const todayISO = () => new Date().toISOString().split('T')[0]
-
-const defaultSchema = () => ({
-  '0': 8, '1': 8, '2': 8, '3': 8, '4': 8, '5': 0, '6': 0
-})
-
+const defaultSchema = () => ({ '0': 8, '1': 8, '2': 8, '3': 8, '4': 8, '5': 0, '6': 0 })
 const hasSchema = (schema) => schema && Object.keys(schema).length > 0
-
-const isEditingSchema = ref(false)  // NEU – Lock-Status
-
+const isEditingSchema = ref(false)
 
 const form = ref({
   first_name: '',
@@ -53,7 +51,8 @@ const form = ref({
   upcoming_schema_change: null, 
   overtime_balance: 0,
   vacation_total: 30,
-  vacation_left: 30
+  vacation_left: 30,
+  chip_id: ''
 })
 
 const upcomingWeeklyHours = computed(() => {
@@ -62,38 +61,20 @@ const upcomingWeeklyHours = computed(() => {
   return Object.values(schema).reduce((sum, h) => sum + (Number(h) || 0), 0)
 })
 
-
 const weeklyHours = computed(() => {
   if (!form.value.work_days_schema) return 0
-  return Object.values(form.value.work_days_schema).reduce((sum, hours) => {
-    return sum + (Number(hours) || 0)
-  }, 0)
+  return Object.values(form.value.work_days_schema).reduce((sum, hours) => sum + (Number(hours) || 0), 0)
 })
 
 const calculateProRataVacation = (entryDateStr, yearlyDays) => {
   if (!entryDateStr) return yearlyDays
-
   const entryDate = new Date(entryDateStr)
-  const entryYear = entryDate.getFullYear()
-  const currentYear = new Date().getFullYear()
-
-  // Bereits vor diesem Jahr eingestiegen -> voller Anspruch
-  if (entryYear < currentYear) {
-    return yearlyDays
-  }
-
-  // Einstieg erst in einem zukünftigen Jahr -> noch kein Anspruch fürs laufende Jahr
-  if (entryYear > currentYear) {
-    return 0
-  }
-
-  // Einstieg im laufenden Jahr -> anteilig ab Eintrittsmonat
+  if (entryDate.getFullYear() < new Date().getFullYear()) return yearlyDays
+  if (entryDate.getFullYear() > new Date().getFullYear()) return 0
   const monthsActive = 13 - (entryDate.getMonth() + 1)
-  const proRata = (yearlyDays / 12) * monthsActive
-  return Math.round(proRata)
+  return Math.round((yearlyDays / 12) * monthsActive)
 }
 
-// Reagiert jetzt immer auf Änderungen - egal ob Neuanlage oder Bearbeitung
 watch(
   [() => form.value.joined_at, () => form.value.vacation_days_per_year],
   ([newEntryDate, newYearlyDays]) => {
@@ -101,11 +82,14 @@ watch(
   }
 )
 
-
-
-
 const populateForm = (data) => {
-  isEditingSchema.value = false   // NEU – bei jedem Öffnen wieder gesperrt
+  isEditingSchema.value = false
+  step.value = 1
+  registrationStatus.value = 'waiting'
+  scannedChipId.value = ''
+  conflictMemberName.value = ''
+  isManualInput.value = false
+  stopPolling()
 
   if (data) {
     form.value = {
@@ -114,10 +98,11 @@ const populateForm = (data) => {
       joined_at: data.joined_at ?? '',
       work_days_schema: hasSchema(data.work_days_schema) ? { ...data.work_days_schema } : defaultSchema(),
       schema_valid_from: todayISO(),
-      upcoming_schema_change: data.upcoming_schema_change ?? null,  // NEU
+      upcoming_schema_change: data.upcoming_schema_change ?? null,
       overtime_balance: Number(data.overtime_hours ?? 0),
       vacation_days_per_year: Number(data.vacation_days_per_year ?? 30),
-      vacation_total: Number(data.vacation_total ?? data.vacation_days_per_year ?? 30)
+      vacation_total: Number(data.vacation_total ?? data.vacation_days_per_year ?? 30),
+      chip_id: data.chip_id ?? ''
     }
   } else {
     form.value = {
@@ -129,7 +114,8 @@ const populateForm = (data) => {
       upcoming_schema_change: null,
       overtime_balance: 0,
       vacation_days_per_year: 30,
-      vacation_total: 30
+      vacation_total: 30,
+      chip_id: ''
     }
   }
 }
@@ -140,23 +126,75 @@ watch(() => props.isOpen, async (newIsOpen) => {
       populateForm(props.member)
       try {
         await adminStore.fetchTeamMemberDetail(props.member.id)
-        if (adminStore.currentMember) {
-          populateForm(adminStore.currentMember)
-        }
+        if (adminStore.currentMember) populateForm(adminStore.currentMember)
       } catch (error) {
-        console.error("Fehler beim asynchronen Nachladen der Mitarbeiterdetails:", error)
+        console.error("Fehler beim Laden:", error)
       }
     } else {
       populateForm(null)
     }
+  } else {
+    stopPolling()
   }
 }, { immediate: true })
 
-const handleSubmit = async () => {
+// --- RFID POLLING LOGIK ---
+const startPolling = () => {
+  stopPolling()
+  // Fragt alle 2 Sekunden das Backend nach dem "letzten unregistrierten Scan"
+  pollingInterval = setInterval(async () => {
+    try {
+      // Tausche dies gegen deinen echten API-Endpunkt im AdminStore aus
+      const res = await adminStore.fetchLatestPendingChip() 
+      
+      if (res && res.chip_id) {
+        scannedChipId.value = res.chip_id
+        stopPolling() // Scan erfolgreich erkannt, Polling stoppen
+        
+        // Jetzt finalen Speicherprozess anstoßen
+        executeFinalRegistration(res.chip_id)
+      }
+    } catch (e) {
+      console.error("Fehler beim Abrufen des ausstehenden Chips:", e)
+    }
+  }, 2000)
+}
+
+const stopPolling = () => {
+  if (pollingInterval) {
+    clearInterval(pollingInterval)
+    pollingInterval = null
+  }
+}
+
+const enableManualInput = () => {
+  isManualInput.value = true
+  stopPolling()
+}
+
+const handleReassignChip = () => {
+  step.value = 2
+  registrationStatus.value = 'waiting'
+  startPolling()
+}
+
+const handleSubmitStep1 = () => {
   if (!form.value.first_name || !form.value.last_name) return
   if (form.value.vacation_days_per_year === '') return
 
-  // Fix: props.member statt member
+  if (props.member) {
+    // Wenn wir nur bearbeiten, müssen wir keinen neuen Chip erzwingen (außer du willst das)
+    // Für dieses Beispiel gehen wir direkt zum Speichern über:
+    executeFinalRegistration(null)
+  } else {
+    // Bei Neuanlage wechseln wir zu Seite 2: "Bitte Chip auflegen"
+    step.value = 2
+    registrationStatus.value = 'waiting'
+    startPolling()
+  }
+}
+
+const executeFinalRegistration = async (chipId) => {
   const schemaChanged = props.member ? isEditingSchema.value : true
 
   try {
@@ -166,6 +204,7 @@ const handleSubmit = async () => {
     })
 
     if (props.member) {
+      // BEARBEITEN
       const payload = {
         joined_at: form.value.joined_at,
         overtime_hours: form.value.overtime_balance,
@@ -175,32 +214,62 @@ const handleSubmit = async () => {
         payload.work_days_schema = cleanedSchema
         payload.schema_valid_from = form.value.schema_valid_from
       }
-      await adminStore.updateTeamMember(props.member.id, payload)
+      
+      // NEU: Wenn ein neuer Chip gescannt/eingegeben wurde, fügen wir ihn dem Update-Payload hinzu
+      if (chipId) {
+        payload.chip_id = chipId
+      }
+
+      const response = await adminStore.updateTeamMember(props.member.id, payload)
+      
+      // Falls das Backend meldet, dass dieser Chip schon vergeben ist:
+      if (response?.status === 'already_assigned') {
+        registrationStatus.value = 'already_assigned'
+        conflictMemberName.value = response.assigned_to || 'Anderer Mitarbeiter'
+      } else {
+        registrationStatus.value = 'success'
+        if (chipId) form.value.chip_id = chipId // UI aktualisieren
+        setTimeout(() => emit('close'), 2000)
+      }
+      
     } else {
-      await adminStore.createTeamMember({
+      // NEUANLAGE (Bleibt unverändert)
+      const response = await adminStore.createTeamMember({
         first_name: form.value.first_name,
         last_name: form.value.last_name,
         joined_at: form.value.joined_at,
         work_days_schema: cleanedSchema,
-        vacation_days_per_year: form.value.vacation_days_per_year
+        vacation_days_per_year: form.value.vacation_days_per_year,
+        chip_id: chipId
       })
-    }
 
-    emit('close')
+      if (response?.status === 'already_assigned') {
+        registrationStatus.value = 'already_assigned'
+        conflictMemberName.value = response.assigned_to || 'Anderer Mitarbeiter'
+      } else {
+        registrationStatus.value = 'success'
+        setTimeout(() => emit('close'), 2000)
+      }
+    }
   } catch (error) {
-    console.error("Fehler beim Verarbeiten des Mitarbeiters im Modal:", error)
+    registrationStatus.value = 'error'
+    console.error("Fehler bei der Registrierung:", error)
   }
 }
+
+onBeforeUnmount(() => {
+  stopPolling()
+})
 </script>
+
 
 <template>
   <div 
     v-if="isOpen" 
     class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
   >
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden transition-all">
       
-      <!-- Modal Header -->
       <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
         <h3 class="font-bold text-lg text-slate-900">
           {{ member ? 'Mitarbeiter bearbeiten' : 'Mitarbeiter anlegen' }}
@@ -214,10 +283,8 @@ const handleSubmit = async () => {
         </button>
       </div>
 
-      <!-- Modal Form Content -->
-      <form class="p-6 space-y-4" @submit.prevent="handleSubmit">
+      <form v-if="step === 1" class="p-6 space-y-4" @submit.prevent="handleSubmitStep1">
         
-        <!-- Vorname & Nachname -->
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-1">
             <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Vorname</label>
@@ -242,8 +309,6 @@ const handleSubmit = async () => {
           </div>
         </div>
 
-
-
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-1">
             <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Eintrittsdatum</label>
@@ -257,10 +322,37 @@ const handleSubmit = async () => {
               <CalendarDays class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
+
+          <div class="space-y-1">
+            <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">RFID Transponder</label>
+            
+            <div v-if="form.chip_id" class="flex items-center justify-between gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl h-[38px]">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <CreditCard class="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                <span class="text-xs font-mono font-bold text-slate-700 truncate uppercase">{{ form.chip_id }}</span>
+              </div>
+              <button 
+                type="button"
+                class="text-[11px] text-blue-600 hover:text-blue-700 font-bold transition-colors cursor-pointer flex-shrink-0"
+                @click="handleReassignChip"
+              >
+                Ändern
+              </button>
+            </div>
+
+            <div v-else class="flex items-center justify-between gap-2 px-3 py-1.5 bg-amber-50/60 border border-amber-100 rounded-xl h-[38px]">
+              <span class="text-xs text-amber-700 font-medium truncate">Kein Chip verknüpft</span>
+              <button 
+                type="button"
+                class="text-[11px] text-blue-600 hover:text-blue-700 font-bold transition-colors cursor-pointer flex-shrink-0"
+                @click="handleReassignChip"
+              >
+                Verknüpfen
+              </button>
+            </div>
+          </div>
         </div>
 
-
-        <!-- Arbeitszeit-Schema (Wochenstunden) -->
         <div class="space-y-2">
           <div class="flex items-center justify-between">
             <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Arbeitszeit-Schema (Std.)</label>
@@ -268,12 +360,10 @@ const handleSubmit = async () => {
               <span class="text-xs font-bold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-lg border border-blue-100">
                 Soll: <strong>{{ weeklyHours }}</strong> h/Woche
               </span>
-              <!-- NEU: Lock-Button, nur im Edit-Modus relevant -->
               <button
                 v-if="member"
                 type="button"
                 @click="isEditingSchema = !isEditingSchema"
-                :title="isEditingSchema ? 'Bearbeitung sperren' : 'Bearbeitung freigeben'"
                 class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                 :class="{ 'text-amber-500 hover:text-amber-600': isEditingSchema }"
               >
@@ -282,11 +372,7 @@ const handleSubmit = async () => {
             </div>
           </div>
 
-          <!-- NEU: Infobox bei bereits geplantem Zukunfts-Schema -->
-          <div 
-            v-if="form.upcoming_schema_change && isEditingSchema" 
-            class="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800"
-          >
+          <div v-if="form.upcoming_schema_change && isEditingSchema" class="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
             <CalendarDays class="w-4 h-4 mt-0.5 flex-shrink-0" />
             <div>
               Es wurde bereits ein neues Schema hinterlegt (<strong>{{ upcomingWeeklyHours }} h/Woche</strong> ab <strong>{{ formatDate(form.upcoming_schema_change.valid_from) }}</strong>).
@@ -294,82 +380,165 @@ const handleSubmit = async () => {
           </div>
 
           <div class="grid grid-cols-7 gap-1">
-            <div 
-              v-for="day in DISPLAY_DAYS" 
-              :key="day.id" 
-              class="space-y-1 text-center"
-              :class="{'p-0.5 rounded-md hover:bg-slate-50': day.id === '5' || day.id === '6'}"
-            >
+            <div v-for="day in DISPLAY_DAYS" :key="day.id" class="space-y-1 text-center" :class="{'p-0.5 rounded-md hover:bg-slate-50': day.id === '5' || day.id === '6'}">
               <span class="text-[10px] font-bold uppercase text-slate-400 block">{{ day.label }}</span>
               <input 
                 v-model.number="form.work_days_schema[day.id]" 
-                type="number" 
-                step="any"
-                min="0"
-                max="24"
+                type="number" step="any" min="0" max="24"
                 :disabled="member && !isEditingSchema"
                 class="w-full text-center p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
           </div>
 
-          <!-- Gültig-ab-Datum nur zeigen, wenn Bearbeitung freigegeben ist -->
           <div v-if="member && isEditingSchema" class="pt-1 space-y-1">
             <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Neues Schema gilt ab</label>
-            <input 
-              v-model="form.schema_valid_from" 
-              type="date" 
-              :min="todayISO()"
-              class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-            />
-            <p class="text-[11px] text-slate-400">
-              Vergangene Stundennachweise bleiben unverändert – das Schema gilt erst ab diesem Datum.
-            </p>
+            <input v-model="form.schema_valid_from" type="date" :min="todayISO()" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
           </div>
         </div>
 
+        <div class="grid grid-cols-2 gap-4">
+          <div class="space-y-1">
+            <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Urlaub / Jahr</label>
+            <input v-model.number="form.vacation_days_per_year" type="number" min="0" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Restanspruch {{ new Date().getFullYear() }}</label>
+            <div class="w-full px-4 py-2 bg-blue-50/50 border border-blue-100 text-blue-700 rounded-xl text-sm font-semibold flex items-center h-[38px]">
+              {{ form.vacation_total }} Tage
+            </div>
+          </div>
+        </div>
 
-<div class="grid grid-cols-2 gap-4">
-  <div class="space-y-1">
-    <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Urlaub / Jahr</label>
-    <input 
-      v-model.number="form.vacation_days_per_year" 
-      type="number" 
-      min="0"
-      class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-    />
-  </div>
-
-  <div class="space-y-1">
-    <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">
-      Restanspruch {{ new Date().getFullYear() }}
-    </label>
-    <div class="w-full px-4 py-2 bg-blue-50/50 border border-blue-100 text-blue-700 rounded-xl text-sm font-semibold flex items-center h-[38px]">
-      {{ form.vacation_total }} Tage
-    </div>
-  </div>
-
-
-</div>
-
-        <!-- Modal Footer Actions -->
         <div class="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
-          <button 
-            type="button" 
-            class="px-4 py-2 hover:bg-slate-100 rounded-xl text-slate-500 text-sm font-bold transition-all cursor-pointer"
-            @click="emit('close')"
-          >
+          <button type="button" class="px-4 py-2 hover:bg-slate-100 rounded-xl text-slate-500 text-sm font-bold transition-all cursor-pointer" @click="emit('close')">
             Abbrechen
           </button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-900/20 cursor-pointer">
+            {{ member ? 'Speichern' : 'Weiter zu RFID' }}
+          </button>
+        </div>
+      </form>
+
+      <div v-else class="p-8 flex flex-col items-center text-center space-y-6">
+        
+        <template v-if="isManualInput && registrationStatus === 'waiting'">
+          <div class="flex items-center justify-center w-16 h-16 bg-slate-100 rounded-full text-slate-600 border border-slate-200">
+            <CreditCard class="w-7 h-7" />
+          </div>
+          <div class="space-y-2 w-full text-left">
+            <h4 class="font-bold text-slate-900 text-lg text-center">Manuelle Eingabe</h4>
+            <p class="text-xs text-slate-500 text-center mb-4">
+              Trage die Hexadezimal-ID des Chips manuell ein (z. B. vom Gehäuse abgelesen).
+            </p>
+            <label class="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">Chip-ID (Hex)</label>
+            <input 
+              v-model="scannedChipId"
+              type="text"
+              placeholder="z.B. A3B4C5D6"
+              class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-center uppercase tracking-widest"
+            />
+          </div>
+          
           <button 
-            type="submit" 
-            class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-900/20 cursor-pointer"
+            type="button"
+            :disabled="!scannedChipId"
+            class="w-full px-4 py-2.5 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-900/20 cursor-pointer"
+            @click="executeFinalRegistration(scannedChipId.toUpperCase())"
           >
-            Speichern
+            Chip manuell verknüpfen
+          </button>
+        </template>
+
+        <template v-else-if="registrationStatus === 'waiting'">
+          <div class="relative flex items-center justify-center w-24 h-24 bg-blue-50 rounded-full text-blue-600 border border-blue-100 animate-pulse">
+            <CreditCard class="w-10 h-10" />
+            <Loader2 class="w-24 h-24 absolute text-blue-500/30 animate-spin" style="animation-duration: 3s;" />
+          </div>
+          <div class="space-y-2">
+            <h4 class="font-bold text-slate-900 text-lg">Bitte Chip auflegen</h4>
+            <p class="text-sm text-slate-500 max-w-xs">
+              Halte den neuen RFID-Chip an das Zeiterfassungs-Terminal, um ihn mit <strong>{{ form.first_name }}</strong> zu verknüpfen.
+            </p>
+          </div>
+          
+          <button 
+            type="button"
+            class="text-xs text-blue-600 hover:text-blue-700 font-medium underline cursor-pointer pt-2"
+            @click="enableManualInput"
+          >
+            Chip-ID manuell eintragen
+          </button>
+        </template>
+
+        <template v-else-if="registrationStatus === 'success'">
+          <div class="flex items-center justify-center w-24 h-24 bg-emerald-50 rounded-full text-emerald-600 border border-emerald-100">
+            <CheckCircle2 class="w-12 h-12" />
+          </div>
+          <div class="space-y-2">
+            <h4 class="font-bold text-slate-900 text-lg">Erfolgreich verknüpft!</h4>
+            <p class="text-sm text-slate-500">
+              Der Chip <code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs text-slate-700 font-mono">{{ scannedChipId }}</code> wurde zugewiesen.
+            </p>
+          </div>
+        </template>
+
+        <template v-else-if="registrationStatus === 'already_assigned'">
+          <div class="flex items-center justify-center w-24 h-24 bg-amber-50 rounded-full text-amber-600 border border-amber-100">
+            <AlertTriangle class="w-12 h-12" />
+          </div>
+          <div class="space-y-2">
+            <h4 class="font-bold text-slate-900 text-lg">Chip bereits registriert!</h4>
+            <p class="text-sm text-slate-500">
+              Dieser Chip ist bereits aktiv verknüpft mit:<br>
+              <strong class="text-slate-800 text-base block mt-1">{{ conflictMemberName }}</strong>
+            </p>
+          </div>
+        </template>
+
+        <template v-else-if="registrationStatus === 'error'">
+          <div class="flex items-center justify-center w-24 h-24 bg-rose-50 rounded-full text-rose-600 border border-rose-100">
+            <AlertTriangle class="w-12 h-12" />
+          </div>
+          <div class="space-y-2">
+            <h4 class="font-bold text-slate-900 text-lg">Verknüpfung fehlgeschlagen</h4>
+            <p class="text-sm text-slate-500">
+              Beim Speichern im System ist ein Fehler aufgetreten.
+            </p>
+          </div>
+        </template>
+
+        <div class="pt-4 w-full flex items-center justify-center gap-3 border-t border-slate-100">
+          <button 
+            v-if="registrationStatus === 'waiting' || registrationStatus === 'already_assigned' || registrationStatus === 'error'"
+            type="button" 
+            class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-all cursor-pointer"
+            @click="step = 1; stopPolling(); isManualInput = false;"
+          >
+            Zurück zu den Daten
+          </button>
+          
+          <button 
+            v-if="isManualInput && registrationStatus === 'waiting'"
+            type="button" 
+            class="px-5 py-2 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-xl text-sm font-bold transition-all cursor-pointer"
+            @click="isManualInput = false; startPolling(); scannedChipId = '';"
+          >
+            Wieder scannen
+          </button>
+          
+          <button 
+            v-if="registrationStatus === 'already_assigned' || registrationStatus === 'error'"
+            type="button" 
+            class="px-5 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-xl text-sm font-bold transition-all cursor-pointer"
+            @click="registrationStatus = 'waiting'; isManualInput ? null : startPolling();"
+          >
+            Erneut versuchen
           </button>
         </div>
 
-      </form>
+      </div>
+
     </div>
   </div>
 </template>

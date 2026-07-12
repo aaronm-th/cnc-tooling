@@ -118,6 +118,7 @@ export const useAdminStore = defineStore('admin', {
       }
     },
 
+    // ERWEITERT: Gibt jetzt res.data zurück, damit das Modal auf Konflikte (z.B. status: 'already_assigned') reagieren kann
     async createTeamMember(employeeData) {
       this.isLoading = true
       try {
@@ -128,8 +129,13 @@ export const useAdminStore = defineStore('admin', {
           { headers: { Authorization: `Bearer ${token}` }}
         )
         
-        this.teamMembers.push(res.data)
-        this.employees_count++ 
+        // Nur in die lokale Liste pushen, wenn die Zuweisung auch erfolgreich war
+        if (res.data && res.data.status !== 'already_assigned') {
+          this.teamMembers.push(res.data)
+          this.employees_count++ 
+        }
+        
+        return res.data 
       } catch (error) {
         console.error("Fehler beim Erstellen eines neuen Mitarbeiters:", error)
         alert("Mitarbeiter konnte nicht erstellt werden.")
@@ -149,14 +155,11 @@ export const useAdminStore = defineStore('admin', {
           { headers: { Authorization: `Bearer ${token}` } }
         )
 
-        // Server-Response ist die "single source of truth" (TeamMemberDetailSerializer),
-        // kein manuelles Zusammenwürfeln von rohen Request-Daten mehr.
         const index = this.teamMembers.findIndex(m => m.id === userId)
         if (index !== -1) {
           this.teamMembers[index] = { ...this.teamMembers[index], ...data }
         }
 
-        // Falls das Detail-Objekt gerade offen/geladen ist, ebenfalls aktualisieren
         if (this.currentMember?.id === userId) {
           this.currentMember = data
         }
@@ -319,18 +322,10 @@ export const useAdminStore = defineStore('admin', {
       }
     },
 
-    // --- NEUE AKTIONEN FÜR DEN MONATSABSCHLUSS ---
-
-    /**
-     * Schließt den gewählten Monat global für alle aktiven Mitarbeiter ab
-     */
     async closeMonthGlobal(month, year) {
       const token = localStorage.getItem('access_token')
       try {
-        await axios.post(`${import.meta.env.VITE_API_URL}/api/mgmt/payouts/close-month/`, {
-          month,
-          year
-        }, {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/mgmt/payouts/close-month/`, { month, year }, {
           headers: { Authorization: `Bearer ${token}` }
         })
       } catch (error) {
@@ -339,17 +334,10 @@ export const useAdminStore = defineStore('admin', {
       }
     },
 
-    /**
-     * Rechnet den Monat für einen spezifischen Mitarbeiter ab und fixiert die Daten
-     */
     async closeEmployeeMonth(memberId, month, year) {
       const token = localStorage.getItem('access_token')
       try {
-        await axios.post(`${import.meta.env.VITE_API_URL}/api/mgmt/payouts/close-employee/`, {
-          employee_id: memberId,
-          month,
-          year
-        }, {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/mgmt/payouts/close-employee/`, { employee_id: memberId, month, year }, {
           headers: { Authorization: `Bearer ${token}` }
         })
       } catch (error) {
@@ -358,22 +346,34 @@ export const useAdminStore = defineStore('admin', {
       }
     },
 
-    /**
-     * Hebt den Abschluss für einen spezifischen Mitarbeiter auf (Sperre löschen)
-     */
     async reopenEmployeeMonth(memberId, month, year) {
       const token = localStorage.getItem('access_token')
       try {
-        await axios.post(`${import.meta.env.VITE_API_URL}/api/mgmt/payouts/reopen-employee/`, {
-          employee_id: memberId,
-          month,
-          year
-        }, {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/mgmt/payouts/reopen-employee/`, { employee_id: memberId, month, year }, {
           headers: { Authorization: `Bearer ${token}` }
         })
       } catch (error) {
         console.error(`Fehler beim Öffnen von User ${memberId}:`, error)
         throw error
+      }
+    },
+
+    // --- NEUE AKTIONEN FÜR DIE RFID-REGISTRIERUNG ---
+
+    /**
+     * Holt den jüngsten, noch nicht registrierten RFID-Scan ab,
+     * den der ESP32 an das Backend geschickt hat.
+     */
+    async fetchLatestPendingChip() {
+      try {
+        const token = localStorage.getItem('access_token')
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/mgmt/pending-chip/`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        return res.data // Erwartet z.B. { chip_id: "A3B4C5D6" } oder null
+      } catch (error) {
+        console.error("Fehler beim Abrufen des ausstehenden Chips:", error)
+        return null
       }
     }
   }

@@ -87,7 +87,7 @@ class TeamMemberDetailSerializer(TeamMemberSummarySerializer):
     )
 
     upcoming_schema_change = serializers.SerializerMethodField()
-
+    chip_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
     def get_upcoming_schema_change(self, obj):
         today = timezone.now().date()
@@ -115,56 +115,76 @@ class TeamMemberDetailSerializer(TeamMemberSummarySerializer):
     class Meta:
         model = Employee
         fields = TeamMemberSummarySerializer.Meta.fields + [
-            'work_days_schema', 'is_active', 'vacation_days_per_year', 'schema_valid_from', 'upcoming_schema_change'
+            'work_days_schema', 'is_active', 'vacation_days_per_year', 'schema_valid_from', 'upcoming_schema_change', 'chip_id'
         ]
         read_only_fields = ['id', 'name', 'first_name', 'last_name', 'initials', 'avatar', 'status_text']
 
+    def validate_chip_id(self, value):
+        if value:
+            # Säubern (Leerzeichen weg, Großbuchstaben)
+            value = value.strip().upper()
+            
+            # Prüfen, ob ein ANDERER aktiver Mitarbeiter diesen Chip hat
+            queryset = Employee.objects.filter(chip_id=value, is_active=True)
+            if self.instance:
+                queryset = queryset.exclude(id=self.instance.id)
+                
+            if queryset.exists():
+                # Dieser String-Key triggert im Frontend das Feld 'already_assigned'
+                raise serializers.ValidationError("already_assigned")
+        return value
 
     def update(self, instance, validated_data):
+            from datetime import timedelta
 
-        from datetime import timedelta
+            # --- RFID CHIP SPEICHERUNG KORREKTUR ---
+            # Wir setzen den bereinigten Wert direkt auf die Instanz, BEVOR die restlichen Daten 
+            # via super().update verarbeitet und schlussendlich gespeichert werden.
+            if 'chip_id' in validated_data:
+                chip_val = validated_data.get('chip_id')
+                instance.chip_id = chip_val.strip().upper() if chip_val else None
 
-        vacation_days = validated_data.get('vacation_days_per_year')
-        new_schema = validated_data.pop('work_days_schema', None)
-        valid_from = validated_data.pop('schema_valid_from', None) or timezone.now().date()
+            vacation_days = validated_data.get('vacation_days_per_year')
+            new_schema = validated_data.pop('work_days_schema', None)
+            valid_from = validated_data.pop('schema_valid_from', None) or timezone.now().date()
 
-        instance = super().update(instance, validated_data)
+            # Führt das Standard-Update inklusive eines .save() durch
+            instance = super().update(instance, validated_data)
 
-        if new_schema is not None:
-            from core.models import WorkingTimeHistory
+            if new_schema is not None:
+                from core.models import WorkingTimeHistory
 
-            normalized_new = Employee.normalize_schema(new_schema)
-            # Schema, das unmittelbar VOR diesem Datum gilt (ohne den ggf. schon existierenden
-            # Eintrag an genau diesem valid_from mit einzubeziehen)
-            day_before = valid_from - timedelta(days=1)
-            preceding_schema = instance.get_schema_for_date(day_before)
-            normalized_preceding = Employee.normalize_schema(preceding_schema)
+                normalized_new = Employee.normalize_schema(new_schema)
+                day_before = valid_from - timedelta(days=1)
+                preceding_schema = instance.get_schema_for_date(day_before)
+                normalized_preceding = Employee.normalize_schema(preceding_schema)
 
-            if normalized_new == normalized_preceding:
-                # Redundant: Eintrag würde inhaltlich nichts ändern -> aufräumen statt anlegen
-                WorkingTimeHistory.objects.filter(
-                    employee=instance, valid_from=valid_from
-                ).delete()
+                if normalized_new == normalized_preceding:
+                    WorkingTimeHistory.objects.filter(
+                        employee=instance, valid_from=valid_from
+                    ).delete()
+                else:
+                    WorkingTimeHistory.objects.update_or_create(
+                        employee=instance,
+                        valid_from=valid_from,
+                        defaults={'work_days_schema': {str(k): v for k, v in new_schema.items()}}
+                    )
+
+            current_year = timezone.now().year
+            if vacation_days is not None:
+                allocated_days = vacation_days
             else:
-                WorkingTimeHistory.objects.update_or_create(
-                    employee=instance,
-                    valid_from=valid_from,
-                    defaults={'work_days_schema': {str(k): v for k, v in new_schema.items()}}
-                )
+                allocated_days = VacationService.get_total_days_for_year(instance, current_year)
 
-        current_year = timezone.now().year
-        if vacation_days is not None:
-            allocated_days = vacation_days
-        else:
-            allocated_days = VacationService.get_total_days_for_year(instance, current_year)
+            VacationQuota.objects.update_or_create(
+                employee=instance,
+                year=current_year,
+                defaults={'total_days': allocated_days}
+            )
 
-        VacationQuota.objects.update_or_create(
-            employee=instance,
-            year=current_year,
-            defaults={'total_days': allocated_days}
-        )
-        return instance
+            return instance
     
+
 
 class CreateEditEmployeeSerializer(serializers.Serializer):
 
@@ -174,6 +194,7 @@ class CreateEditEmployeeSerializer(serializers.Serializer):
     work_days_schema = serializers.JSONField(required=False, default=dict)
     vacation_days_per_year = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, default=30.0)
     joined_at = serializers.DateField(required=False)
+    chip_id = serializers.CharField(required=False, allow_null=True, allow_blank=True) # <-- NEU
 
     def validate(self, attrs):
         """
@@ -182,6 +203,7 @@ class CreateEditEmployeeSerializer(serializers.Serializer):
         """
         first_name = attrs.get('first_name')
         last_name = attrs.get('last_name')
+        chip_id = attrs.get('chip_id')
 
         # Falls wir im "Edit"-Modus sind, müssen wir die ID ignorieren (falls vorhanden im Kontext)
         # Für reine Create-Views reicht dieser einfache Check:
@@ -189,6 +211,17 @@ class CreateEditEmployeeSerializer(serializers.Serializer):
             raise serializers.ValidationError({
                 "last_name": "Ein aktiver Mitarbeiter mit diesem Vor- und Nachnamen existiert bereits."
             })
+        
+        if chip_id:
+            chip_id = chip_id.strip().upper()
+            attrs['chip_id'] = chip_id
+            conflict_emp = Employee.objects.filter(chip_id=chip_id, is_active=True).first()
+            if conflict_emp:
+                # Wir werfen ein strukturiertes JSON ab, das der Store / Frontend versteht
+                raise serializers.ValidationError({
+                    "status": "already_assigned",
+                    "assigned_to": conflict_emp.get_full_name()
+                })
             
         return attrs
 

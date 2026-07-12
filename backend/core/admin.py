@@ -4,6 +4,7 @@ from . import models as md
 from django.utils.html import format_html
 
 from django import forms
+from django.utils import timezone
 
 class WorkingTimeHistoryInline(admin.TabularInline):
     model = md.WorkingTimeHistory
@@ -33,11 +34,33 @@ class EmployeeAdminForm(forms.ModelForm):
                 self.fields[day].initial = schema.get(str(i), 0)
 
     def save(self, commit=True):
-        # Werte aus den Feldern zurück ins JSON konvertieren
+        employee = super().save(commit=False)
+        
+        # 1. Werte aus den Formularfeldern einsammeln
         days = ['mo', 'di', 'mi', 'do', 'fr', 'sa', 'so']
-        schema = {str(i): self.cleaned_data[day] for i, day in enumerate(days)}
-        self.instance.work_days_schema = schema
-        return super().save(commit=commit)
+        new_schema = {str(i): self.cleaned_data[day] for i, day in enumerate(days)}
+        
+        if commit:
+            employee.save()
+            
+            # 2. Historien-Eintrag für HEUTE holen oder erstellen
+            today = timezone.localdate()
+            
+            # Verhindert zirkuläre Imports, falls nötig
+            from attendance.models import WorkingTimeHistory 
+            
+            history, created = WorkingTimeHistory.objects.get_or_create(
+                employee=employee,
+                valid_from=today,
+                defaults={'work_days_schema': new_schema}
+            )
+            
+            # Wenn der Eintrag bereits existierte, aktualisieren wir das Schema
+            if not created:
+                history.work_days_schema = new_schema
+                history.save()
+                
+        return employee
 
 
 @admin.register(md.Employee)

@@ -1,10 +1,12 @@
 from datetime import timedelta
-from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.utils import timezone
+from django.core.cache import cache
+
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import IsAuthenticated
 
 from rest_framework.generics import ListAPIView, RetrieveUpdateDestroyAPIView
@@ -73,11 +75,27 @@ class TeamMemberDetailView(RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         return Employee.objects.filter(is_superuser=False, is_active=True).order_by('last_name')
 
+
+    def patch(self, request, *args, **kwargs):
+
+        try:
+            return super().patch(request, *args, **kwargs)
+        except DRFValidationError as e:
+            if 'chip_id' in e.detail and 'already_assigned' in e.detail['chip_id']:
+                raw_chip = request.data.get('chip_id', '').strip().upper()
+                conflict_emp = Employee.objects.filter(chip_id=raw_chip, is_active=True).first()
+                return Response({
+                    "status": "already_assigned",
+                    "assigned_to": conflict_emp.get_full_name() if conflict_emp else "Ein anderer Mitarbeiter"
+                }, status=status.HTTP_200_OK)
+            raise e
+        
     def perform_update(self, serializer):
-        # Wir verpacken das Update im Serializer zusätzlich in eine atomare Transaktion,
-        # um die Datenbank-Integrität zu sichern.
         with transaction.atomic():
-            serializer.save()
+            instance = serializer.save()
+
+            if instance.chip_id:
+                cache.delete('latest_unregistered_rfid')
 
     def perform_destroy(self, instance):
         # Soft-Delete: Mitarbeiter wird nur inaktiv gesetzt
@@ -156,13 +174,22 @@ class CreateEditEmployeeView(APIView):
     permission_classes = [IsSupervisor]
 
     def post(self, request):
-        serializer = CreateEditEmployeeSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        # Abfangen von RFID-Doppelbelegungen bei Neuanlage
+        try:
+            serializer = CreateEditEmployeeSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+        except DRFValidationError as e:
+            if 'non_field_errors' in e.detail and isinstance(e.detail['non_field_errors'], list):
+                err_detail = e.detail['non_field_errors'][0]
+                if isinstance(err_detail, dict) and err_detail.get('status') == 'already_assigned':
+                    return Response(err_detail, status=status.HTTP_200_OK)
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+
         validated_data = serializer.validated_data
 
         with transaction.atomic():
             try:
-                # 1. Mitarbeiter in der DB anlegen
+                # 1. Mitarbeiter in der DB anlegen (inkl. chip_id)
                 user = Employee.objects.create(
                     first_name=validated_data['first_name'],
                     last_name=validated_data['last_name'],
@@ -170,6 +197,7 @@ class CreateEditEmployeeView(APIView):
                     is_active=True,
                     is_superuser=False,
                     joined_at=validated_data['joined_at'],
+                    chip_id=validated_data.get('chip_id') or None  # <-- NEU
                 )
                 user.refresh_from_db()
 
@@ -183,13 +211,9 @@ class CreateEditEmployeeView(APIView):
                 # 2. Das offizielle Urlaubskontingent zuteilen
                 if user.joined_at:
                     target_year = user.joined_at.year
-                    
                     from core.services.vacation_service import VacationService
-
-                    # Nutzen der existierenden Methode aus dem schlanken Service
                     allocated_days = VacationService.get_total_days_for_year(user, target_year)
                     
-                    # Quota erstellen oder updaten
                     VacationQuota.objects.update_or_create(
                         employee=user, 
                         year=target_year, 
@@ -205,7 +229,12 @@ class CreateEditEmployeeView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+        # Nach erfolgreichem Anlegen den Cache säubern
+        if validated_data.get('chip_id'):
+            cache.delete('latest_unregistered_rfid')
+
         return Response({
+            "status": "success",
             "success": "Mitarbeiter erfolgreich angelegt.",
             "credentials": {
                 "username": user.username,
@@ -213,6 +242,25 @@ class CreateEditEmployeeView(APIView):
             }
         }, status=status.HTTP_201_CREATED)
     
+
+class PendingChipView(APIView):
+    """
+    GET /api/mgmt/pending-chip/
+    Gibt den letzten, vom ESP32 registrierten, aber unbekannten Chip-Scan aus.
+    Benutzt Djangos Standard-Cache (z.B. Redis, Memcached oder Database Cache).
+    """
+    permission_classes = [IsAuthenticated, IsSupervisor]
+
+    def get(self, request):
+        
+        # Holt die ID aus dem Cache
+        pending_chip = cache.get('latest_unregistered_rfid')
+        
+        if pending_chip:
+            return Response({"chip_id": pending_chip}, status=status.HTTP_200_OK)
+        
+        return Response({"chip_id": None}, status=status.HTTP_200_OK)
+
 
 class CloseMonthGlobalView(APIView):
     """
