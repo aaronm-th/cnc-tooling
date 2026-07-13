@@ -71,7 +71,7 @@ class HandleLeaveRequestView(APIView):
 
         create_notification(
             user=leave_request.employee,
-            title=f"Urlaubsantrag {status_txt}",
+            title=f"Abwesenheitsantrag {status_txt}",
             message=f"Dein Antrag {date_str} wurde {status_txt}.",
             notification_type='success' if action == 'approve' else 'error',
             link_to="requests"

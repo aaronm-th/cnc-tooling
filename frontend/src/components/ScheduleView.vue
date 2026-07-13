@@ -53,34 +53,22 @@ const fetchSchedule = () => {
   scheduleStore.fetchCalendarFeed(start, end)
 }
 
-const handleLeaveSubmit = async (formData) => {
-  try {
-    if (editingRequest.value?.id) {
-      await scheduleStore.updateLeaveRequest(editingRequest.value.id, formData)
-    } else {
-      await scheduleStore.createLeaveRequest(formData)
-    }
-    
-    isRequestModalOpen.value = false
-    editingRequest.value = null
-    fetchSchedule() // Kalender neu laden
-  } catch (error) {
-    alert("Fehler beim Speichern des Antrags.")
-  }
+// Das Modal macht den API-Call jetzt selbst (Create ODER Update).
+// Wir müssen hier nur noch aufräumen, sobald es erfolgreich war.
+const handleLeaveSuccess = () => {
+  isRequestModalOpen.value = false
+  editingRequest.value = null
+  fetchSchedule() // Kalender neu laden
 }
 
 const handleShiftSubmit = async (payload, onSuccess, onError) => {
   try {
-    // Falls deine Komponente oder dein Store ein Lade-Flag nutzt, 
-    // wird dies hier nicht blockiert, da wir den Fehler im Catch-Block behandeln.
     await scheduleStore.submitShiftChangeRequest(payload)
     
-    // 1. Wenn erfolgreich: Modal-Callback für den Success-Status triggern
     if (typeof onSuccess === 'function') {
       onSuccess()
     }
 
-    // 2. Kalender-Feed im Hintergrund aktualisieren
     const start = calendarDays.value[0].date.toISOString().split('T')[0]
     const end = calendarDays.value[calendarDays.value.length - 1].date.toISOString().split('T')[0]
     await scheduleStore.fetchCalendarFeed(start, end)
@@ -88,21 +76,19 @@ const handleShiftSubmit = async (payload, onSuccess, onError) => {
   } catch (err) {
     console.error("API Fehler im Kalender abgefangen:", err)
     
-    // 3. Fehler-Parsing für Django Rest Framework (DRF) / Django Backend Exceptions
-    // DRF packt serverseitige ValidationErrors meistens in non_field_errors oder detail
     const errorMessage = 
       err.response?.data?.non_field_errors?.[0] || 
       err.response?.data?.detail || 
-      err.response?.data?.error || // Fallback für manuelle JSON-Responses
+      err.response?.data?.error ||
       err.response?.data?.[0] || 
       "Fehler beim Senden der Korrektur";
 
-    // 4. Das Fehler-Callback des Modals aufrufen, um die Nachricht anzuzeigen
     if (typeof onError === 'function') {
       onError(errorMessage)
     }
   }
 }
+
 const handleRequestWithdraw = async (sessionId, callback) => {
   try {
     await scheduleStore.withdrawShiftChangeRequest(sessionId)
@@ -118,26 +104,20 @@ const handleRequestWithdraw = async (sessionId, callback) => {
   }
 }
 
-
-
 // --- EVENT HANDLER ---
-const handleEventClick = async (event) => { // Wichtig: async hinzugefügt
-  // Debug-Logs
+const handleEventClick = async (event) => {
   console.log("Klick auf Event:", event.title)
   
-  // --- 1. Arbeitszeiten (Work Sessions) ---
   if (event.type === 'work') {
     try {
-
       const rawId = event.workDayId || event.id;
       const cleanId = String(rawId).replace('wd-', '');
-      // Falls 'event.workDayId' im Kalender-Feed existiert:
       const dayData = await scheduleStore.fetchWorkDaySessions(event.workDayId || event.id)
       
       selectedShift.value = {
         id: cleanId,
         date: dayData.date,
-        sessions: dayData.sessions, // Das ist jetzt ein Array!
+        sessions: dayData.sessions,
         title: "Tagesübersicht",
       }
       isShiftRequestModalOpen.value = true
@@ -147,16 +127,11 @@ const handleEventClick = async (event) => { // Wichtig: async hinzugefügt
     return
   }
 
-  // --- 2. Offener Abwesenheitsantrag (Edit Leave Modal) ---
-  // Hinweis: Achte darauf, ob dein Serializer isPending oder is_pending liefert. 
-  // Ich bleibe hier bei deiner Benennung: isPending.
   if (event.isRequest && event.isPending) {
     editingRequest.value = {
       id: event.requestId || event.id.split('-')[1],
-      startDate: event.date instanceof Date 
-        ? event.date.toISOString().split('T')[0] 
-        : event.date,
-      endDate: event.endDate || event.date,
+      startDate: event.leave_start || event.date,
+      endDate: event.leave_end || event.date,
       leave_type: event.type,
       note: event.note
     }
@@ -164,7 +139,6 @@ const handleEventClick = async (event) => { // Wichtig: async hinzugefügt
     return
   }
 
-  // --- 3. Abgeschlossener Antrag oder Info (Info Modal) ---
   if (
     event.status === 'approved' || 
     event.type === 'system' || 
@@ -175,8 +149,6 @@ const handleEventClick = async (event) => { // Wichtig: async hinzugefügt
     return
   }
 }
-
-
 
 const getEventsForDate = (calendarDayDate) => {
   if (!scheduleEvents.value) return []
@@ -322,7 +294,8 @@ watch(currentDate, fetchSchedule)
 
     <RequestLeaveModal :isOpen="isRequestModalOpen" :initialData="editingRequest"
       :leaveTypes="[{ id: 'vacation', name: 'Urlaub' }, { id: 'sick', name: 'Krankheit' }]"
-      @close="isRequestModalOpen = false; editingRequest = null" @submit="handleLeaveSubmit" />
+      @close="isRequestModalOpen = false; editingRequest = null" 
+      @success="handleLeaveSuccess" />
 
     <ShiftChangeRequestModal 
       ref="shiftModalRef"

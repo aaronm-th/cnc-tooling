@@ -9,6 +9,11 @@ import RequestLeaveModal from '@/components/modals/RequestLeaveModal.vue'
 
 const scheduleStore = useScheduleStore()
 
+const leaveTypes = [
+  { id: 'vacation', name: 'Urlaub' }, 
+  { id: 'sick', name: 'Krankheit' }
+]
+
 const { leaveRequests, changeRequests, isLoading } = storeToRefs(scheduleStore)
 const { getEventIcon, getIconColorClass, getStatusColorClass } = useEventStyles()
 const { formatDate, formatTime } = useDateFormatter()
@@ -25,7 +30,6 @@ watch(activeTab, (newTab) => {
   localStorage.setItem('active_request_tab', newTab)
 })
 
-const leaveModalRef = ref(null)
 
 const filters = [
   { id: 'all', name: 'Alle' },
@@ -128,22 +132,6 @@ const openNewRequestModal = () => {
   isRequestModalOpen.value = true
 }
 
-const handleFormSubmit = async (formData) => {
-  try {
-    if (editingRequest.value?.id) {
-      await scheduleStore.updateLeaveRequest(editingRequest.value.id, formData)
-    } else {
-      await scheduleStore.createLeaveRequest(formData)
-    }
-    await scheduleStore.fetchLeaveRequests()
-    closeModals()
-  } catch (error) {
-    if (error.response && error.response.status === 400) {
-      leaveModalRef.value?.setBackendErrors(error.response.data)
-    }
-  }
-}
-
 const confirmDelete = async (id) => {
   if (confirm('Möchtest du diesen Antrag wirklich stornieren?')) {
     try {
@@ -175,6 +163,11 @@ const closeModals = () => {
   isEditModalOpen.value = false
   isRequestModalOpen.value = false
   editingRequest.value = null
+}
+
+const handleLeaveSuccess = () => {
+  closeModals()
+  scheduleStore.fetchLeaveRequests() // Liste sofort aktualisieren
 }
 
 
@@ -465,12 +458,9 @@ const closeModals = () => {
 <RequestLeaveModal 
   ref="leaveModalRef"
   :is-open="isEditModalOpen || isRequestModalOpen"
-  :leaveTypes="[
-    { id: 'vacation', name: 'Urlaub' }, 
-    { id: 'sick', name: 'Krankheit' }
-    ]"
+  :leaveTypes="leaveTypes"
   :initial-data="editingRequest"
   @close="closeModals"
-  @submit="handleFormSubmit"
+  @success="handleLeaveSuccess"
 />
 </template>

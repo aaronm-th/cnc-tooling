@@ -366,7 +366,14 @@ class LeaveRequest(models.Model):
             status__in=["pending", "approved"],
             leave_start__lte=self.leave_end,
             leave_end__gte=self.leave_start,
-        ).exclude(pk=self.pk)
+        )
+
+        # Wir ermitteln die ID so sicher wie möglich, falls self.pk im serializer.clean() temporär None ist
+        current_id = self.pk or getattr(self, 'id', None)
+        
+        if current_id:
+            overlaps = overlaps.exclude(pk=current_id)
+        # ----------------------------
 
         if overlaps.exists():
             raise ValidationError("Dieser Zeitraum überschneidet sich mit einem bestehenden Antrag.")

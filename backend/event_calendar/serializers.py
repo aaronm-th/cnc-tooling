@@ -73,12 +73,15 @@ class CalendarEventSerializer(serializers.Serializer):
     def from_leave_request(lr, current_date):
         """Transformiert einen Tag eines LeaveRequests in ein Event."""
         return {
-            "id": f"lr-{lr.id}-{current_date.isoformat()}",
-            "date": current_date,
-            "type": lr.leave_type,
-            "title": f"{lr.get_leave_type_display()} (offen)",
-            "note": lr.note or "",
-            "status": lr.status,
-            "isPending": lr.status == 'pending',
-            "isRequest": True
-        }
+        "id": f"lr-{lr.id}-{current_date.isoformat()}",
+        "requestId": lr.id,         
+        "date": current_date,
+        "leave_start": lr.leave_start,   
+        "leave_end": lr.leave_end,       
+        "type": lr.leave_type,
+        "title": f"{lr.get_leave_type_display()} (offen)",
+        "note": lr.note or "",
+        "status": lr.status,
+        "isPending": lr.status == 'pending',
+        "isRequest": True
+    }

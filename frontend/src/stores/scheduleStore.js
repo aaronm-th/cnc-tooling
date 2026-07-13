@@ -166,6 +166,22 @@ export const useScheduleStore = defineStore('schedule', {
       } finally { this.isLoading = false }
     },
 
+    async updateLeaveRequest(leaveId, formData) {
+      this.isLoading = true
+      try {
+        const id = this.cleanId(leaveId)
+        const res = await axios.put(
+          `${import.meta.env.VITE_API_URL}/api/leave-request/${id}/`, 
+          formData, 
+          { headers: this.getAuthHeader() }
+        )
+        await this.fetchLeaveRequests() 
+        return res.data
+      } finally { 
+        this.isLoading = false 
+      }
+    },
+
     async deleteLeaveRequest(leaveId) {
       this.isLoading = true
       try {

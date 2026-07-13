@@ -7,7 +7,6 @@ import { useScheduleStore } from '@/stores/scheduleStore'
 const props = defineProps({
   isOpen: { type: Boolean, required: true },
   initialData: { type: Object, default: null },
-  // REINVOLVIERT: leaveTypes wieder als Prop deklarieren
   leaveTypes: { type: Array, required: true }
 })
 
@@ -60,7 +59,6 @@ const isOnlyWeekend = computed(() => {
   return true
 })
 
-// Nutzt jetzt die übergebenen Props statt des Stores für den Fallback-Wert
 const defaultLeaveType = computed(() => props.leaveTypes?.[0]?.id || 'vacation')
 
 watch(() => props.isOpen, (newVal) => {
@@ -97,20 +95,25 @@ const handleSubmit = async () => {
   isSubmitting.value = true
   backendErrors.value = null
 
+  const payload = {
+    leave_type: leaveForm.value.type,
+    leave_start: leaveForm.value.startDate,
+    leave_end: leaveForm.value.endDate,
+    note: leaveForm.value.note
+  }
+
   try {
-    const payload = {
-      leave_type: leaveForm.value.type,
-      leave_start: leaveForm.value.startDate,
-      leave_end: leaveForm.value.endDate,
-      note: leaveForm.value.note
+    // Das Modal kennt initialData bereits -> entscheidet selbst Create vs. Update.
+    if (props.initialData?.id) {
+      await scheduleStore.updateLeaveRequest(props.initialData.id, payload)
+    } else {
+      await scheduleStore.createLeaveRequest(payload)
     }
 
-    await scheduleStore.createLeaveRequest(payload)
-    
-    emit('success') 
-    emit('close')   
+    emit('success')
+    emit('close')
   } catch (error) {
-    console.error("Fehler beim Erstellen des Antrags:", error)
+    console.error("Fehler beim Speichern des Antrags:", error)
     backendErrors.value = error.response?.data || "Verbindung zum Server fehlgeschlagen."
   } finally {
     isSubmitting.value = false
@@ -129,7 +132,7 @@ const handleSubmit = async () => {
       leave-to-class="opacity-0"
     >
       <div v-if="isOpen" class="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-        <div @click="!isLoading && $emit('close')" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+        <div @click="!isSubmitting && $emit('close')" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
         
         <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
           <div class="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
@@ -141,7 +144,7 @@ const handleSubmit = async () => {
                 {{ initialData ? 'Antrag bearbeiten' : 'Abwesenheit planen' }}
               </h2>
             </div>
-            <button @click="$emit('close')" :disabled="isLoading" class="p-2 text-slate-400 hover:text-slate-600 rounded-full transition-all">
+            <button @click="$emit('close')" :disabled="isSubmitting" class="p-2 text-slate-400 hover:text-slate-600 rounded-full transition-all">
               <X class="w-5 h-5" />
             </button>
           </div>
@@ -156,7 +159,7 @@ const handleSubmit = async () => {
                     :key="type.id"
                     type="button"
                     @click="leaveForm.type = type.id"
-                    :disabled="isLoading"
+                    :disabled="isSubmitting"
                     :class="[
                       'px-3 py-4 rounded-2xl text-[10px] transition-all border-2 flex flex-col items-center gap-3 uppercase tracking-tight',
                       leaveForm.type === type.id 
@@ -178,7 +181,7 @@ const handleSubmit = async () => {
                   <input 
                     v-model="leaveForm.startDate" 
                     type="date" 
-                    :disabled="isLoading" 
+                    :disabled="isSubmitting" 
                     class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
                   />
                 </div>
@@ -188,13 +191,12 @@ const handleSubmit = async () => {
                     v-model="leaveForm.endDate" 
                     type="date" 
                     :min="leaveForm.startDate"
-                    :disabled="isLoading" 
+                    :disabled="isSubmitting" 
                     class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
                   />
                 </div>
               </div>
 
-              <!-- DYNAMISCHE BACKEND-INFOBOX (Orientiert am ManualEntryModal-Design) -->
               <Transition
                 enter-active-class="transition duration-200 ease-out"
                 enter-from-class="opacity-0 -translate-y-2"
@@ -216,7 +218,7 @@ const handleSubmit = async () => {
                 <textarea 
                   v-model="leaveForm.note" 
                   rows="3" 
-                  :disabled="isLoading" 
+                  :disabled="isSubmitting" 
                   class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none resize-none" 
                   placeholder="Optional..."
                 ></textarea>
@@ -243,14 +245,14 @@ const handleSubmit = async () => {
               <button 
                 type="button" 
                 @click="$emit('close')" 
-                :disabled="isLoading" 
+                :disabled="isSubmitting" 
                 class="flex-1 py-3.5 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all"
               >
                 Abbrechen
               </button>
               <button 
                 type="submit" 
-                :disabled="isLoading || isOnlyWeekend" 
+                :disabled="isSubmitting || isOnlyWeekend" 
                 class="flex-1 py-3.5 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
                 :class="[
                   isOnlyWeekend 
@@ -258,7 +260,7 @@ const handleSubmit = async () => {
                     : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20'
                 ]"
               >
-                <Loader2 v-if="isLoading" class="w-4 h-4 animate-spin" />
+                <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
                 <template v-else>
                   {{ initialData ? 'Aktualisieren' : 'Antrag senden' }}
                 </template>

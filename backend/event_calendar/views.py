@@ -58,7 +58,6 @@ class UserCalendarFeedView(APIView):
             processed_dates.add(wd.date.isoformat())
 
         # --- 3. SCHRITT: Urlaubsanträge ---
-        # (Logik bleibt gleich, nutzt aber das aktualisierte processed_dates)
         leave_requests = amdl.LeaveRequest.objects.filter(
             employee=employee, 
             status__in=['pending'],
@@ -70,11 +69,15 @@ class UserCalendarFeedView(APIView):
             curr = lr.leave_start
             while curr <= lr.leave_end:
                 iso_date = curr.isoformat()
-                if start_date <= curr <= end_date and iso_date not in processed_dates:
+                # ÄNDERUNG: 'and iso_date not in processed_dates' entfernt,
+                # damit der offene Antrag AUCH dann erscheint, wenn bereits ein WorkDay existiert.
+                if start_date <= curr <= end_date:
                     # Wochenende checken
                     if curr.weekday() < 5:
                         events.append(CalendarEventSerializer.from_leave_request(lr, curr))
-                    processed_dates.add(iso_date)
+                    # Hinweis: processed_dates.add(iso_date) hier optional weglassen, 
+                    # falls es danach keine Schritte mehr gibt, die davon abhängen.
                 curr += timedelta(days=1)
 
-        return Response(events) # Wenn die Liste bereits serialisierte Dicts enthält
+        return Response(events)
+
