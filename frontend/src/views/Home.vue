@@ -96,11 +96,22 @@ onMounted(async () => {
   
   applyStoredPreference()
 
-  // KORREKTUR: Falls ein Supervisor eingeloggt ist, aber fälschlicherweise 'dashboard' aktiv ist,
-  // steuern wir hier aktiv gegen, NACHDEM der User-Status geladen wurde.
-  if (isSupervisor.value && appStore.activeTab === 'dashboard' && isAdminView.value) {
-    appStore.setTab('admin-dashboard')
-  } else if (!isSupervisor.value && ['admin-dashboard', 'admin-team', 'admin-requests', 'admin-calendar', 'admin-reports'].includes(appStore.activeTab)) {
+  // KORREKTUR: Umleitung für Supervisors in der Admin-Ansicht optimieren
+  if (isSupervisor.value && isAdminView.value) {
+    // Mapping von Mitarbeiter-Tabs zu Admin-Tabs
+    const tabMapping = {
+      'dashboard': 'admin-dashboard',
+      'team': 'admin-team',
+      'calendar': 'admin-calendar',
+      'requests': 'admin-requests'
+    }
+
+    if (tabMapping[appStore.activeTab]) {
+      appStore.setTab(tabMapping[appStore.activeTab])
+    }
+  } 
+  // Schutz für normale Mitarbeiter (falls ein Admin-Tab im LocalStorage hing)
+  else if (!isSupervisor.value && ['admin-dashboard', 'admin-team', 'admin-requests', 'admin-calendar', 'admin-reports'].includes(appStore.activeTab)) {
     appStore.setTab('dashboard')
   }
 
@@ -113,6 +124,10 @@ onMounted(async () => {
 
 // --- Aktionen ---
 const logout = () => {
+  // 1. Tab-State zurücksetzen, bevor wir den Store leeren
+  appStore.setTab('dashboard')
+  localStorage.removeItem('activeTab')
+
   // Store-Logout aufrufen (löscht alle States & LocalStorages)
   authStore.logout()
   

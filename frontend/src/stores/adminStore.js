@@ -11,30 +11,40 @@ export const useAdminStore = defineStore('admin', {
     employees_count: 0,     
     active_employees: 0,    
     on_leave_today: 0,      
-    requests_count: 0,
-    leave_requests_count: 0,
-    change_requests_count: 0,      
+    // Diese Arrays halten die echten Daten
     leaveRequests: [],     
     changeRequests: [],    
     isLoading: false,      
   }),
 
   getters: {
+    // ─── NEU / KORRIGIERT: ZÄHLER ALS DYNAMISCHE GETTER ───────────────────
+    leave_requests_count: (state) => {
+      // Zählt nur die Anträge, deren Status wirklich noch 'pending' (offen) ist
+      return state.leaveRequests.filter(r => r.status === 'pending').length;
+    },
+    
+    change_requests_count: (state) => {
+      // Zählt nur offene Zeitkorrekturen
+      return state.changeRequests.filter(r => r.status === 'pending').length;
+    },
+    
+    requests_count() {
+      // Summe beider offenen Zähler für das globale Badge im Header
+      return this.leave_requests_count + this.change_requests_count;
+    },
+    // ──────────────────────────────────────────────────────────────────────
+
     filteredTeamMembers: (state) => {
       return (searchQuery) => {
         let validMembers = state.teamMembers?.filter(m => m && m.name && m.name !== 'System');
-
-        // Duplikate entfernen
         const seen = new Set();
         validMembers = validMembers?.filter(m => {
           if (seen.has(m.name)) return false;
           seen.add(m.name);
           return true;
         });
-
-        // Alphabetisch sortieren
         validMembers?.sort((a, b) => a.name.localeCompare(b.name));
-
         if (!searchQuery) return validMembers;
         return validMembers?.filter(m => 
           m.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -64,9 +74,6 @@ export const useAdminStore = defineStore('admin', {
       this.employees_count = 0
       this.active_employees = 0
       this.on_leave_today = 0
-      this.requests_count = 0
-      this.change_requests_count = 0
-      this.leave_requests_count = 0
       this.leaveRequests = []
       this.changeRequests = []
       this.isLoading = false
@@ -79,6 +86,8 @@ export const useAdminStore = defineStore('admin', {
         const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/api/mgmt/stats/`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
+        // Falls das Backend hier noch alte Zähler mitsendet, werden diese 
+        // durch die gleichnamigen Getter im Store sicher überschrieben/ignoriert.
         Object.assign(this, data)
       } catch (error) {
         console.error('Fehler beim Laden der Dashboard-Daten:', error)
@@ -118,7 +127,6 @@ export const useAdminStore = defineStore('admin', {
       }
     },
 
-    // ERWEITERT: Gibt jetzt res.data zurück, damit das Modal auf Konflikte (z.B. status: 'already_assigned') reagieren kann
     async createTeamMember(employeeData) {
       this.isLoading = true
       try {
@@ -129,7 +137,6 @@ export const useAdminStore = defineStore('admin', {
           { headers: { Authorization: `Bearer ${token}` }}
         )
         
-        // Nur in die lokale Liste pushen, wenn die Zuweisung auch erfolgreich war
         if (res.data && res.data.status !== 'already_assigned') {
           this.teamMembers.push(res.data)
           this.employees_count++ 
@@ -252,6 +259,7 @@ export const useAdminStore = defineStore('admin', {
 
         const request = this.leaveRequests.find(r => r.id === requestId);
         if (request) {
+          // Sobald sich der Status von 'pending' wegbewegt, subtrahiert sich der Getter automatisch!
           request.status = action === 'approve' ? 'approved' : 'rejected';
           request.status_display = action === 'approve' ? 'Genehmigt' : 'Abgelehnt';
         }
@@ -294,6 +302,7 @@ export const useAdminStore = defineStore('admin', {
 
         const request = this.changeRequests.find(r => r.id === requestId);
         if (request) {
+          // Gleiches Prinzip für die Zeitkorrekturen
           request.status = action === 'approve' ? 'approved' : 'rejected';
           request.status_display = action === 'approve' ? 'Genehmigt' : 'Abgelehnt';
         }
@@ -303,6 +312,7 @@ export const useAdminStore = defineStore('admin', {
         alert(`Fehler beim Verarbeiten der Anfrage.`);
       } finally {
         this.isLoading = false
+        // Der erneute API-Aufruf sorgt hier zusätzlich für frische Daten
         await this.fetchChangeRequests();
       }
     },
@@ -358,19 +368,13 @@ export const useAdminStore = defineStore('admin', {
       }
     },
 
-    // --- NEUE AKTIONEN FÜR DIE RFID-REGISTRIERUNG ---
-
-    /**
-     * Holt den jüngsten, noch nicht registrierten RFID-Scan ab,
-     * den der ESP32 an das Backend geschickt hat.
-     */
     async fetchLatestPendingChip() {
       try {
         const token = localStorage.getItem('access_token')
         const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/mgmt/pending-chip/`, {
           headers: { Authorization: `Bearer ${token}` }
         })
-        return res.data // Erwartet z.B. { chip_id: "A3B4C5D6" } oder null
+        return res.data
       } catch (error) {
         console.error("Fehler beim Abrufen des ausstehenden Chips:", error)
         return null

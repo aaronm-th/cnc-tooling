@@ -136,10 +136,13 @@ class VacationQuotaSerializer(serializers.ModelSerializer):
 class NotificationSerializer(serializers.ModelSerializer):
     type = serializers.ReadOnlyField(source='notification_type')
     time = serializers.SerializerMethodField()
+    # 1. Das neue Feld als SerializerMethodField deklarieren
+    target_tab = serializers.SerializerMethodField()
 
     class Meta:
         model = Notification
-        fields = ['id', 'title', 'message', 'type', 'read', 'time', 'link_to']
+        # 2. 'target_tab' in die Liste der exportierten Felder aufnehmen
+        fields = ['id', 'title', 'message', 'type', 'read', 'time', 'link_to', 'target_tab']
 
     @extend_schema_field(serializers.CharField())
     def get_time(self, obj):
@@ -151,6 +154,19 @@ class NotificationSerializer(serializers.ModelSerializer):
         local_time = obj.created_at.astimezone(local_tz)
         return local_time.strftime("%d.%m.%Y %H:%M")
 
+    # 3. Logik zum Auflösen des ContentTypes in den passenden Vue-Tab
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_target_tab(self, obj):
+        if obj.content_type:
+            # Django speichert den Modelnamen im ContentType immer in Kleinbuchstaben
+            model_name = obj.content_type.model
+            
+            if model_name == 'leaverequest': 
+                return 'leave'
+            elif model_name == 'wschangerequest' or model_name == 'changerequest': 
+                return 'change'
+                
+        return None
 
 # 3. Zusammengesetzte Serializer
 class UserLoginResponseSerializer(serializers.Serializer):

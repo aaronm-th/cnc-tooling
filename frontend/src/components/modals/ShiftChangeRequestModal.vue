@@ -119,19 +119,6 @@ const resetSession = (index) => {
   session.note = ''
 }
 
-const deleteEntireSession = (session, index) => {
-  if (confirm('Möchtest du diesen Zeiteintrag wirklich unwiderruflich löschen?')) {
-    
-    if (!session.id) {
-      localSessions.value.splice(index, 1)
-      return
-    }
-
-    emit('delete-session', session.id, () => {
-      localSessions.value.splice(index, 1)
-    })
-  }
-}
 
 
 // Erweitert um den index, um lokale Einträge direkt entfernen zu können
@@ -227,15 +214,7 @@ defineExpose({ isSubmitted })
                         <RotateCcw class="w-2.5 h-2.5" /> Zurücksetzen
                       </button>
 
-                      <button 
-                        v-if="session.id && !session.isPending"
-                        @click="deleteEntireSession(session, index)"
-                        type="button"
-                        title="Gesamten Eintrag löschen beantragen"
-                        class="text-red-400 hover:text-red-600 p-1 rounded-md hover:bg-red-50 transition-all flex items-center gap-1 text-[9px] font-bold"
-                      >
-                        <Trash2 class="w-3 h-3" /> Löschen
-                      </button>
+                      
 
                       <span v-if="session.isPending" class="text-[9px] font-bold text-amber-600 bg-amber-100/50 px-2 py-0.5 rounded-full flex items-center gap-1">
                         <Clock class="w-2.5 h-2.5" /> Antrag läuft

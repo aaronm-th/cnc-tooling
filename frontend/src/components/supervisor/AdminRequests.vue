@@ -2,11 +2,14 @@
 import { ref, onMounted, watch } from 'vue'
 import { AlertCircle, Calendar, History, Search, Filter, ChevronDown, ShieldAlert } from 'lucide-vue-next'
 import { useAdminStore } from '@/stores/adminStore'
+import { useAppStore } from '@/stores/appStore' 
 import { storeToRefs } from 'pinia'
 import LeaveRequestList from '@/components/supervisor/LeaveRequestList.vue'
 import ChangeRequestList from '@/components/supervisor/ChangeRequestList.vue'
 
 const adminStore = useAdminStore()
+const appStore = useAppStore() 
+
 const { isLoading } = storeToRefs(adminStore)
 
 const activeTab = ref(localStorage.getItem('admin_active_tab') || 'leave')
@@ -19,11 +22,22 @@ const {
   leave_requests_count 
 } = storeToRefs(adminStore)
 
-
-
 onMounted(() => {
   adminStore.fetchLeaveRequests()
   adminStore.fetchChangeRequests()
+  
+  if (appStore.activeSubTab) {
+    activeTab.value = appStore.activeSubTab
+    appStore.activeSubTab = null 
+  }
+})
+
+// Prüfe hier genau die Klammern:
+watch(() => appStore.activeSubTab, (newSubTab) => {
+  if (newSubTab) {
+    activeTab.value = newSubTab
+    appStore.activeSubTab = null 
+  }
 })
 
 watch(activeTab, (newTab) => {

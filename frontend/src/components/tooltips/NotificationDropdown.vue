@@ -45,16 +45,16 @@ onUnmounted(() => {
   if (intervalId) clearInterval(intervalId)
 })
 
-// Zentrale Klick-Logik
 const handleNotificationClick = async (notification) => {
-  // 1. Als gelesen markieren (Backend & Store Update)
+  // 1. Als gelesen markieren
   await notificationStore.markAsRead(notification.id)
   
-  // 2. Tab wechseln über den globalen appStore
+  // 2. Haupt-Tab UND Sub-Tab über den appStore steuern
   if (notification.link_to) {
-    appStore.setTab(notification.link_to)
+    // Wir übergeben z.B.: appStore.setTab('anfragen_verwalten', 'change')
+    appStore.setTab(notification.link_to, notification.target_tab || null)
     
-    // 3. Dropdown schließen für bessere UX
+    // 3. Dropdown schließen
     emit('close')
   }
 }
@@ -97,7 +97,7 @@ const getNotificationColor = (type) => {
 
     <div 
       v-if="isOpen" 
-      class="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50"
+      class="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-100"
     >
       <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
         <h3 class="font-bold text-slate-900 text-sm">Benachrichtigungen</h3>
@@ -170,6 +170,6 @@ const getNotificationColor = (type) => {
 
     </div>
 
-    <div v-if="isOpen" class="fixed inset-0 z-40" @click="emit('close')" />
+    <div v-if="isOpen" class="fixed inset-0 z-100‚" @click="emit('close')" />
   </div>
-</template>
+</template>‚

@@ -251,7 +251,7 @@ watch(currentDate, fetchSchedule)
         <p class="text-slate-500 mt-1">Verwalte hier deine Zeiten.</p>
       </section>
 
-      <div class="sticky top-0 z-[100] bg-slate-50 pt-2 pb-2 space-y-4">
+      <div class="sticky top-0 z-[90] bg-slate-50 pt-2 pb-2 space-y-4">
         
         <div class="bg-white p-4 rounded-2xl border border-slate-200 flex items-center justify-between shadow-sm">
           <div class="flex items-center gap-4">
@@ -319,7 +319,7 @@ watch(currentDate, fetchSchedule)
     <EventTooltip v-if="hoveredEvent" :event="hoveredEvent" :styles="tooltipStyles"/>
 
     <RequestLeaveModal :isOpen="isRequestModalOpen" :initialData="editingRequest"
-      :leaveTypes="[{ id: 'vacation', name: 'Urlaub' }, { id: 'sick', name: 'Krankheit' }, { id: 'overtime', name: 'GLZ-Abbau' }]"
+      :leaveTypes="[{ id: 'vacation', name: 'Urlaub' }, { id: 'sick', name: 'Krankheit' }]"
       @close="isRequestModalOpen = false; editingRequest = null" @submit="handleLeaveSubmit" />
 
     <ShiftChangeRequestModal 

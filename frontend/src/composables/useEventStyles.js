@@ -22,7 +22,6 @@ export function useEventStyles() {
     if (t === 'work') return 'bg-blue-100 text-blue-700 border-blue-300'
     if (t === 'vacation') return 'bg-emerald-100 text-emerald-700 border-emerald-300'
     if (t === 'sick') return 'bg-red-100 text-red-700 border-red-300'
-    if (t === 'overtime') return 'bg-orange-100 text-orange-700 border-orange-300'
     if (t === 'pending') return 'bg-amber-100 text-amber-700 border-amber-300'
     if (t === 'holiday') return 'bg-violet-200 text-violet-700 border-violet-300'
     return 'bg-slate-100 text-slate-700 border-slate-300'
@@ -62,7 +61,6 @@ export function useEventStyles() {
       case 'work': return Clock
       case 'vacation': return Palmtree
       case 'sick': return Stethoscope
-      case 'overtime': return Clock
       case 'holiday': return Landmark
       case 'weekend': return Sun
       case 'pending': return Hourglass
@@ -76,7 +74,6 @@ export function useEventStyles() {
       case 'work': return 'text-blue-500'
       case 'vacation': return 'text-emerald-500'
       case 'sick': return 'text-red-500'
-      case 'overtime': return 'text-orange-500'
       case 'pending': return 'text-amber-500'
       default: return 'text-slate-500'
     }
@@ -91,8 +88,6 @@ export function useEventStyles() {
         return 'bg-emerald-50 text-emerald-700 border-emerald-100'
       case 'sick': 
         return 'bg-red-50 text-red-700 border-red-100'
-      case 'overtime': 
-        return 'bg-orange-50 text-orange-700 border-orange-100'
       case 'holiday':
         return 'bg-amber-50 text-amber-700 border-amber-100'
       default: 
@@ -111,7 +106,6 @@ export function useEventStyles() {
         return 'bg-red-100 text-red-700 border-red-200'
       case 'in bearbeitung':
       case 'pending':
-      case 'processing':
         return 'bg-amber-100 text-amber-700 border-amber-200 shadow-sm shadow-amber-500/10'
       default:
         return 'bg-slate-100 text-slate-600 border-slate-200'

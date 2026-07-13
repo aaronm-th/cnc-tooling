@@ -7,7 +7,6 @@ const props = defineProps({
   isOpen: { type: Boolean, required: true },
   isLoading: { type: Boolean, default: false },
   leaveTypes: { type: Array, required: true },
-  // Adding initialData support from your first snippet
   initialData: { type: Object, default: null }
 })
 
@@ -127,7 +126,7 @@ const handleSubmit = () => {
             <div class="space-y-4">
               <div class="space-y-2">
                 <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Typ</label>
-                <div class="grid grid-cols-3 gap-2">
+                <div class="grid grid-cols-2 gap-2">
                   <button 
                     v-for="type in leaveTypes" 
                     :key="type.id"
