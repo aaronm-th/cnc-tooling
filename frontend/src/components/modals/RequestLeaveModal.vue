@@ -2,17 +2,20 @@
 import { ref, watch, computed } from 'vue'
 import { X, Calendar, Loader2, AlertCircle } from 'lucide-vue-next'
 import { useEventStyles } from '@/composables/useEventStyles'
+import { useScheduleStore } from '@/stores/scheduleStore'
 
 const props = defineProps({
   isOpen: { type: Boolean, required: true },
-  isLoading: { type: Boolean, default: false },
-  leaveTypes: { type: Array, required: true },
-  initialData: { type: Object, default: null }
+  initialData: { type: Object, default: null },
+  // REINVOLVIERT: leaveTypes wieder als Prop deklarieren
+  leaveTypes: { type: Array, required: true }
 })
 
-const emit = defineEmits(['close', 'submit'])
+const emit = defineEmits(['close', 'success'])
 const { getEventIcon, getActiveStyles } = useEventStyles()
+const scheduleStore = useScheduleStore()
 
+const isSubmitting = ref(false)
 const backendErrors = ref(null)
 
 const leaveForm = ref({
@@ -22,75 +25,96 @@ const leaveForm = ref({
   note: ''
 })
 
+// Dynamische Fehlerextraktion (Bleibt aktiv für die Infobox)
+const errorMessage = computed(() => {
+  if (!backendErrors.value) return null
+  if (typeof backendErrors.value === 'string') return backendErrors.value
 
-// Computed: Prüft ob der Zeitraum nur aus Wochenenden besteht
+  const extractFirstError = (obj) => {
+    if (typeof obj === 'string') return obj
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        const found = extractFirstError(item)
+        if (found) return found
+      }
+    } else if (obj && typeof obj === 'object') {
+      if (obj.non_field_errors) return extractFirstError(obj.non_field_errors)
+      if (obj.detail) return extractFirstError(obj.detail)
+      for (const key in obj) {
+        const found = extractFirstError(obj[key])
+        if (found) return found
+      }
+    }
+    return null
+  }
+  return extractFirstError(backendErrors.value) || 'Validierungsfehler aufgetreten.'
+})
+
 const isOnlyWeekend = computed(() => {
   const start = new Date(leaveForm.value.startDate)
   const end = new Date(leaveForm.value.endDate)
-  
-  // Wir laufen vom Start- zum Enddatum
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const day = d.getDay()
-    // Wenn wir EINEN Tag finden, der kein Wochenende ist (1-5), ist der Antrag valide
-    if (day !== 0 && day !== 6) {
-      return false
-    }
+    if (day !== 0 && day !== 6) return false
   }
   return true
 })
 
+// Nutzt jetzt die übergebenen Props statt des Stores für den Fallback-Wert
+const defaultLeaveType = computed(() => props.leaveTypes?.[0]?.id || 'vacation')
+
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
+    backendErrors.value = null
+
     if (props.initialData) {
-      // Map backend fields back to form if editing
       leaveForm.value = {
         startDate: props.initialData.leave_start || props.initialData.startDate,
         endDate: props.initialData.leave_end || props.initialData.endDate,
-        type: props.initialData.leave_type || props.initialData.type,
+        type: props.initialData.leave_type || props.initialData.type || defaultLeaveType.value,
         note: props.initialData.note || ''
       }
     } else {
-      // Reset for new request
       leaveForm.value = {
         startDate: new Date().toISOString().split('T')[0],
         endDate: new Date().toISOString().split('T')[0],
-        type: props.leaveTypes[0]?.id || 'vacation',
+        type: defaultLeaveType.value,
         note: ''
       }
     }
   }
 })
 
-// 2. Smart Date Logic: Automatically adjust end date
 watch(() => leaveForm.value.startDate, (newStartDate, oldStartDate) => {
-  // If end date was aligned with old start, or is now invalid (before start), move it forward
   if (leaveForm.value.endDate === oldStartDate || leaveForm.value.endDate < newStartDate) {
     leaveForm.value.endDate = newStartDate
   }
 })
 
-watch(leaveForm, () => {
+watch(leaveForm, () => { backendErrors.value = null }, { deep: true })
+
+const handleSubmit = async () => {
+  isSubmitting.value = true
   backendErrors.value = null
-}, { deep: true })
 
+  try {
+    const payload = {
+      leave_type: leaveForm.value.type,
+      leave_start: leaveForm.value.startDate,
+      leave_end: leaveForm.value.endDate,
+      note: leaveForm.value.note
+    }
 
-const setBackendErrors = (errors) => {
-  backendErrors.value = errors
-}
-
-defineExpose({
-  setBackendErrors
-})
-
-
-const handleSubmit = () => {
-  // Keeping your functional mapping for the backend
-  emit('submit', { 
-    leave_type: leaveForm.value.type,
-    leave_start: leaveForm.value.startDate,
-    leave_end: leaveForm.value.endDate,
-    note: leaveForm.value.note
-  })
+    await scheduleStore.createLeaveRequest(payload)
+    
+    emit('success') 
+    emit('close')   
+  } catch (error) {
+    console.error("Fehler beim Erstellen des Antrags:", error)
+    backendErrors.value = error.response?.data || "Verbindung zum Server fehlgeschlagen."
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -170,17 +194,18 @@ const handleSubmit = () => {
                 </div>
               </div>
 
+              <!-- DYNAMISCHE BACKEND-INFOBOX (Orientiert am ManualEntryModal-Design) -->
               <Transition
                 enter-active-class="transition duration-200 ease-out"
                 enter-from-class="opacity-0 -translate-y-2"
                 enter-to-class="opacity-100 translate-y-0"
               >
-                <div v-if="backendErrors?.leave_start || backendErrors?.leave_type" class="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start gap-3">
+                <div v-if="errorMessage" class="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start gap-3">
                   <AlertCircle class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                   <div>
-                    <p class="text-xs text-rose-900 font-bold leading-tight">Eintrag ungültig</p>
+                    <p class="text-xs text-rose-900 font-bold leading-tight">Antrag ungültig</p>
                     <p class="text-[10px] text-rose-700 mt-1 leading-relaxed">
-                      {{ backendErrors.leave_start?.[0] || backendErrors.leave_type?.[0] }}
+                      {{ errorMessage }}
                     </p>
                   </div>
                 </div>

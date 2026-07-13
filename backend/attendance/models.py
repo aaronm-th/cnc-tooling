@@ -344,7 +344,23 @@ class LeaveRequest(models.Model):
         if self.leave_start > self.leave_end:
             raise ValidationError("Das Startdatum muss vor oder am Enddatum liegen.")
 
-        # Überlappungsprüfung
+        # WICHTIG: Wenn der Antrag storniert oder abgelehnt ist/wird, 
+        # müssen wir vergangene Daten oder Überlappungen nicht mehr blockieren.
+        if self.status in ['cancelled', 'rejected']:
+            return
+
+        # Prüfung gegen das Eintrittsdatum
+        if hasattr(self.employee, 'joined_at') and self.employee.joined_at:
+            if self.leave_start < self.employee.joined_at:
+                raise ValidationError(f"Der Antrag liegt vor dem Eintrittsdatum...")
+
+        # Prüfung auf Vergangenheit (NUR für neuen/bearbeiteten Urlaub)
+        if self.leave_type == 'vacation':
+            today = timezone.now().date()
+            if self.leave_start < today:
+                raise ValidationError("Urlaubsanträge können nicht für die Vergangenheit erstellt werden.")
+
+        # Überlappungsprüfung (nur mit anderen AKTIVEN Anträgen)
         overlaps = LeaveRequest.objects.filter(
             employee=self.employee,
             status__in=["pending", "approved"],
@@ -354,16 +370,6 @@ class LeaveRequest(models.Model):
 
         if overlaps.exists():
             raise ValidationError("Dieser Zeitraum überschneidet sich mit einem bestehenden Antrag.")
-
-
-        if self.actual_vacation_days_to_deduct() == 0 and self.leave_type == 'vacation':
-            raise ValidationError("Dieser Zeitraum enthält keine Werktage, die vom Urlaubskonto abgezogen werden könnten.")
-
-        if hasattr(self.employee, 'joined_at') and self.employee.joined_at:
-            if self.leave_start < self.employee.joined_at:
-                raise ValidationError(
-                    f"Der Antrag liegt vor dem Eintrittsdatum des Mitarbeiters ({self.employee.joined_at.strftime('%d.%m.%Y')})."
-                )
 
     def save(self, *args, **kwargs):
         self.full_clean()

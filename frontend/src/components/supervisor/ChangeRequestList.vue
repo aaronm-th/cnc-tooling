@@ -80,7 +80,7 @@ const filtered = computed(() => {
                   <span class="text-blue-600 font-bold">→ {{ formatTime(req.requested_check_in) }} - {{ formatTime(req.requested_check_out) }}</span>
                 </span>
                 
-                <span v-if="req.time_diff" class="text-[10px] font-bold px-1.5 py-0.5 rounded-md border bg-amber-50 text-amber-600 border-amber-100 shrink-0 ml-1">
+                <span v-if="req.time_diff && req.old_check_in" class="text-[10px] font-bold px-1.5 py-0.5 rounded-md border bg-amber-50 text-amber-600 border-amber-100 shrink-0 ml-1">
                   {{ req.time_diff }}
                 </span>
               </div>

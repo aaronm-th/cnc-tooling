@@ -38,7 +38,6 @@ class LeaveRequestListCreateAPIView(ListCreateAPIView):
             send_leave_notification(leave)
 
 class LeaveRequestDetailAPIView(RetrieveUpdateDestroyAPIView):
-    """PUT: Bearbeiten, DELETE: Stornieren"""
     serializer_class = LeaveRequestSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = 'pk'
@@ -49,25 +48,19 @@ class LeaveRequestDetailAPIView(RetrieveUpdateDestroyAPIView):
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         if instance.status != 'pending':
-            # Wichtig: Hier nutzen wir DRF-ValidationErrors für korrekte HTTP 400 Antworten im Frontend
             raise DRFValidationError({"detail": "Nur offene Anträge können bearbeitet werden."})
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         
-        if instance.status in ['approved', 'rejected', 'cancelled']:
-            raise DRFValidationError({"detail": "Antrag ist bereits erledigt oder storniert."})
+        # Business-Logik-Prüfung für den Workflow
+        self._validate_cancellation(instance)
         
-        if instance.leave_end < timezone.now().date():
-            raise DRFValidationError({"detail": "Vergangene Anträge können nicht storniert werden."})
-        
-        # Abfangen von Fehlern beim manuellen Speichern (z.B. durch Signal-Trigger oder Constraints)
         try:
             with transaction.atomic():
                 instance.status = 'cancelled'
-                # full_clean aufrufen, um sicherzustellen, dass der Statuswechsel erlaubt ist
-                instance.full_clean() 
+                instance.full_clean() # Ruft die Model-clean() auf, die jetzt 'cancelled' erlaubt
                 instance.save()
                 return Response(
                     {"status": "cancelled", "message": "Antrag wurde erfolgreich storniert."}, 
@@ -76,6 +69,16 @@ class LeaveRequestDetailAPIView(RetrieveUpdateDestroyAPIView):
         except DjangoValidationError as exc:
             error_messages = exc.message_dict.get('__all__', [str(exc)])
             raise DRFValidationError({"non_field_errors": error_messages})
+
+    def _validate_cancellation(self, instance):
+        """Hilfsmethode zur Validierung des Stornierungsworkflows."""
+        # 1. Bereits erledigt?
+        if instance.status in ['approved', 'rejected', 'cancelled']:
+            raise DRFValidationError({"detail": "Antrag ist bereits erledigt oder storniert."})
+        
+        # 2. In der Vergangenheit und kein Krankenschein?
+        if instance.leave_end < timezone.now().date() and instance.leave_type != 'sick':
+            raise DRFValidationError({"detail": "Vergangene Anträge können nicht storniert werden."})
         
 class ChangeRequestListAPIView(ListCreateAPIView):
     """GET: Liste aller Anträge, POST: Neuen Antrag erstellen"""
