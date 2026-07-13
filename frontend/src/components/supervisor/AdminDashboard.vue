@@ -1,13 +1,9 @@
 <script setup>
   import { ref, watch, onMounted } from 'vue'
   import { 
-    ChevronRight, 
     Users, 
     Clock, 
     Calendar, 
-    CheckCircle2, 
-    XCircle, 
-    TrendingUp,
     ListChecks, 
     Edit3, 
     Bold,
@@ -17,7 +13,8 @@
     Plus,
     Trash2,
     Square,
-    CheckSquare
+    CheckSquare,
+    LayoutDashboard
   } from 'lucide-vue-next'
 
 
@@ -155,7 +152,7 @@ onMounted(async () => {
       <section class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div class="flex items-center gap-4">
           <div class="p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
-            <Users class="w-6 h-6" />
+            <LayoutDashboard class="w-6 h-6" />
           </div>
           <div>
             <h1 class="text-2xl font-bold text-slate-900 tracking-tight">
