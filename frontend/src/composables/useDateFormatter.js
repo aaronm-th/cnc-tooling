@@ -6,12 +6,26 @@ export function useDateFormatter() {
    */
   const formatDate = (dateInput) => {
     if (!dateInput) return ''
+    
+    // Robustes Parsing wie in Version 1
     const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput
+
+    // Schutz vor "Invalid Date" Objekten (falls der String Müll war)
+    if (isNaN(date.getTime())) return ''
     
     return date.toLocaleDateString('de-DE', {
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric'
+      year: 'numeric',
+      timeZone: 'Europe/Berlin' // Verhindert das lästige Umspringen des Datums
+    })
+  }
+ 
+  const formatTime = (dateStr) => {
+    if (!dateStr) return '--:--'
+    return new Date(dateStr).toLocaleTimeString('de-DE', {
+      hour: '2-digit',
+      minute: '2-digit'
     })
   }
 
@@ -36,6 +50,7 @@ export function useDateFormatter() {
 
   return {
     formatDate,
-    formatTimeForInput
+    formatTimeForInput,
+    formatTime
   }
 }

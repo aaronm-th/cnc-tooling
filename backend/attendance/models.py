@@ -156,7 +156,69 @@ class WSChangeRequest(models.Model):
             if self.requested_check_out <= self.requested_check_in:
                 raise ValidationError("Das Ende muss nach dem Beginn liegen.")
 
-        # 2. Konsistenz-Validierung (Verhindert, dass Day und Session auseinanderlaufen)
+        # Mitarbeiter-Ermittlung für die folgenden Prüfungen
+        employee = None
+        if self.worksession:
+            employee = self.worksession.work_day.employee
+        elif hasattr(self, 'requested_by') and self.requested_by:
+            employee = self.requested_by
+        elif self.work_day:
+            employee = self.work_day.employee
+
+        if employee and self.requested_check_in and self.requested_check_out:
+            # A. Prüfung gegen Eintrittsdatum (joined_at)
+            if hasattr(employee, 'joined_at') and employee.joined_at:
+                if self.requested_check_in.date() < employee.joined_at:
+                    raise ValidationError(
+                        f"Die Arbeitszeit liegt vor dem Eintrittsdatum des Mitarbeiters ({employee.joined_at.strftime('%d.%m.%Y')})."
+                    )
+
+            # B. Prüfung gegen genehmigten Urlaub / Krankheit
+            requested_date = self.requested_check_in.date()
+            has_leave = LeaveRequest.objects.filter(
+                employee=employee,
+                status="approved",
+                leave_start__lte=requested_date,
+                leave_end__gte=requested_date
+            ).exists()
+            if has_leave:
+                raise ValidationError(
+                    "Für diesen Tag liegt bereits ein genehmigter Urlaubs- oder Krankheitsantrag vor. "
+                    "Es können keine Arbeitszeiten korrigiert werden."
+                )
+
+            # C. Überlappungsprüfung mit EXISTIERENDEN WorkSessions
+            overlapping_sessions = WorkSession.objects.filter(
+                work_day__employee=employee,
+                check_in__lt=self.requested_check_out,
+                check_out__gt=self.requested_check_in
+            )
+            
+            # WICHTIG: Wenn dieser Antrag eine existierende Session KORRIGIEREN soll,
+            # müssen wir diese eine Session von der Prüfung ausschließen.
+            if self.worksession:
+                overlapping_sessions = overlapping_sessions.exclude(pk=self.worksession.pk)
+                
+            if overlapping_sessions.exists():
+                raise ValidationError(
+                    "Dieser Zeitraum überschneidet sich mit einer bereits erfassten Arbeitszeit."
+                )
+
+            # D. Überlappungsprüfung mit anderen PENDING Change Requests (bestehend)
+            overlapping_requests = WSChangeRequest.objects.filter(
+                status='pending',
+                work_day__employee=employee,
+                requested_check_in__lt=self.requested_check_out,
+                requested_check_out__gt=self.requested_check_in
+            )
+            if self.pk:
+                overlapping_requests = overlapping_requests.exclude(pk=self.pk)
+            if overlapping_requests.exists():
+                raise ValidationError(
+                    "Es existiert bereits ein ausstehender Korrekturantrag, der sich mit diesem Zeitraum überschneidet."
+                )
+
+        # 2. Konsistenz-Validierung (bestehend)
         if self.worksession and self.work_day:
             if self.worksession.work_day != self.work_day:
                 raise ValidationError(
@@ -164,14 +226,19 @@ class WSChangeRequest(models.Model):
                 )
 
     def save(self, *args, **kwargs):
-        # Falls eine Session existiert, ziehen wir uns die Daten automatisch glatt
         self.full_clean()
 
         if self.worksession:
-            self.old_check_in = self.worksession.check_in
-            self.old_check_out = self.worksession.check_out
+            # old_check_in/old_check_out nur bei der Erstanlage aus der Session ableiten.
+            # Bei approve() wurde die Session zu diesem Zeitpunkt bereits auf die neuen
+            # Zeiten aktualisiert – ein erneutes Ableiten würde old_* mit den neuen
+            # Werten überschreiben und duration_difference_minutes verfälschen.
+            if self.pk is None:
+                self.old_check_in = self.worksession.check_in
+                self.old_check_out = self.worksession.check_out
             self.work_day = self.worksession.work_day
             self.requested_by = self.worksession.work_day.employee
+
         super().save(*args, **kwargs)
 
     def approve(self, reviewer):
@@ -200,20 +267,17 @@ class WSChangeRequest(models.Model):
             session.full_clean()
             session.save()
 
+            # NEU: Verknüpfung setzen – sonst schließt clean() beim folgenden self.save()
+            # die soeben erstellte/aktualisierte Session nicht von der Überlappungsprüfung
+            # aus und schlägt fälschlich gegen sich selbst fehl.
+            self.worksession = session
+
             # Antrag abschließen
             self.status = 'approved'
             self.reviewed_by = reviewer
             self.reviewed_date = timezone.now()
             self.save()
 
-            # Benachrichtigung senden
-            from core.models import Notification
-            Notification.objects.create(
-                recipient=self.requested_by,
-                title="Zeitänderung genehmigt",
-                message=f"Dein Korrekturantrag für den {self.work_day.date.strftime('%d.%m.%Y')} wurde freigegeben.",
-                notification_type="success"
-            )
 
     def reject(self, reviewer, reason):
         self.status = 'rejected'
@@ -294,6 +358,12 @@ class LeaveRequest(models.Model):
 
         if self.actual_vacation_days_to_deduct() == 0 and self.leave_type == 'vacation':
             raise ValidationError("Dieser Zeitraum enthält keine Werktage, die vom Urlaubskonto abgezogen werden könnten.")
+
+        if hasattr(self.employee, 'joined_at') and self.employee.joined_at:
+            if self.leave_start < self.employee.joined_at:
+                raise ValidationError(
+                    f"Der Antrag liegt vor dem Eintrittsdatum des Mitarbeiters ({self.employee.joined_at.strftime('%d.%m.%Y')})."
+                )
 
     def save(self, *args, **kwargs):
         self.full_clean()

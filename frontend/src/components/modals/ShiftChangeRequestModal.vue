@@ -9,7 +9,7 @@ const props = defineProps({
   isLoading: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['close', 'submit', 'withdraw', 'delete-session'])
+const emit = defineEmits(['close', 'submit', 'withdraw'])
 const { formatDate, formatTimeForInput } = useDateFormatter()
 
 const isSubmitted = ref(false)
@@ -30,7 +30,8 @@ const addManualSession = () => {
     orig_check_out: null,
     note: '',
     isPending: false,
-    isNew: true
+    isNew: true,
+    error: null // <-- NEU
   })
 }
 
@@ -41,7 +42,6 @@ watch(() => props.isOpen, (isOpen) => {
     
     if (props.shift?.sessions) {
       localSessions.value = props.shift.sessions.map(session => {
-
         const pendingData = Array.isArray(session.pending_requests) 
           ? session.pending_requests[0] 
           : session.pending_requests
@@ -59,6 +59,7 @@ watch(() => props.isOpen, (isOpen) => {
           orig_check_out: session.check_out ? formatTimeForInput(session.check_out) : null,
           note: pendingData?.employee_note || '',
           isPending: hasPending,
+          error: null, // <-- NEU: Hier speichern wir den Backend-Fehler für diese Session
           pending_details: hasPending ? {
             check_in: formatTimeForInput(pendingData.requested_check_in),
             check_out: formatTimeForInput(pendingData.requested_check_out)
@@ -71,6 +72,7 @@ watch(() => props.isOpen, (isOpen) => {
     localSessions.value = []
   }
 }, { immediate: true })
+
 
 const createPayload = (session) => {
   const payload = {
@@ -90,9 +92,18 @@ const createPayload = (session) => {
 
 const submitSingleSession = (session) => {
   if (!session.note || session.note.trim() === '') return 
-  emit('submit', createPayload(session), () => {
-    session.isPending = true 
-  })
+  
+  session.error = null 
+
+  emit('submit', createPayload(session), 
+    () => {
+      session.isPending = true 
+      session.error = null
+    },
+    (errorMessage) => {
+      session.error = errorMessage || 'Ein unerwarteter Fehler ist aufgetreten.'
+    }
+  )
 }
 
 const handleClose = () => {
@@ -117,9 +128,8 @@ const resetSession = (index) => {
     session.check_out = session.orig_check_out
   }
   session.note = ''
+  session.error = null // <-- NEU
 }
-
-
 
 // Erweitert um den index, um lokale Einträge direkt entfernen zu können
 const handleWithdraw = (session, index) => {
@@ -129,7 +139,8 @@ const handleWithdraw = (session, index) => {
       return
     }
 
-    const targetId = session.id ? session.id : session.change_request_id
+    const targetId = session.change_request_id
+
 
     if (!targetId) {
       console.error("Keine gültige ID zum Löschen gefunden.");
@@ -196,10 +207,13 @@ defineExpose({ isSubmitted })
               <div class="space-y-4">
                 <div v-for="(session, index) in localSessions" :key="session.id || index" 
                   class="p-4 border border-slate-100 rounded-[2rem] bg-white shadow-sm space-y-3 transition-all"
-                  :class="{ 'ring-1 ring-amber-400 border-amber-100 bg-amber-50/5': session.isPending }"
+                  :class="{ 
+                    'ring-1 ring-amber-400 border-amber-100 bg-amber-50/5': session.isPending,
+                    'ring-1 ring-red-400 border-red-100 bg-red-50/5': session.error 
+                  }"
                 >
    
-                <div class="flex justify-between items-center px-1">
+                  <div class="flex justify-between items-center px-1">
                     <span class="text-[9px] font-black uppercase tracking-wider text-slate-400">
                       {{ session.id ? `Eintrag #${index + 1}` : 'Nachträgliche Meldung' }}
                     </span>
@@ -213,8 +227,6 @@ defineExpose({ isSubmitted })
                       >
                         <RotateCcw class="w-2.5 h-2.5" /> Zurücksetzen
                       </button>
-
-                      
 
                       <span v-if="session.isPending" class="text-[9px] font-bold text-amber-600 bg-amber-100/50 px-2 py-0.5 rounded-full flex items-center gap-1">
                         <Clock class="w-2.5 h-2.5" /> Antrag läuft
@@ -251,6 +263,13 @@ defineExpose({ isSubmitted })
                       class="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500/10 resize-none transition-all"
                       placeholder="Grund der Änderung?"
                     ></textarea>
+
+                    <div v-if="session.error" class="p-3 bg-red-50 border border-red-100 rounded-xl flex items-start gap-2.5 text-xs text-red-700">
+                      <AlertCircle class="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                      <div class="flex-1 font-medium">
+                        {{ session.error }}
+                      </div>
+                    </div>
 
                     <div class="flex flex-col gap-2">
                       <template v-if="session.isPending">

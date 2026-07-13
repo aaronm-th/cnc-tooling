@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { AlertCircle, Calendar, History, Search, Filter, ChevronDown, ShieldAlert } from 'lucide-vue-next'
+import { AlertCircle, ShieldAlert, Search, Loader2 } from 'lucide-vue-next'
 import { useAdminStore } from '@/stores/adminStore'
 import { useAppStore } from '@/stores/appStore' 
 import { storeToRefs } from 'pinia'
@@ -15,6 +15,15 @@ const { isLoading } = storeToRefs(adminStore)
 const activeTab = ref(localStorage.getItem('admin_active_tab') || 'leave')
 const searchQuery = ref('')
 const statusFilter = ref('all')
+
+// Gleiche Filter-Optionen wie in der Mitarbeiter-Ansicht (RequestsView.vue),
+// damit beide Ansichten dieselbe Status-Filterleiste verwenden.
+const filters = [
+  { id: 'all', name: 'Alle' },
+  { id: 'pending', name: 'Offen' },
+  { id: 'approved', name: 'Genehmigt' },
+  { id: 'rejected', name: 'Abgelehnt' },
+]
 
 const { 
   requests_count,
@@ -82,67 +91,67 @@ watch(activeTab, (newTab) => {
           />
         </div>
 
-        <!-- Status Filter Dropdown -->
-        <div class="relative min-w-[160px]">
-          <select 
-            v-model="statusFilter"
-            class="w-full appearance-none pl-10 pr-10 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer shadow-sm"
+        <!-- Status Filter Bar (identisch zur Mitarbeiter-Ansicht) -->
+        <div class="flex items-center bg-white p-1 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+          <button 
+            v-for="filter in filters" 
+            :key="filter.id"
+            :class="[
+              'px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap',
+              statusFilter === filter.id 
+                ? 'bg-slate-900 text-white shadow-md' 
+                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+            ]"
+            @click="statusFilter = filter.id"
           >
-            <option value="all">Alle Status</option>
-            <option value="pending">Offen</option>
-            <option value="approved">Genehmigt</option>
-            <option value="rejected">Abgelehnt</option>
-          </select>
-          <Filter class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <ChevronDown class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            {{ filter.name }}
+          </button>
         </div>
       </div>
 
-<!-- Tab-Leiste (Orientiert an deinem Notification-Design) -->
-    <div class="flex border-b border-slate-200">
-      
-      <!-- Tab: Abwesenheiten -->
-      <button 
-        :class="[
-          'pb-3.5 px-6 pr-8 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap relative',
-          activeTab === 'leave'
-            ? 'border-blue-600 text-blue-600'
-            : 'border-transparent text-slate-500 hover:text-slate-800'
-        ]"
-        @click="activeTab = 'leave'"
-      >
-        Abwesenheiten
-        <!-- Roter Punkt exakt wie beim Notification-Badge -->
-        <span 
-          v-if="leave_requests_count > 0" 
-          class="absolute top-1 right-4 w-2 h-2 bg-red-500 rounded-full border-2 border-white"
-        />
-      </button>
-      
-      <!-- Tab: Zeitkorrekturen -->
-      <button 
-        :class="[
-          'pb-3.5 px-6 pr-8 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap relative',
-          activeTab === 'change'
-            ? 'border-blue-600 text-blue-600'
-            : 'border-transparent text-slate-500 hover:text-slate-800'
-        ]"
-        @click="activeTab = 'change'"
-      >
-        Zeitkorrekturen
-        <!-- Roter Punkt exakt wie beim Notification-Badge -->
-        <span 
-          v-if="change_requests_count > 0" 
-          class="absolute top-1 right-4 w-2 h-2 bg-red-500 rounded-full border-2 border-white"
-        />
-      </button>
+      <!-- Tab-Leiste -->
+      <div class="flex border-b border-slate-200">
+        <!-- Tab: Abwesenheiten -->
+        <button 
+          :class="[
+            'pb-3.5 px-6 pr-8 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap relative',
+            activeTab === 'leave'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          ]"
+          @click="activeTab = 'leave'"
+        >
+          Abwesenheiten
+          <!-- Roter Punkt exakt wie beim Notification-Badge -->
+          <span 
+            v-if="leave_requests_count > 0" 
+            class="absolute top-1 right-4 w-2 h-2 bg-red-500 rounded-full border-2 border-white"
+          />
+        </button>
 
-    </div>
+        <!-- Tab: Zeitkorrekturen -->
+        <button 
+          :class="[
+            'pb-3.5 px-6 pr-8 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap relative',
+            activeTab === 'change'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          ]"
+          @click="activeTab = 'change'"
+        >
+          Zeitkorrekturen
+          <!-- Roter Punkt exakt wie beim Notification-Badge -->
+          <span 
+            v-if="change_requests_count > 0" 
+            class="absolute top-1 right-4 w-2 h-2 bg-red-500 rounded-full border-2 border-white"
+          />
+        </button>
+      </div>
 
       <!-- Loading State -->
       <div v-if="isLoading" class="flex flex-col items-center justify-center p-12 space-y-4">
-        <div class="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
-        <p class="text-slate-500 font-medium text-sm">Lade Daten...</p>
+        <Loader2 class="w-8 h-8 animate-spin text-blue-600" />
+        <p class="text-slate-500 font-medium">Daten werden geladen...</p>
       </div>
 
       <!-- Listen-Inhalt -->

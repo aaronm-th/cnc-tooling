@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue' // <-- watch hinzugefügt
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { storeToRefs } from 'pinia'
 import { useEventStyles } from '@/composables/useEventStyles'
+import { useDateFormatter } from '@/composables/useDateFormatter'
 import { Calendar, Clock, Trash2, Edit3, AlertCircle, Loader2, Plus, Send, ChevronDown } from 'lucide-vue-next'
 import RequestLeaveModal from '@/components/modals/RequestLeaveModal.vue'
 
@@ -10,6 +11,7 @@ const scheduleStore = useScheduleStore()
 
 const { leaveRequests, changeRequests, isLoading } = storeToRefs(scheduleStore)
 const { getEventIcon, getIconColorClass, getStatusColorClass } = useEventStyles()
+const { formatDate, formatTime } = useDateFormatter()
 
 const currentFilter = ref('all')
 const selectedMonth = ref('all')
@@ -24,14 +26,6 @@ watch(activeTab, (newTab) => {
 })
 
 const leaveModalRef = ref(null)
-
-const formatTime = (dateStr) => {
-  if (!dateStr) return '--:--'
-  return new Date(dateStr).toLocaleTimeString('de-DE', {
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
 
 const filters = [
   { id: 'all', name: 'Alle' },
@@ -183,14 +177,7 @@ const closeModals = () => {
   editingRequest.value = null
 }
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString('de-DE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  })
-}
+
 </script>
 
 <template>
@@ -424,6 +411,11 @@ const formatDate = (dateStr) => {
                           <span class="line-through text-slate-400">{{ formatTime(request.old_check_in) }} - {{ formatTime(request.old_check_out) }}</span>
                           <span class="text-blue-600 font-bold ml-1.5">→ {{ formatTime(request.requested_check_in) }} - {{ formatTime(request.requested_check_out) }}</span>
                         </span>
+                        
+                        <span v-if="request.time_diff" class="text-[10px] font-bold px-1.5 py-0.5 rounded-md border bg-amber-50 text-amber-600 border-amber-100 shrink-0">
+                          {{ request.time_diff }}
+                        </span>
+
                       </div>
                     </div>
 
@@ -475,9 +467,8 @@ const formatDate = (dateStr) => {
   :is-open="isEditModalOpen || isRequestModalOpen"
   :leaveTypes="[
     { id: 'vacation', name: 'Urlaub' }, 
-    { id: 'sick', name: 'Krankheit' },
-    { id: 'overtime', name: 'GLZ-Abbau' }
-  ]"
+    { id: 'sick', name: 'Krankheit' }
+    ]"
   :initial-data="editingRequest"
   @close="closeModals"
   @submit="handleFormSubmit"

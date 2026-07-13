@@ -69,24 +69,40 @@ const handleLeaveSubmit = async (formData) => {
   }
 }
 
-const handleShiftSubmit = async (payload, onSuccess) => {
+const handleShiftSubmit = async (payload, onSuccess, onError) => {
   try {
+    // Falls deine Komponente oder dein Store ein Lade-Flag nutzt, 
+    // wird dies hier nicht blockiert, da wir den Fehler im Catch-Block behandeln.
     await scheduleStore.submitShiftChangeRequest(payload)
     
+    // 1. Wenn erfolgreich: Modal-Callback für den Success-Status triggern
     if (typeof onSuccess === 'function') {
-      onSuccess() // Setzt isSubmitted im Modal auf true
+      onSuccess()
     }
 
+    // 2. Kalender-Feed im Hintergrund aktualisieren
     const start = calendarDays.value[0].date.toISOString().split('T')[0]
     const end = calendarDays.value[calendarDays.value.length - 1].date.toISOString().split('T')[0]
     await scheduleStore.fetchCalendarFeed(start, end)
     
   } catch (err) {
-    console.error("API Fehler:", err)
-    alert(err.response?.data?.error || "Fehler beim Senden der Korrektur")
+    console.error("API Fehler im Kalender abgefangen:", err)
+    
+    // 3. Fehler-Parsing für Django Rest Framework (DRF) / Django Backend Exceptions
+    // DRF packt serverseitige ValidationErrors meistens in non_field_errors oder detail
+    const errorMessage = 
+      err.response?.data?.non_field_errors?.[0] || 
+      err.response?.data?.detail || 
+      err.response?.data?.error || // Fallback für manuelle JSON-Responses
+      err.response?.data?.[0] || 
+      "Fehler beim Senden der Korrektur";
+
+    // 4. Das Fehler-Callback des Modals aufrufen, um die Nachricht anzuzeigen
+    if (typeof onError === 'function') {
+      onError(errorMessage)
+    }
   }
 }
-
 const handleRequestWithdraw = async (sessionId, callback) => {
   try {
     await scheduleStore.withdrawShiftChangeRequest(sessionId)
@@ -102,20 +118,6 @@ const handleRequestWithdraw = async (sessionId, callback) => {
   }
 }
 
-const handleSessionDelete = async (sessionId, callback) => {
-  try {
-    await scheduleStore.deleteWorkSession(sessionId)
-    
-    if (selectedShift.value) {
-      const sessionIndex = selectedShift.value.sessions.findIndex(s => s.id === sessionId)
-      if (sessionIndex !== -1) selectedShift.value.sessions.splice(sessionIndex, 1)
-    }
-
-    callback()
-  } catch (err) {
-    alert('Fehler beim Löschen der Sitzung.')
-  }
-}
 
 
 // --- EVENT HANDLER ---
@@ -330,7 +332,6 @@ watch(currentDate, fetchSchedule)
       @close="isShiftRequestModalOpen = false"
       @submit="handleShiftSubmit"
       @withdraw="handleRequestWithdraw" 
-      @delete-session="handleSessionDelete"
     />
 
     <EventInfoModal :isOpen="isInfoModalOpen" :event="selectedEvent" @close="isInfoModalOpen = false" />

@@ -3,23 +3,22 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from rest_framework import status
-from rest_framework.exceptions import ValidationError
+
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework.exceptions import ValidationError as DRFValidationError
+
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from drf_spectacular.utils import extend_schema
 
 from .models import WorkSession, WSChangeRequest, WorkDay, LeaveRequest
 from .serializers import (
     LeaveRequestSerializer, 
-    WorkSessionSerializer, 
     WorkSessionDetailSerializer, 
     WSChangeRequestSerializer
 )
 from .utils import send_leave_notification, send_change_notification
-
-
 
 
 
@@ -50,26 +49,33 @@ class LeaveRequestDetailAPIView(RetrieveUpdateDestroyAPIView):
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         if instance.status != 'pending':
-            raise ValidationError({"detail": "Nur offene Anträge können bearbeitet werden."})
+            # Wichtig: Hier nutzen wir DRF-ValidationErrors für korrekte HTTP 400 Antworten im Frontend
+            raise DRFValidationError({"detail": "Nur offene Anträge können bearbeitet werden."})
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        
         instance = self.get_object()
         
         if instance.status in ['approved', 'rejected', 'cancelled']:
-            raise ValidationError({"detail": "Antrag ist bereits erledigt oder storniert."})
+            raise DRFValidationError({"detail": "Antrag ist bereits erledigt oder storniert."})
         
         if instance.leave_end < timezone.now().date():
-            raise ValidationError({"detail": "Vergangene Anträge können nicht storniert werden."})
+            raise DRFValidationError({"detail": "Vergangene Anträge können nicht storniert werden."})
         
-        with transaction.atomic():
-            instance.status = 'cancelled'
-            instance.save()
-            return Response(
-                {"status": "cancelled", "message": "Antrag wurde erfolgreich storniert."}, 
-                status=status.HTTP_200_OK
-            )
+        # Abfangen von Fehlern beim manuellen Speichern (z.B. durch Signal-Trigger oder Constraints)
+        try:
+            with transaction.atomic():
+                instance.status = 'cancelled'
+                # full_clean aufrufen, um sicherzustellen, dass der Statuswechsel erlaubt ist
+                instance.full_clean() 
+                instance.save()
+                return Response(
+                    {"status": "cancelled", "message": "Antrag wurde erfolgreich storniert."}, 
+                    status=status.HTTP_200_OK
+                )
+        except DjangoValidationError as exc:
+            error_messages = exc.message_dict.get('__all__', [str(exc)])
+            raise DRFValidationError({"non_field_errors": error_messages})
         
 class ChangeRequestListAPIView(ListCreateAPIView):
     """GET: Liste aller Anträge, POST: Neuen Antrag erstellen"""
@@ -104,8 +110,9 @@ class WorkSessionRequestAPIView(APIView):
                 existing_request.delete()
                 return Response({"message": "Antrag gelöscht (Zeiten auf Original gesetzt)."}, status=status.HTTP_200_OK)
 
-        serializer = WSChangeRequestSerializer(existing_request, data=request.data, partial=True) if existing_request \
-                     else WSChangeRequestSerializer(data=request.data)
+        context = {'request': request, 'work_day': session.work_day, 'worksession': session}
+        serializer = WSChangeRequestSerializer(existing_request, data=request.data, partial=True, context=context) if existing_request \
+             else WSChangeRequestSerializer(data=request.data, context=context)
 
         if serializer.is_valid():
             # workday wird automatisch im Model-save() aus der session gezogen, 
@@ -121,25 +128,18 @@ class WorkSessionRequestAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        # 1. Suchen der echten WorkSession, die dem Mitarbeiter gehört
-        session = WorkSession.objects.filter(id=pk, work_day__employee=request.user).first()        
-        
-        if session:
-            # Sicherheitscheck: Wenn ein aktiver Änderungsantrag läuft, 
-            # sollte dieser evtl. erst abgelehnt/zurückgezogen werden.
-            # Alternativ kannst du ihn mit session.delete() kaskadierend mitlöschen.
-            with transaction.atomic():
-                session.delete()
-            return Response(
-                {"success": True, "detail": "Arbeitszeit-Eintrag wurde erfolgreich gelöscht."}, 
-                status=status.HTTP_200_OK
-            )
-        
-        # 2. Fallback: Falls die ID keine WorkSession war, prüfen wir, ob es eine reine 
-        # Tag-Nachmeldung (ohne Session) war, deren Antrag gelöscht werden soll.
+        """
+        Zieht einen pending Korrekturantrag (WSChangeRequest) zurück.
+        Gilt sowohl für Anträge zu bestehenden WorkSessions als auch für
+        reine Tages-Nachmeldungen ohne Session.
+
+        WICHTIG: Dieser Endpoint löscht NIE eine WorkSession selbst mehr –
+        das Löschen erfasster Arbeitszeiten ist bewusst nicht (mehr) möglich.
+        'pk' bezieht sich hier also auf die WSChangeRequest-ID, nicht auf
+        die WorkSession-ID (anders als bei GET/POST auf diesem Endpoint!).
+        """
         existing_request = WSChangeRequest.objects.filter(
-            id=pk, 
-            worksession__isnull=True, 
+            id=pk,
             status='pending',
             requested_by=request.user
         ).first()
@@ -147,11 +147,11 @@ class WorkSessionRequestAPIView(APIView):
         if existing_request:
             existing_request.delete()
             return Response(
-                {"success": True, "detail": "Korrekturantrag wurde erfolgreich zurückgezogen."}, 
+                {"success": True, "detail": "Korrekturantrag wurde erfolgreich zurückgezogen."},
                 status=status.HTTP_200_OK
             )
-            
-        return Response({"error": "Eintrag oder offener Antrag nicht gefunden."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({"error": "Offener Antrag nicht gefunden."}, status=status.HTTP_404_NOT_FOUND)
 
 class WorkDayRequestAPIView(APIView):
     """
@@ -162,7 +162,6 @@ class WorkDayRequestAPIView(APIView):
     def post(self, request, pk):
         workday = get_object_or_404(WorkDay, id=pk, employee=request.user)
         
-        # NEU: Wir schauen, ob das Frontend eine spezifische ID des Änderungsantrags mitschickt
         change_request_id = request.data.get('id')
         existing_request = None
         
@@ -173,20 +172,28 @@ class WorkDayRequestAPIView(APIView):
                 worksession__isnull=True,
                 status='pending'
             ).first()
-
-        # Wenn existing_request gefunden wird -> Update, ansonsten -> Echte Neuanlage
-        serializer = WSChangeRequestSerializer(existing_request, data=request.data, partial=True) if existing_request \
-                     else WSChangeRequestSerializer(data=request.data)
+        
+        context = {'request': request, 'work_day': workday}
+        serializer = WSChangeRequestSerializer(existing_request, data=request.data, partial=True, context=context) if existing_request \
+             else WSChangeRequestSerializer(data=request.data, context=context) 
 
         if serializer.is_valid():
-            change_request = serializer.save(
-                work_day=workday,
-                worksession=None, 
-                requested_by=request.user, 
-                status='pending'
-            )
-            send_change_notification(change_request)
-            return Response(serializer.data, status=status.HTTP_200_OK if existing_request else status.HTTP_201_CREATED)
+            try:
+                # Hier wird das Speichern durchgeführt. Sollte wider Erwarten hier
+                # eine Django-ValidationError fliegen, fängt der except-Block sie ab.
+                change_request = serializer.save(
+                    work_day=workday,
+                    worksession=None, 
+                    requested_by=request.user, 
+                    status='pending'
+                )
+                send_change_notification(change_request)
+                return Response(serializer.data, status=status.HTTP_200_OK if existing_request else status.HTTP_201_CREATED)
+                
+            except DjangoValidationError as exc:
+                error_messages = exc.message_dict.get('__all__', [str(exc)])
+                raise DRFValidationError({"non_field_errors": error_messages})
+                
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):

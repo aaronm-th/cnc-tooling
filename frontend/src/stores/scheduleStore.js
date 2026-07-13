@@ -187,20 +187,5 @@ export const useScheduleStore = defineStore('schedule', {
       }
     },
 
-
-    async deleteWorkSession(sessionId) {
-      this.isLoading = true
-      try {
-        const id = this.cleanId(sessionId)
-        await axios.delete(
-          `${import.meta.env.VITE_API_URL}/api/work-session-request/${id}/`, 
-          { headers: this.getAuthHeader() }
-        )
-      } catch (error) {
-        throw error
-      } finally {
-        this.isLoading = false
-      }
-    }
   }
 })
