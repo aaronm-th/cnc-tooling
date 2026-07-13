@@ -184,9 +184,41 @@ const handleSubmit = async () => {
     emit('close')
   } catch (error) {
     console.error("Fehler beim manuellen Eintrag:", error)
-    errorMessage.value = error.response?.data?.detail || 
-                         (error.response?.data && Object.values(error.response.data).flat()[0]) || 
-                         'Fehler beim Speichern des Eintrags.'
+    
+    const responseData = error.response?.data
+    
+    if (responseData) {
+      // Hilfsfunktion, um rekursiv den ersten String aus dem DRF-Fehlerobjekt zu extrahieren
+      const extractFirstError = (obj) => {
+        if (typeof obj === 'string') return obj;
+        if (Array.isArray(obj)) {
+          for (const item of obj) {
+            const found = extractFirstError(item);
+            if (found) return found;
+          }
+        } else if (obj && typeof obj === 'object') {
+          for (const key in obj) {
+            const found = extractFirstError(obj[key]);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      // Erst nach "detail" suchen (Standard bei API-Ausnahmen), sonst das gesamte Objekt durchwühlen
+      if (responseData.detail) {
+        if (typeof responseData.detail === 'string') {
+          errorMessage.value = responseData.detail;
+        } else {
+          errorMessage.value = extractFirstError(responseData.detail) || 'Ein Fehler ist aufgetreten.';
+        }
+      } else {
+        errorMessage.value = extractFirstError(responseData) || 'Validierungsfehler aufgetreten.';
+      }
+
+    } else {
+      errorMessage.value = 'Fehler beim Speichern des Eintrags. Bitte Serververbindung prüfen.';
+    }
   } finally {
     isSubmitting.value = false
   }
@@ -230,20 +262,6 @@ const handleSubmit = async () => {
           <form @submit.prevent="handleSubmit" class="flex flex-col flex-1 min-h-0">
             
             <div class="p-6 space-y-6 overflow-y-auto flex-1 chunk-scroll-area">
-              
-              <Transition
-                enter-active-class="transition duration-200 ease-out"
-                enter-from-class="opacity-0 -translate-y-2"
-                enter-to-class="opacity-100 translate-y-0"
-              >
-                <div v-if="errorMessage" class="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start gap-3">
-                  <AlertCircle class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p class="text-xs text-rose-900 font-bold leading-tight">Fehler beim Speichern</p>
-                    <p class="text-[10px] text-rose-700 mt-1 leading-relaxed">{{ errorMessage }}</p>
-                  </div>
-                </div>
-              </Transition>
 
               <div class="space-y-4">
                 <div class="space-y-2">
@@ -278,6 +296,7 @@ const handleSubmit = async () => {
                     enter-active-class="transition duration-200 ease-out"
                     enter-from-class="opacity-0 -translate-y-2"
                     enter-to-class="opacity-100 translate-y-0"
+                    mode="out-in"
                   >
                     <div 
                       v-if="showLoadedInfo && !isLoadingDay" 
@@ -320,7 +339,20 @@ const handleSubmit = async () => {
                         </p>
                       </div>
                     </div>
+                  </Transition>
 
+                  <Transition
+                    enter-active-class="transition duration-200 ease-out"
+                    enter-from-class="opacity-0 -translate-y-2"
+                    enter-to-class="opacity-100 translate-y-0"
+                  >
+                    <div v-if="errorMessage" class="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start gap-3 mt-3">
+                      <AlertCircle class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p class="text-xs text-rose-900 font-bold leading-tight">Fehler beim Speichern</p>
+                        <p class="text-[10px] text-rose-700 mt-1 leading-relaxed">{{ errorMessage }}</p>
+                      </div>
+                    </div>
                   </Transition>
 
                   <div v-if="entryType === 'work'" class="space-y-3 animate-in fade-in duration-200">
