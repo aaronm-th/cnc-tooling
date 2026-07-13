@@ -13,3 +13,5 @@ OFFEN:
 
 - Design von Mitarbeiter Views an Admin Views anpassen
 
+- "uploaded_by" in reports korrekt ausfüllen
+
