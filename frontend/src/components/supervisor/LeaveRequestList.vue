@@ -89,7 +89,7 @@ const filtered = computed(() => {
           </div>
         </div>
 
-        <div class="w-full lg:w-auto flex lg:opacity-0 lg:group-hover:opacity-100 transition-all shrink-0">
+        <div class="w-full lg:w-auto flex shrink-0">
           <div v-if="req.status === 'pending'" class="flex items-center gap-2 w-full lg:w-auto">
             <button
               @click="adminStore.handleRequestAction(req.id, 'reject')"

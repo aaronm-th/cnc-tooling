@@ -8,9 +8,9 @@ import { useHolidays } from '@/composables/useHolidays'
 import { useDateFormatter } from '@/composables/useDateFormatter'
 const { formatDate } = useDateFormatter()
 
+// Calendar importiert für das Icon in der Filterleiste
 import { 
-  ChevronLeft, 
-  ChevronRight, 
+  Calendar,
   Calendar as CalendarIcon,
   Search,
   User
@@ -20,8 +20,42 @@ const adminStore = useAdminStore()
 const { getEventClass } = useEventStyles()
 const { getHolidaysForYear } = useHolidays()
 
-const viewDate = ref(new Date())
+const currentYear = new Date().getFullYear()
+
+// NEU: Reaktive Variablen für die Dropdowns (Standard: aktueller Monat & aktuelles Jahr)
+const selectedMonth = ref(new Date().getMonth()) // 0 = Januar, 11 = Dezember
+const selectedYear = ref(currentYear)
 const searchQuery = ref('')
+
+// NEU: Jahre-Array für das Dropdown generieren (z. B. aktuelles Jahr -3 bis +3)
+const years = computed(() => {
+  const yearsList = []
+  for (let i = currentYear - 3; i <= currentYear + 3; i++) {
+    yearsList.push(i)
+  }
+  return yearsList
+})
+
+// NEU: Die Monats-Objektliste, passend zu den values im Template (0-11)
+const months = [
+  { value: 0, name: 'Januar' },
+  { value: 1, name: 'Februar' },
+  { value: 2, name: 'März' },
+  { value: 3, name: 'April' },
+  { value: 4, name: 'Mai' },
+  { value: 5, name: 'Juni' },
+  { value: 6, name: 'Juli' },
+  { value: 7, name: 'August' },
+  { value: 8, name: 'September' },
+  { value: 9, name: 'Oktober' },
+  { value: 10, name: 'November' },
+  { value: 11, name: 'Dezember' }
+]
+
+// NEU: Rechnet selectedMonth und selectedYear in das von deinem restlichen Code erwartete Date-Objekt um
+const viewDate = computed(() => {
+  return new Date(selectedYear.value, selectedMonth.value, 1)
+})
 
 // Prüft, ob der Mitarbeiter an diesem Tag bereits im Unternehmen war
 const isBeforeJoinedDate = (member, day) => {
@@ -37,17 +71,11 @@ const isBeforeJoinedDate = (member, day) => {
 }
 
 onMounted(async () => {
-  // Lädt die Daten parallel beim Mounten der Komponente
   await Promise.all([
     adminStore.fetchTeamMembers(),
     adminStore.fetchCalendarEvents()
   ])
 })
-
-const months = [
-  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
-]
 
 // Berechnet Feiertage passend zum aktuell angezeigten Jahr
 const currentHolidays = computed(() => {
@@ -72,20 +100,16 @@ const monthDays = computed(() => {
   return days
 })
 
-// Greift nun fehlerfrei auf die korrekte Store-Variable zu
 const teamMembers = computed(() => {
   return adminStore.filteredTeamMembers(searchQuery.value)
 })
 
-// Kombiniert Backend-Events mit dynamischen Frontend-Feiertagen und Wochenenden
 const getEvents = (member, day) => {
   if (!member || !day) return []
 
-  // 1. Priorität: Echtes Event vom Backend (Arbeit, Krankheit, genehmigter Urlaub)
   const backendEvents = adminStore.getEventsForMemberAndDate(member.name, day)
   if (backendEvents && backendEvents.length > 0) return backendEvents
 
-  // 2. Priorität: Gesetzlicher Feiertag aus dem Frontend-Composable
   if (currentHolidays.value && currentHolidays.value.length > 0) {
     const holidayMatch = currentHolidays.value.find(h => {
       const hDate = new Date(h.date)
@@ -99,20 +123,19 @@ const getEvents = (member, day) => {
         id: `holiday-${day.getTime()}`,
         type: 'holiday',
         title: holidayMatch.name,
-        note: null, // Versteckt das Notizfeld im Tooltip komplett
+        note: null,
         date: day
       }]
     }
   }
 
-  // 3. Priorität: Reguläres Wochenende
   if (isWeekend(day)) {
     const dayName = day.getDay() === 0 ? 'Sonntag' : 'Samstag'
     return [{
       id: `weekend-${day.getTime()}`,
       type: 'weekend',
       title: dayName,
-      note: null, // Versteckt das Notizfeld im Tooltip komplett
+      note: null,
       date: day
     }]
   }
@@ -120,13 +143,7 @@ const getEvents = (member, day) => {
   return []
 }
 
-const prevMonth = () => {
-  viewDate.value = new Date(viewDate.value.getFullYear(), viewDate.value.getMonth() - 1, 1)
-}
-
-const nextMonth = () => {
-  viewDate.value = new Date(viewDate.value.getFullYear(), viewDate.value.getMonth() + 1, 1)
-}
+// HINWEIS: prevMonth und nextMonth wurden entfernt, da sie durch die Dropdowns ersetzt wurden.
 
 const isToday = (date) => {
   const today = new Date()
@@ -184,53 +201,59 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
 </script>
 
 <template>
-  <div class="flex-1 flex flex-col min-h-0 bg-slate-50">
-    <!-- Header-Bereich -->
-    <header class="p-8 pb-6 flex flex-col gap-6">
-      <div class="max-w-7xl w-full mx-auto">
-        <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
-          <CalendarIcon class="w-8 h-8 text-blue-600" />
-          Teamkalender
-        </h1>
-        <p class="text-slate-500 mt-1 text-sm">
-          Anwendungsübersicht für die Urlaubsplanung, Abwesenheiten und wichtige Termine deines Teams. 
-        </p>
-      </div>
+  <div class="flex-1 overflow-y-auto bg-slate-50 p-8">
+    <div class="max-w-7xl mx-auto space-y-8">
+      
+      <!-- Identischer Header -->
+      <section class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
+            <CalendarIcon class="w-6 h-6" />
+          </div>
+          <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Teamkalender</h1>
+            <p class="text-slate-500 text-sm mt-0.5">
+              Anwendungsübersicht für die Urlaubsplanung, Abwesenheiten und wichtige Termine deines Teams.
+            </p>
+          </div>
+        </div>
+      </section>
 
-      <div class="max-w-7xl w-full mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div class="relative w-full sm:max-w-sm h-10">
-          <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+        <div class="relative w-full sm:w-64">
+          <Search class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input 
             v-model="searchQuery"
             type="text" 
-            placeholder="Suche..."
-            class="w-full h-full pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
-          >
+            placeholder="Mitarbeiter suchen..."
+            class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400 transition-all shadow-sm text-slate-800"
+          />
         </div>
 
-        <div class="flex items-center justify-between bg-white px-1 rounded-xl border border-slate-200 shadow-sm w-full sm:w-auto sm:min-w-[240px] h-10">
-          <button 
-            class="p-1.5 hover:bg-slate-100 rounded-lg transition-colors flex items-center justify-center"
-            @click="prevMonth"
-          >
-            <ChevronLeft class="w-4 h-4 text-slate-600" />
-          </button>
-          <div class="px-4 font-bold text-slate-900 min-w-[140px] text-center text-sm select-none leading-none">
-            {{ months[viewDate.getMonth()] }} {{ viewDate.getFullYear() }}
+        <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <div class="relative w-full sm:w-40">
+            <Calendar class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <select 
+              v-model="selectedMonth"
+              class="w-full pl-10 pr-8 py-2 bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer appearance-none"
+            >
+              <option v-for="m in months" :key="m.value" :value="m.value">{{ m.name }}</option>
+            </select>
           </div>
-          <button 
-            class="p-1.5 hover:bg-slate-100 rounded-lg transition-colors flex items-center justify-center"
-            @click="nextMonth"
-          >
-            <ChevronRight class="w-4 h-4 text-slate-600" />
-          </button>
+
+          <div class="relative w-24 shrink-0">
+            <select 
+              v-model="selectedYear"
+              class="w-full pl-3 pr-8 py-2 bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer appearance-none"
+            >
+              <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
+            </select>
+          </div>
         </div>
       </div>
-    </header>
 
-    <!-- Kalender-Grid-Bereich -->
-    <div class="flex-1 overflow-hidden px-8 pb-8">
-      <div class="max-w-7xl mx-auto h-full bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col">
+      <!-- Kalender-Grid-Bereich -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         
         <!-- Tabellen-Header (Tage 1-31) -->
         <div class="flex border-b border-slate-100 bg-slate-50/50 sticky top-0 z-20">
@@ -283,8 +306,7 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
             <!-- Rechter Block: Die Kalendertage im Grid -->
             <div class="flex-1 flex min-w-0 relative">
               
-              <!-- Intelligenter, proportionaler Info-Text: 
-                   Nutzt flex-grow basierend auf der Anzahl inaktiver Tage in diesem Monat -->
+              <!-- Intelligenter Info-Text -->
               <div 
                 v-if="monthDays.filter(d => isBeforeJoinedDate(member, d)).length > 0"
                 class="absolute inset-y-0 left-0 z-10 select-none flex items-center justify-center px-4"
@@ -292,7 +314,6 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
                   width: `${(monthDays.filter(d => isBeforeJoinedDate(member, d)).length / monthDays.length) * 100}%`
                 }"
               >
-                <!-- Blendet den Text komplett aus, wenn der Bereich schmaler als 4 Tage ist -->
                 <span 
                   v-if="monthDays.filter(d => isBeforeJoinedDate(member, d)).length >= 4"
                   :title="`Eintrittsdatum: ${formatDate(member.joined_at)}`"
@@ -313,7 +334,6 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
                     : (isWeekend(day) ? 'bg-slate-50/60' : '')
                 ]"
               >
-                <!-- Events nur anzeigen, wenn der Mitarbeiter an diesem Tag schon im Unternehmen war -->
                 <template v-if="!isBeforeJoinedDate(member, day)">
                   <template v-if="getEvents(member, day).length > 0">
                     <div 
@@ -330,7 +350,7 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
             </div>
           </div>
 
-          <!-- Empty State (Keine Suchtreffer) -->
+          <!-- Empty State -->
           <div 
             v-if="teamMembers?.length === 0" 
             class="flex flex-col items-center justify-center p-20 text-center"
@@ -345,11 +365,9 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
           </div>
         </div>
       </div>
-    </div>
-    
-    <!-- Legend / Footer -->
-    <footer class="px-8 pb-8">
-      <div class="max-w-7xl mx-auto flex items-center justify-center gap-8 py-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
+
+      <!-- Legend / Footer -->
+      <div class="flex items-center justify-center gap-8 py-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
         <div class="flex items-center gap-2">
           <div class="w-3 h-3 rounded bg-amber-100 border border-amber-300" />
           <span class="text-xs font-bold text-slate-600">Offener Antrag</span>
@@ -367,9 +385,9 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
           <span class="text-xs font-bold text-slate-600">Feiertag</span>
         </div>
       </div>
-    </footer>
 
-    <!-- Tooltip-Komponente -->
+    </div>
+
     <EventTooltip 
       :event="hoveredEvent"
       :styles="tooltipStyles"

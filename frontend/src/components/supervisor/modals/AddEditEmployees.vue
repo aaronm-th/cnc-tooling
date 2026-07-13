@@ -29,8 +29,8 @@ const DISPLAY_DAYS = [
   { id: '6', label: 'So' }
 ]
 
-// --- WIZARD & RFID STATES ---
-const step = ref(1) // 1 = Daten eingeben, 2 = Chip verknüpfen
+// --- STATES ---
+const isScanningRFID = ref(false) // Steuert das Overlay für den Scan-Vorgang
 const registrationStatus = ref('waiting') // 'waiting' | 'success' | 'already_assigned' | 'error'
 const scannedChipId = ref('')
 const conflictMemberName = ref('')
@@ -84,7 +84,7 @@ watch(
 
 const populateForm = (data) => {
   isEditingSchema.value = false
-  step.value = 1
+  isScanningRFID.value = false
   registrationStatus.value = 'waiting'
   scannedChipId.value = ''
   conflictMemberName.value = ''
@@ -141,18 +141,11 @@ watch(() => props.isOpen, async (newIsOpen) => {
 // --- RFID POLLING LOGIK ---
 const startPolling = () => {
   stopPolling()
-  // Fragt alle 2 Sekunden das Backend nach dem "letzten unregistrierten Scan"
   pollingInterval = setInterval(async () => {
     try {
-      // Tausche dies gegen deinen echten API-Endpunkt im AdminStore aus
       const res = await adminStore.fetchLatestPendingChip() 
-      
       if (res && res.chip_id) {
-        scannedChipId.value = res.chip_id
-        stopPolling() // Scan erfolgreich erkannt, Polling stoppen
-        
-        // Jetzt finalen Speicherprozess anstoßen
-        executeFinalRegistration(res.chip_id)
+        handleChipDetected(res.chip_id)
       }
     } catch (e) {
       console.error("Fehler beim Abrufen des ausstehenden Chips:", e)
@@ -172,29 +165,45 @@ const enableManualInput = () => {
   stopPolling()
 }
 
-const handleReassignChip = () => {
-  step.value = 2
+const startRFIDScanWorkflow = () => {
+  isScanningRFID.value = true
   registrationStatus.value = 'waiting'
   startPolling()
 }
 
-const handleSubmitStep1 = () => {
-  if (!form.value.first_name || !form.value.last_name) return
-  if (form.value.vacation_days_per_year === '') return
+// Wird aufgerufen, sobald eine ID (egal ob Scan oder Manuell) vorliegt
+const handleChipDetected = async (chipId) => {
+  stopPolling()
+  scannedChipId.value = chipId
 
-  if (props.member) {
-    // Wenn wir nur bearbeiten, müssen wir keinen neuen Chip erzwingen (außer du willst das)
-    // Für dieses Beispiel gehen wir direkt zum Speichern über:
-    executeFinalRegistration(null)
-  } else {
-    // Bei Neuanlage wechseln wir zu Seite 2: "Bitte Chip auflegen"
-    step.value = 2
-    registrationStatus.value = 'waiting'
-    startPolling()
+  try {
+    // Prüfen, ob der Chip bereits vergeben ist (Simulation via API falls nötig, 
+    // oder wir übernehmen ihn temporär ins Formular und lassen das Backend beim finalen Speichern meckern)
+    // Hier weisen wir ihn direkt dem Formular zu und schließen das Scan-Fenster positiv ab:
+    form.value.chip_id = chipId
+    registrationStatus.value = 'success'
+    
+    // Nach kurzem Erfolgsklingeln zurück zum Hauptformular wechseln
+    setTimeout(() => {
+      isScanningRFID.value = false
+    }, 1500)
+
+  } catch (error) {
+    registrationStatus.value = 'error'
   }
 }
 
-const executeFinalRegistration = async (chipId) => {
+const handleManualSubmit = () => {
+  if (scannedChipId.value) {
+    handleChipDetected(scannedChipId.value.toUpperCase())
+  }
+}
+
+// --- FINALES SPEICHERN ---
+const handleFinalSubmit = async () => {
+  if (!form.value.first_name || !form.value.last_name) return
+  if (form.value.vacation_days_per_year === '') return
+
   const schemaChanged = props.member ? isEditingSchema.value : true
 
   try {
@@ -208,51 +217,40 @@ const executeFinalRegistration = async (chipId) => {
       const payload = {
         joined_at: form.value.joined_at,
         overtime_hours: form.value.overtime_balance,
-        vacation_days_per_year: form.value.vacation_days_per_year
+        vacation_days_per_year: form.value.vacation_days_per_year,
+        chip_id: form.value.chip_id // Schickt den aktuell verknüpften Chip mit
       }
       if (schemaChanged) {
         payload.work_days_schema = cleanedSchema
         payload.schema_valid_from = form.value.schema_valid_from
       }
-      
-      // NEU: Wenn ein neuer Chip gescannt/eingegeben wurde, fügen wir ihn dem Update-Payload hinzu
-      if (chipId) {
-        payload.chip_id = chipId
-      }
 
       const response = await adminStore.updateTeamMember(props.member.id, payload)
       
-      // Falls das Backend meldet, dass dieser Chip schon vergeben ist:
       if (response?.status === 'already_assigned') {
-        registrationStatus.value = 'already_assigned'
-        conflictMemberName.value = response.assigned_to || 'Anderer Mitarbeiter'
+        alert(`Fehler: Dieser Chip ist bereits ${response.assigned_to || 'jemand anderem'} zugewiesen.`)
       } else {
-        registrationStatus.value = 'success'
-        if (chipId) form.value.chip_id = chipId // UI aktualisieren
-        setTimeout(() => emit('close'), 2000)
+        emit('close')
       }
       
     } else {
-      // NEUANLAGE (Bleibt unverändert)
+      // NEUANLAGE
       const response = await adminStore.createTeamMember({
         first_name: form.value.first_name,
         last_name: form.value.last_name,
         joined_at: form.value.joined_at,
         work_days_schema: cleanedSchema,
         vacation_days_per_year: form.value.vacation_days_per_year,
-        chip_id: chipId
+        chip_id: form.value.chip_id
       })
 
       if (response?.status === 'already_assigned') {
-        registrationStatus.value = 'already_assigned'
-        conflictMemberName.value = response.assigned_to || 'Anderer Mitarbeiter'
+        alert(`Fehler: Dieser Chip ist bereits ${response.assigned_to || 'jemand anderem'} zugewiesen.`)
       } else {
-        registrationStatus.value = 'success'
-        setTimeout(() => emit('close'), 2000)
+        emit('close')
       }
     }
   } catch (error) {
-    registrationStatus.value = 'error'
     console.error("Fehler bei der Registrierung:", error)
   }
 }
@@ -272,7 +270,7 @@ onBeforeUnmount(() => {
       
       <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
         <h3 class="font-bold text-lg text-slate-900">
-          {{ member ? 'Mitarbeiter bearbeiten' : 'Mitarbeiter anlegen' }}
+          {{ isScanningRFID ? 'RFID Transponder verknüpfen' : (member ? 'Mitarbeiter bearbeiten' : 'Mitarbeiter anlegen') }}
         </h3>
         <button 
           type="button"
@@ -283,7 +281,7 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <form v-if="step === 1" class="p-6 space-y-4" @submit.prevent="handleSubmitStep1">
+      <form v-if="!isScanningRFID" class="p-6 space-y-4" @submit.prevent="handleFinalSubmit">
         
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-1">
@@ -334,7 +332,7 @@ onBeforeUnmount(() => {
               <button 
                 type="button"
                 class="text-[11px] text-blue-600 hover:text-blue-700 font-bold transition-colors cursor-pointer flex-shrink-0"
-                @click="handleReassignChip"
+                @click="startRFIDScanWorkflow"
               >
                 Ändern
               </button>
@@ -345,7 +343,7 @@ onBeforeUnmount(() => {
               <button 
                 type="button"
                 class="text-[11px] text-blue-600 hover:text-blue-700 font-bold transition-colors cursor-pointer flex-shrink-0"
-                @click="handleReassignChip"
+                @click="startRFIDScanWorkflow"
               >
                 Verknüpfen
               </button>
@@ -415,7 +413,7 @@ onBeforeUnmount(() => {
             Abbrechen
           </button>
           <button type="submit" class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-900/20 cursor-pointer">
-            {{ member ? 'Speichern' : 'Weiter zu RFID' }}
+            Fertigstellen
           </button>
         </div>
       </form>
@@ -429,7 +427,7 @@ onBeforeUnmount(() => {
           <div class="space-y-2 w-full text-left">
             <h4 class="font-bold text-slate-900 text-lg text-center">Manuelle Eingabe</h4>
             <p class="text-xs text-slate-500 text-center mb-4">
-              Trage die Hexadezimal-ID des Chips manuell ein (z. B. vom Gehäuse abgelesen).
+              Trage die Hexadezimal-ID des Chips manuell ein.
             </p>
             <label class="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">Chip-ID (Hex)</label>
             <input 
@@ -437,6 +435,7 @@ onBeforeUnmount(() => {
               type="text"
               placeholder="z.B. A3B4C5D6"
               class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-center uppercase tracking-widest"
+              @keyup.enter="handleManualSubmit"
             />
           </div>
           
@@ -444,9 +443,9 @@ onBeforeUnmount(() => {
             type="button"
             :disabled="!scannedChipId"
             class="w-full px-4 py-2.5 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-900/20 cursor-pointer"
-            @click="executeFinalRegistration(scannedChipId.toUpperCase())"
+            @click="handleManualSubmit"
           >
-            Chip manuell verknüpfen
+            Chip übernehmen
           </button>
         </template>
 
@@ -458,7 +457,7 @@ onBeforeUnmount(() => {
           <div class="space-y-2">
             <h4 class="font-bold text-slate-900 text-lg">Bitte Chip auflegen</h4>
             <p class="text-sm text-slate-500 max-w-xs">
-              Halte den neuen RFID-Chip an das Zeiterfassungs-Terminal, um ihn mit <strong>{{ form.first_name }}</strong> zu verknüpfen.
+              Halte den neuen RFID-Chip an das Zeiterfassungs-Terminal.
             </p>
           </div>
           
@@ -476,46 +475,21 @@ onBeforeUnmount(() => {
             <CheckCircle2 class="w-12 h-12" />
           </div>
           <div class="space-y-2">
-            <h4 class="font-bold text-slate-900 text-lg">Erfolgreich verknüpft!</h4>
+            <h4 class="font-bold text-slate-900 text-lg">Erfolgreich zugewiesen!</h4>
             <p class="text-sm text-slate-500">
-              Der Chip <code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs text-slate-700 font-mono">{{ scannedChipId }}</code> wurde zugewiesen.
-            </p>
-          </div>
-        </template>
-
-        <template v-else-if="registrationStatus === 'already_assigned'">
-          <div class="flex items-center justify-center w-24 h-24 bg-amber-50 rounded-full text-amber-600 border border-amber-100">
-            <AlertTriangle class="w-12 h-12" />
-          </div>
-          <div class="space-y-2">
-            <h4 class="font-bold text-slate-900 text-lg">Chip bereits registriert!</h4>
-            <p class="text-sm text-slate-500">
-              Dieser Chip ist bereits aktiv verknüpft mit:<br>
-              <strong class="text-slate-800 text-base block mt-1">{{ conflictMemberName }}</strong>
-            </p>
-          </div>
-        </template>
-
-        <template v-else-if="registrationStatus === 'error'">
-          <div class="flex items-center justify-center w-24 h-24 bg-rose-50 rounded-full text-rose-600 border border-rose-100">
-            <AlertTriangle class="w-12 h-12" />
-          </div>
-          <div class="space-y-2">
-            <h4 class="font-bold text-slate-900 text-lg">Verknüpfung fehlgeschlagen</h4>
-            <p class="text-sm text-slate-500">
-              Beim Speichern im System ist ein Fehler aufgetreten.
+              Der Chip wird im Formular eingetragen...
             </p>
           </div>
         </template>
 
         <div class="pt-4 w-full flex items-center justify-center gap-3 border-t border-slate-100">
           <button 
-            v-if="registrationStatus === 'waiting' || registrationStatus === 'already_assigned' || registrationStatus === 'error'"
+            v-if="registrationStatus === 'waiting'"
             type="button" 
             class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-all cursor-pointer"
-            @click="step = 1; stopPolling(); isManualInput = false;"
+            @click="isScanningRFID = false; stopPolling(); isManualInput = false;"
           >
-            Zurück zu den Daten
+            Abbrechen
           </button>
           
           <button 
@@ -525,15 +499,6 @@ onBeforeUnmount(() => {
             @click="isManualInput = false; startPolling(); scannedChipId = '';"
           >
             Wieder scannen
-          </button>
-          
-          <button 
-            v-if="registrationStatus === 'already_assigned' || registrationStatus === 'error'"
-            type="button" 
-            class="px-5 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-xl text-sm font-bold transition-all cursor-pointer"
-            @click="registrationStatus = 'waiting'; isManualInput ? null : startPolling();"
-          >
-            Erneut versuchen
           </button>
         </div>
 

@@ -148,26 +148,28 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-50">
-    <div class="max-w-6xl mx-auto space-y-8">
+  <div class="flex-1 overflow-y-auto bg-slate-50 p-8">
+    <div class="max-w-7xl mx-auto space-y-8">
       
-      <!-- HEADING SECTION -->
-      <section class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 class="text-3xl font-bold text-slate-900 tracking-tight">
-            Guten Morgen, {{ user?.name ? user.name.split(' ')[0] : 'User' }}!
-          </h1>
-          <p class="text-slate-500 mt-1 flex items-center gap-2">
-            <span>{{ formattedDate }}</span>
-            <span class="text-slate-300">•</span>
-            <span class="font-semibold text-blue-600">
-              {{ formattedTime }}
-            </span>
-          </p>
+      <!-- Heading Section -->
+      <section class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
+            <Users class="w-6 h-6" />
+          </div>
+          <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">
+              Hallo, {{ user?.name || 'Administrator' }}!
+            </h1>
+            <p class="text-slate-500 text-sm mt-0.5">
+              Willkommen zurück. Hier ist die Übersicht über dein Team, anstehende Aufgaben und den aktuellen Status.
+            </p>
+          </div>
         </div>
       </section>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <!-- Stat-Cards Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div class="p-4 bg-blue-50 rounded-2xl text-blue-600">
             <Users class="w-7 h-7" />
@@ -199,11 +201,11 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- MAIN CONTENT GRID -->
+      <!-- Main Content Grid -->
       <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,350px),1fr))] lg:grid-cols-3 gap-8">        
-        <!-- LINKE SEITE: Schnelle Notizen -->
+        <!-- Linke Seite: Schnelle Notizen -->
         <div class="lg:col-span-2 flex flex-col min-w-[480px]">
-          <div class="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col flex-1 min-h-[400px]">
+          <div class="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col flex-1 min-h-[400px] shadow-sm">
             
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
               <h2 class="font-bold text-lg flex items-center gap-2 text-slate-800">
@@ -245,9 +247,9 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- RECHTE SEITE: Die neue To-Do Liste -->
+        <!-- Rechte Seite: To-Do Liste -->
         <div class="lg:col-span-1 flex flex-col min-w-[280px]">
-          <div class="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col flex-1 min-h-[400px]">
+          <div class="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col flex-1 min-h-[400px] shadow-sm">
             
             <!-- Header -->
             <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">

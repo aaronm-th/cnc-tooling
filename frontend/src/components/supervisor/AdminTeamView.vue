@@ -3,8 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useAdminStore } from '@/stores/adminStore'
 import { storeToRefs } from 'pinia'
 import { 
-  MoreVertical, 
-  AlertCircle,
+  Users,
   FileEdit,
   UserX,
   Search,
@@ -134,36 +133,44 @@ const handleDeactivateConfirm = async () => {
 
 <template>
   <div class="flex-1 overflow-y-auto bg-slate-50 p-8">
-    
     <div class="max-w-7xl mx-auto space-y-8">
       
+      <!-- Header -->
       <section class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 class="text-3xl font-bold text-slate-900">Mitarbeiter-Verwaltung</h1>
-          <p class="text-slate-500 mt-1">Stammdaten, Arbeitszeiten und Urlaubsansprüche bearbeiten.</p>
-        </div>
-        
-        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <div class="relative min-w-[260px]">
-            <Search class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input 
-              v-model="searchQuery"
-              type="text" 
-              placeholder="Mitarbeiter suchen..." 
-              class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800"
-            />
+        <div class="flex items-center gap-4">
+          <div class="p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
+            <UserPlus class="w-6 h-6" />
           </div>
-
-          <button 
-            @click="openAddModal"
-            class="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-900/20 cursor-pointer"
-          >
-            <UserPlus class="w-4 h-4" />
-            Mitarbeiter anlegen
-          </button>
+          <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Mitarbeiterverwaltung</h1>
+            <p class="text-slate-500 text-sm mt-0.5">
+              Erstelle neue Profile, bearbeite Berechtigungen und verwalte die Stammdaten deines Teams.
+            </p>
+          </div>
         </div>
       </section>
 
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+        <div class="relative w-full sm:w-64">
+          <Search class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input 
+            v-model="searchQuery"
+            type="text" 
+            placeholder="Mitarbeiter suchen..."
+            class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400 transition-all shadow-sm text-slate-800"
+          />
+        </div>
+        
+        <button 
+          @click="openAddModal"
+          class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-all shadow-sm cursor-pointer shrink-0"
+        >
+          <UserPlus class="w-4 h-4" />
+          <span>Neuen Mitarbeiter anlegen</span>
+        </button>
+      </div>
+
+      <!-- Tabellen-Container -->
       <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
@@ -285,36 +292,13 @@ const handleDeactivateConfirm = async () => {
             </tbody>
           </table>
         </div>
-
       </div>
     </div>
 
-    <AddEditEmployees
-      :is-open="isModalOpen"
-      :member="selectedMember"
-      @close="isModalOpen = false"
-    />
-
-    <UploadDocumentModal
-      :is-open="isUploadModalOpen"
-      :member="selectedMemberForUpload"
-      @close="isUploadModalOpen = false"
-      @success="handleUploadSuccess"
-    />
-
-    <ManualEntryModal
-      :is-open="isManualEntryModalOpen"
-      :member="selectedMemberForEntry"
-      @close="isManualEntryModalOpen = false"
-      @success="handleManualEntrySuccess"
-    />
-
-    <ConfirmDeactivateModal
-      :is-open="isConfirmModalOpen"
-      :member="selectedMemberForDeactivation"
-      @close="isConfirmModalOpen = false"
-      @confirm="handleDeactivateConfirm"
-    />
-
+    <!-- Modals -->
+    <AddEditEmployees :is-open="isModalOpen" :member="selectedMember" @close="isModalOpen = false" />
+    <UploadDocumentModal :is-open="isUploadModalOpen" :member="selectedMemberForUpload" @close="isUploadModalOpen = false" @success="handleUploadSuccess" />
+    <ManualEntryModal :is-open="isManualEntryModalOpen" :member="selectedMemberForEntry" @close="isManualEntryModalOpen = false" @success="handleManualEntrySuccess" />
+    <ConfirmDeactivateModal :is-open="isConfirmModalOpen" :member="selectedMemberForDeactivation" @close="isConfirmModalOpen = false" @confirm="handleDeactivateConfirm" />
   </div>
 </template>

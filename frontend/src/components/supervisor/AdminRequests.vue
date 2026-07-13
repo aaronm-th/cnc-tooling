@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { AlertCircle, ShieldAlert, Search, Loader2 } from 'lucide-vue-next'
+import { AlertCircle, ShieldAlert, Loader2 } from 'lucide-vue-next' // Search entfernt, da nicht mehr benötigt
 import { useAdminStore } from '@/stores/adminStore'
 import { useAppStore } from '@/stores/appStore' 
 import { storeToRefs } from 'pinia'
@@ -13,11 +13,9 @@ const appStore = useAppStore()
 const { isLoading } = storeToRefs(adminStore)
 
 const activeTab = ref(localStorage.getItem('admin_active_tab') || 'leave')
-const searchQuery = ref('')
+const searchQuery = ref('') // Bleibt als leerer String aktiv, damit `:search` keinen Fehler wirft
 const statusFilter = ref('all')
 
-// Gleiche Filter-Optionen wie in der Mitarbeiter-Ansicht (RequestsView.vue),
-// damit beide Ansichten dieselbe Status-Filterleiste verwenden.
 const filters = [
   { id: 'all', name: 'Alle' },
   { id: 'pending', name: 'Offen' },
@@ -41,7 +39,6 @@ onMounted(() => {
   }
 })
 
-// Prüfe hier genau die Klammern:
 watch(() => appStore.activeSubTab, (newSubTab) => {
   if (newSubTab) {
     activeTab.value = newSubTab
@@ -55,52 +52,82 @@ watch(activeTab, (newTab) => {
 </script>
 
 <template>
-  <div class="flex-1 overflow-y-auto p-8 bg-slate-50">
-    <div class="max-w-4xl mx-auto space-y-8">
+  <div class="flex-1 overflow-y-auto bg-slate-50 p-8">
+    <div class="max-w-7xl mx-auto space-y-8">
       
-      <!-- Header & Controls -->
+      <!-- Identischer Header -->
       <section class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <ShieldAlert class="w-6 h-6 text-blue-600" /> Anfragen verwalten
-          </h1>
-          <p class="text-slate-500 mt-1">
-            Zentrale Freigabe und Verwaltung aller Team-Abwesenheiten und Arbeitszeitkorrekturen.
-          </p>
-        </div>
-        
-        <!-- Offen-Badge im Design des Headers -->
-        <div v-if="requests_count > 0" class="flex items-center bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 self-start md:self-center shadow-sm gap-2">
-          <AlertCircle class="w-4 h-4 text-amber-500" />
-          <span class="text-xs font-bold text-amber-700">
-            Offen: {{ requests_count ?? 0 }}
-          </span>
+        <div class="flex items-center gap-4">
+          <div class="p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
+            <ShieldAlert class="w-6 h-6" />
+          </div>
+          <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Anträge & Freigaben</h1>
+            <p class="text-slate-500 text-sm mt-0.5">
+              Prüfe und verwalte die eingereichten Urlaubsanträge und nachträglichen Zeitkorrekturen deines Teams.
+            </p>
+          </div>
         </div>
       </section>
 
-      <!-- Filter- & Suchleiste (Übernommen aus dem Steuerungs-Stil von View 1) -->
-      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        <!-- Suchfeld -->
-        <div class="relative flex-1">
-          <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input 
-            v-model="searchQuery" 
-            type="text" 
-            placeholder="Suchen..." 
-            class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm outline-none"
-          />
+      <!-- DIE KOMBIFILTER-BOX (Eine Box, kein Suchen-Feld mehr) -->
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+        
+        <!-- Linke Seite: Der Typen-Wechsler im edlen Pillen-Stil mit Zahlen-Badges -->
+        <div class="flex items-center gap-1.5 p-1 bg-slate-50 rounded-xl border border-slate-100 w-full sm:w-auto">
+          <!-- Tab: Abwesenheiten -->
+          <button 
+            :class="[
+              'px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2',
+              activeTab === 'leave' 
+                ? 'bg-white text-slate-950 shadow-sm border border-slate-200/60' 
+                : 'text-slate-500 hover:text-slate-800'
+            ]"
+            @click="activeTab = 'leave'"
+          >
+            <span>Abwesenheiten</span>
+            <span 
+              :class="[
+                'px-1.5 py-0.5 rounded-md text-[10px] font-bold transition-all',
+                leave_requests_count > 0 ? 'bg-blue-600 text-white' : 'bg-slate-200/70 text-slate-600'
+              ]"
+            >
+              {{ leave_requests_count }}
+            </span>
+          </button>
+
+          <!-- Tab: Zeitkorrekturen -->
+          <button 
+            :class="[
+              'px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2',
+              activeTab === 'change' 
+                ? 'bg-white text-slate-950 shadow-sm border border-slate-200/60' 
+                : 'text-slate-500 hover:text-slate-800'
+            ]"
+            @click="activeTab = 'change'"
+          >
+            <span>Zeitkorrekturen</span>
+            <span 
+              :class="[
+                'px-1.5 py-0.5 rounded-md text-[10px] font-bold transition-all',
+                change_requests_count > 0 ? 'bg-blue-600 text-white' : 'bg-slate-200/70 text-slate-600'
+              ]"
+            >
+              {{ change_requests_count }}
+            </span>
+          </button>
         </div>
 
-        <!-- Status Filter Bar (identisch zur Mitarbeiter-Ansicht) -->
-        <div class="flex items-center bg-white p-1 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+        <!-- Rechte Seite: Status Filter Bar -->
+        <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/60 overflow-x-auto w-full sm:w-auto">
           <button 
             v-for="filter in filters" 
             :key="filter.id"
             :class="[
-              'px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap',
+              'flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap text-center cursor-pointer',
               statusFilter === filter.id 
-                ? 'bg-slate-900 text-white shadow-md' 
-                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                ? 'bg-white text-slate-900 shadow-sm border border-slate-200/60' 
+                : 'text-slate-500 hover:text-slate-700'
             ]"
             @click="statusFilter = filter.id"
           >
@@ -109,53 +136,15 @@ watch(activeTab, (newTab) => {
         </div>
       </div>
 
-      <!-- Tab-Leiste -->
-      <div class="flex border-b border-slate-200">
-        <!-- Tab: Abwesenheiten -->
-        <button 
-          :class="[
-            'pb-3.5 px-6 pr-8 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap relative',
-            activeTab === 'leave'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          ]"
-          @click="activeTab = 'leave'"
-        >
-          Abwesenheiten
-          <!-- Roter Punkt exakt wie beim Notification-Badge -->
-          <span 
-            v-if="leave_requests_count > 0" 
-            class="absolute top-1 right-4 w-2 h-2 bg-red-500 rounded-full border-2 border-white"
-          />
-        </button>
-
-        <!-- Tab: Zeitkorrekturen -->
-        <button 
-          :class="[
-            'pb-3.5 px-6 pr-8 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap relative',
-            activeTab === 'change'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          ]"
-          @click="activeTab = 'change'"
-        >
-          Zeitkorrekturen
-          <!-- Roter Punkt exakt wie beim Notification-Badge -->
-          <span 
-            v-if="change_requests_count > 0" 
-            class="absolute top-1 right-4 w-2 h-2 bg-red-500 rounded-full border-2 border-white"
-          />
-        </button>
-      </div>
-
       <!-- Loading State -->
-      <div v-if="isLoading" class="flex flex-col items-center justify-center p-12 space-y-4">
+      <div v-if="isLoading" class="flex flex-col items-center justify-center p-12 space-y-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
         <Loader2 class="w-8 h-8 animate-spin text-blue-600" />
-        <p class="text-slate-500 font-medium">Daten werden geladen...</p>
+        <p class="text-slate-500 font-medium text-sm">Daten werden geladen...</p>
       </div>
 
       <!-- Listen-Inhalt -->
       <div v-else class="space-y-6">
+        <!-- Props werden jetzt exakt wie im Original weitergereicht, es bricht nichts ab -->
         <LeaveRequestList 
           v-if="activeTab === 'leave'" 
           :search="searchQuery" 

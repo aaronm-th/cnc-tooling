@@ -73,25 +73,6 @@ const handleDownloadPDF = async (member) => {
   }
 }
 
-// GANZEN MONAT ABRECHNEN (Für alle offenen Mitarbeiter)
-const handleCloseMonthGlobal = async () => {
-  const monthName = months.find(m => m.value === selectedMonth.value)?.name
-  const confirmed = confirm(`Möchtest du den Monat ${monthName} ${selectedYear.value} für ALLE Mitarbeiter abrechnen? Die Stunden werden damit für die Auszahlung fixiert.`)
-  
-  if (!confirmed) return
-
-  isProcessingAction.value = true
-  try {
-    // Aufruf an den (noch zu erstellenden) adminStore
-    await adminStore.closeMonthGlobal(selectedMonth.value, selectedYear.value)
-    alert('Monat erfolgreich abgeschlossen und verriegelt.')
-    await loadReportOverview()
-  } catch (error) {
-    alert('Fehler beim globalen Monatsabschluss.')
-  } finally {
-    isProcessingAction.value = false
-  }
-}
 
 // EINZELNEN MITARBEITER ABRECHNEN ODER WIEDER ÖFFNEN
 const handleToggleEmployeeLock = async (member) => {
@@ -119,42 +100,41 @@ const handleToggleEmployeeLock = async (member) => {
 </script>
 
 <template>
-  <div class="flex-1 overflow-y-auto p-8 bg-slate-50">
-    <div class="max-w-6xl mx-auto space-y-6">
+  <div class="flex-1 overflow-y-auto bg-slate-50 p-8">
+    <div class="max-w-7xl mx-auto space-y-8">
       
-      <section class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2.5">
-            <div class="p-2 bg-blue-50 text-blue-600 rounded-xl">
-              <FileText class="w-6 h-6" />
-            </div>
-            Zeitnachweise & Monatsabschluss
-          </h1>
-          <p class="text-slate-500 mt-1 text-sm">
-            Monatliche Arbeitszeitnachweise einsehen, verriegeln und für die Auszahlung freigeben.
-          </p>
-        </div>
-
-        <div>
-          <button
-            @click="handleCloseMonthGlobal"
-            :disabled="isAdminFetching || isProcessingAction"
-            class="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-950 hover:bg-slate-800 disabled:bg-slate-200 text-white disabled:text-slate-400 font-semibold text-sm rounded-xl shadow-sm transition-all cursor-pointer disabled:cursor-not-allowed"
-          >
-            <Lock class="w-4 h-4" />
-            <span>Kompletten Monat abrechnen</span>
-          </button>
+      <section class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
+            <FileText class="w-6 h-6" />
+          </div>
+          <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Zeitnachweise & Monatsabschluss</h1>
+            <p class="text-slate-500 text-sm mt-0.5">
+              Monatliche Arbeitszeitnachweise einsehen, verriegeln und für die Auszahlung freigeben.
+            </p>
+          </div>
         </div>
       </section>
+      
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm mt-4">
+        <div class="relative w-full sm:w-64">
+          <Search class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input 
+            v-model="searchQuery"
+            type="text" 
+            placeholder="Mitarbeiter suchen..."
+            class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400 transition-all shadow-sm text-slate-800"
+          />
+        </div>
 
-      <section class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between">
-        <div class="flex items-center gap-2 w-full sm:w-auto">
+        <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
           <div class="relative w-full sm:w-40">
-            <Calendar class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <Calendar class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             <select 
               v-model="selectedMonth"
               :disabled="isAdminFetching || isProcessingAction"
-              class="w-full pl-9 pr-8 py-2 bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer appearance-none disabled:opacity-50"
+              class="w-full pl-10 pr-8 py-2 bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer appearance-none disabled:opacity-50"
             >
               <option v-for="m in months" :key="m.value" :value="m.value">{{ m.name }}</option>
             </select>
@@ -164,38 +144,28 @@ const handleToggleEmployeeLock = async (member) => {
             <select 
               v-model="selectedYear"
               :disabled="isAdminFetching || isProcessingAction"
-              class="w-full pl-3 pr-8 py-2 bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer appearance-none disabled:opacity-50"
+              class="w-full pl-3 pr-8 py-2 bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer appearance-none disabled:opacity-50"
             >
               <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
             </select>
           </div>
         </div>
+      </div>
 
-        <div class="relative w-full sm:w-64">
-          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input 
-            v-model="searchQuery"
-            type="text" 
-            placeholder="Mitarbeiter suchen..."
-            class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 placeholder:text-slate-400 transition-colors"
-          />
-        </div>
-      </section>
-
-      <div v-if="isAdminFetching" class="flex flex-col items-center justify-center p-16 bg-white rounded-xl border border-slate-200 shadow-sm space-y-3">
+      <div v-if="isAdminFetching" class="flex flex-col items-center justify-center p-16 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-3">
         <div class="animate-spin inline-block w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full"></div>
         <p class="text-slate-500 font-medium text-xs">Lade Übersicht...</p>
       </div>
 
-      <div v-else class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div v-else class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="bg-slate-50 border-b border-slate-200">
-                <th class="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider w-1/4">Mitarbeiter</th>
-                <th class="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider w-1/4">Arbeitszeitkonto (Monat)</th>
-                <th class="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider w-1/4">Status</th>
-                <th class="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider text-right w-1/4">Aktionen</th>
+              <tr class="bg-slate-50/50 border-b border-slate-100">
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-500 w-1/4">Mitarbeiter</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-500 w-1/4">Arbeitszeitkonto (Monat)</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-500 w-1/4">Status</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-500 text-right w-1/4">Aktionen</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
