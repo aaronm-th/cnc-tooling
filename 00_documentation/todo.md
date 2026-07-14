@@ -17,3 +17,5 @@ OFFEN:
 
 - Mobile Ansicht erstellen
 
+- Bugfix: Admin kann keinen ganzen WorkDay löschen
+
