@@ -15,3 +15,5 @@ OFFEN:
 
 - "uploaded_by" in reports korrekt ausfüllen
 
+- Mobile Ansicht erstellen
+
