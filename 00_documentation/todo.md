@@ -15,3 +15,7 @@ OFFEN:
 
 - "uploaded_by" in reports korrekt ausfüllen
 
+- Mobile Ansicht erstellen
+
+- Bugfix: Admin kann keinen ganzen WorkDay löschen
+
