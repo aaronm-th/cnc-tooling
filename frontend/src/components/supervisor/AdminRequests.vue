@@ -125,15 +125,16 @@ watch(activeTab, (newTab) => {
             :key="filter.id"
             :class="[
               'px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer',
-              currentFilter === filter.id 
+              statusFilter === filter.id 
                 ? 'bg-slate-900 text-white shadow-sm' 
                 : 'text-slate-500 hover:bg-white hover:text-slate-800'
             ]"
-            @click="currentFilter = filter.id"
+            @click="statusFilter = filter.id"
           >
             {{ filter.name }}
           </button>
         </div>
+
       </div>
 
       <!-- Loading State -->
