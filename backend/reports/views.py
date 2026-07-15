@@ -67,7 +67,8 @@ class EmployeeDocumentUploadView(APIView):
             employee=employee,
             file=file_obj,
             original_filename=file_obj.name,
-            document_type=document_type
+            document_type=document_type,
+            uploaded_by = request.user
         )
 
         serializer = EmployeeDocumentSerializer(document, context={'request': request})
