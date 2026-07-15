@@ -6,7 +6,13 @@ import { Clock, Calendar, ArrowRight, CheckCircle2, XCircle, User, AlertCircle }
 import { useEventStyles } from '@/composables/useEventStyles'
 import { useDateFormatter } from '@/composables/useDateFormatter'
 
-const props = defineProps(['search', 'status'])
+const props = defineProps({
+  search: String,
+  status: String,
+  employeeFilter: String, // NEU
+  monthFilter: String     // NEU
+})
+
 const adminStore = useAdminStore()
 const { changeRequests } = storeToRefs(adminStore)
 const { getStatusColorClass } = useEventStyles()
@@ -15,9 +21,50 @@ const { formatDate, formatTime } = useDateFormatter()
 const filtered = computed(() => {
   return changeRequests.value.filter(req => {
     const name = (req.employee_name || req.name || '').toLowerCase()
-    const matchesSearch = name.includes(props.search.toLowerCase())
+
+    // 1. Textsuche
+    const matchesSearch = name.includes((props.search || '').toLowerCase())
+
+    // 2. Status-Filter
     const matchesStatus = props.status === 'all' || req.status === props.status
-    return matchesSearch && matchesStatus
+
+    // 3. NEU: Mitarbeiter-Filter
+    const reqNameNormalized = req.employee_name || req.name || ''
+    const matchesEmployee = props.employeeFilter === 'all' || reqNameNormalized === props.employeeFilter
+
+    // 4. NEU: Monat-Filter
+    let matchesMonth = true
+    if (props.monthFilter && props.monthFilter !== 'all') {
+      const targetDate = req.requested_check_in || req.date
+      if (targetDate) {
+        let ym = ''
+        if (targetDate.includes('-')) {
+          // ISO-Format: "2026-07-15..." -> "2026-07"
+          ym = targetDate.substring(0, 7)
+        } else if (targetDate.includes('.')) {
+          // Deutsches Format: "15.07.2026" -> "2026-07"
+          const parts = targetDate.split('.')
+          if (parts.length === 3) {
+            const day = parts[0].trim()
+            const month = parts[1].trim().padStart(2, '0')
+            const year = parts[2].trim().substring(0, 4)
+            ym = `${year}-${month}`
+          }
+        } else {
+          // Fallback
+          const dateObj = new Date(targetDate)
+          if (!isNaN(dateObj.getTime())) {
+            ym = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`
+          }
+        }
+        
+        matchesMonth = ym === props.monthFilter
+      } else {
+        matchesMonth = false
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesEmployee && matchesMonth
   })
 })
 </script>

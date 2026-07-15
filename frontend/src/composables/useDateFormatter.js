@@ -7,17 +7,37 @@ export function useDateFormatter() {
   const formatDate = (dateInput) => {
     if (!dateInput) return ''
     
-    // Robustes Parsing wie in Version 1
-    const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput
+    let date;
 
-    // Schutz vor "Invalid Date" Objekten (falls der String Müll war)
-    if (isNaN(date.getTime())) return ''
+    if (typeof dateInput === 'string') {
+      // Falls das Datum Punkte enthält (z.B. "15.07.2026"), wandeln wir es 
+      // für den JS-Parser temporär in das lesbare ISO-Format "2026-07-15" um
+      if (dateInput.includes('.')) {
+        const parts = dateInput.split('.')
+        if (parts.length === 3) {
+          const day = parts[0].trim().padStart(2, '0')
+          const month = parts[1].trim().padStart(2, '0')
+          const year = parts[2].trim().substring(0, 4)
+          date = new Date(`${year}-${month}-${day}T00:00:00`)
+        }
+      } 
+      
+      // Falls es kein deutsches Format war, nutzen wir den Standard-Parser
+      if (!date || isNaN(date.getTime())) {
+        date = new Date(dateInput)
+      }
+    } else {
+      date = dateInput
+    }
+
+    // Schutz vor "Invalid Date" Objekten[cite: 3]
+    if (!date || isNaN(date.getTime())) return ''
     
     return date.toLocaleDateString('de-DE', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
-      timeZone: 'Europe/Berlin' // Verhindert das lästige Umspringen des Datums
+      timeZone: 'Europe/Berlin' // Verhindert das Umspringen des Datums[cite: 3]
     })
   }
  
