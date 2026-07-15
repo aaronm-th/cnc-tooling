@@ -6,7 +6,7 @@ from django.db.models import Sum, F, ExpressionWrapper, DurationField
 from django.utils import timezone
 
 from .tasks import generate_workdays_for_range
-from core.models import Employee
+from core.models import Employee, is_month_locked, first_locked_month
 import holidays
 
 from django.utils.timezone import now
@@ -56,7 +56,14 @@ class WorkSession(models.Model):
         super().clean()
         if self.check_out and self.check_in >= self.check_out:
             raise ValidationError("Check-out muss vor Check-out liegen.")
-            
+
+        # NEU: Monatssperre – tiefste Sicherheitsnetz-Ebene. Greift für JEDE
+        # WorkSession, egal über welchen Codepfad sie erzeugt/geändert wird.
+        if is_month_locked(self.work_day.employee, self.work_day.date):
+            raise ValidationError(
+                "Dieser Monat ist bereits abgeschlossen. Zeiten können nicht mehr geändert werden."
+            )
+
         # Validierung gegen ALLE Sessions des Mitarbeiters (auch tagübergreifend)
         overlapping = WorkSession.objects.filter(
             work_day__employee=self.work_day.employee,
@@ -243,6 +250,14 @@ class WSChangeRequest(models.Model):
 
     def approve(self, reviewer):
         """ Genehmigt den Antrag und aktualisiert/erstellt die WorkSession direkt """
+        # NEU: Monatssperre prüfen, BEVOR irgendetwas verändert wird. Fängt den
+        # Fall ab, dass ein Antrag vor Monatsabschluss gestellt, aber erst
+        # danach genehmigt wird.
+        if is_month_locked(self.work_day.employee, self.work_day.date):
+            raise ValidationError(
+                f"Der Monat {self.work_day.date.strftime('%m/%Y')} ist bereits abgeschlossen und kann nicht mehr bearbeitet werden."
+            )
+
         with transaction.atomic():
             # Überlappungsprüfung
             overlapping = self.work_day.sessions.filter(
@@ -346,6 +361,10 @@ class LeaveRequest(models.Model):
 
         # WICHTIG: Wenn der Antrag storniert oder abgelehnt ist/wird, 
         # müssen wir vergangene Daten oder Überlappungen nicht mehr blockieren.
+        # (Bewusst KEINE Monatssperr-Prüfung hier: sonst würde auch reject()/
+        # cancel() über gesperrte Zeiträume blockiert, obwohl das unkritisch
+        # ist. Die Sperre wird gezielt beim Anlegen (Serializer) und bei der
+        # Genehmigung (approve() / Supervisor-View) geprüft.)
         if self.status in ['cancelled', 'rejected']:
             return
 
@@ -404,6 +423,15 @@ class LeaveRequest(models.Model):
         return len(self.get_affected_dates())
 
     def approve(self, user):
+        # NEU: Monatssperre über den gesamten Zeitraum prüfen, BEVOR irgendetwas
+        # verändert wird. Relevant für alle Aufrufer dieser Methode (aktuell
+        # nicht die Supervisor-View, aber z.B. Admin-Actions/zukünftiger Code).
+        locked_month = first_locked_month(self.employee, self.leave_start, self.leave_end)
+        if locked_month:
+            raise ValidationError(
+                f"Der Monat {locked_month.strftime('%m/%Y')} ist bereits abgeschlossen und kann nicht mehr bearbeitet werden."
+            )
+
         with transaction.atomic():
             self.status = "approved"
             self.reviewed_by = user

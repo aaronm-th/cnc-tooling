@@ -49,9 +49,6 @@ class SupervisorDashboardStatsView(APIView):
             "employees": serializer.data,
             "employees_count": subordinates.count(),
             "on_leave_today": on_leave_today,
-            "requests_count": leave_requests+change_requests,
-            "change_requests_count": change_requests,
-            "leave_requests_count": leave_requests,
             "active_employees": active_employees
         })
     

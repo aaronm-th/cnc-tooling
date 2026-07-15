@@ -27,5 +27,5 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         if obj.employee.photo and request:
             return request.build_absolute_uri(obj.employee.photo.url)
         return None
-    
+
 

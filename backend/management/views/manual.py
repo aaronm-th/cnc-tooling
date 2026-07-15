@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from management.permissions import IsSupervisor
 from management.serializers import ManualEntrySerializer
 
-from core.models import Employee
+from core.models import Employee, is_month_locked
 from attendance.models import WorkDay
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -73,3 +73,36 @@ class ManualEntriesView(APIView):
         
         # Wenn Validierungsfehler auftreten, senden wir die exakten Feld-Fehler an das Vue-Frontend
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @transaction.atomic
+    def delete(self, request, *args, **kwargs):
+        """
+        Löscht einen kompletten manuellen Eintrag (WorkDay inkl. aller
+        zugehörigen WorkSessions per CASCADE).
+
+        DELETE /api/mgmt/manual-entries/?member_id=<id>&date=YYYY-MM-DD
+        """
+        member_id = request.query_params.get('member_id')
+        date_str = request.query_params.get('date')
+
+        if not member_id or not date_str:
+            return Response(
+                {"error": "member_id und date sind erforderlich."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        employee = get_object_or_404(Employee, id=member_id)
+        work_day = get_object_or_404(WorkDay, employee=employee, date=date_str)
+
+        if is_month_locked(employee, work_day.date):
+            month_formatted = work_day.date.strftime('%m/%Y')
+            return Response(
+                {"error": f"Der Monat {month_formatted} ist bereits abgeschlossen und kann nicht mehr bearbeitet werden."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        work_day.delete()
+        return Response(
+            {"detail": "Eintrag erfolgreich gelöscht."},
+            status=status.HTTP_200_OK
+        )

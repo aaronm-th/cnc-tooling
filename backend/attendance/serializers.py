@@ -2,7 +2,7 @@ from datetime import timedelta
 from rest_framework import serializers
 
 # Core Services & Models
-from core.models import VacationQuota
+from core.models import VacationQuota, first_locked_month, is_month_locked
 from core.services.vacation_service import VacationService
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -96,6 +96,16 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
                     {"leave_start": "Der gewählte Zeitraum enthält keine Arbeitstage (nur Wochenende)."}
                 )
 
+            # NEU: Monatssperre – verhindert, dass ein Mitarbeiter überhaupt
+            # einen Antrag für einen bereits abgeschlossenen Monat anlegt
+            # oder nachträglich in einen gesperrten Monat verschiebt.
+            locked_month = first_locked_month(employee, start, end)
+            if locked_month:
+                raise serializers.ValidationError(
+                    {"leave_start": f"Der Monat {locked_month.strftime('%m/%Y')} ist bereits abgeschlossen. "
+                                      "Für diesen Zeitraum kann kein Antrag mehr gestellt werden."}
+                )
+
         # --- Bestehende Urlaubs-Quoten Prüfung ---
         if leave_type == 'vacation' and start and end:
             quota, _ = VacationQuota.objects.get_or_create(
@@ -179,6 +189,17 @@ class WSChangeRequestSerializer(serializers.ModelSerializer):
         worksession = self.context.get('worksession')
         if worksession:
             instance.worksession = worksession
+
+        # NEU: Monatssperre – verhindert, dass überhaupt ein neuer
+        # Korrekturantrag für einen abgeschlossenen Monat gestellt/geändert
+        # werden kann (unabhängig davon, ob er später genehmigt würde).
+        if instance.work_day and is_month_locked(instance.work_day.employee, instance.work_day.date):
+            raise serializers.ValidationError({
+                "non_field_errors": [
+                    f"Der Monat {instance.work_day.date.strftime('%m/%Y')} ist bereits abgeschlossen "
+                    "und kann nicht mehr bearbeitet werden."
+                ]
+            })
         
         try:
             instance.full_clean()

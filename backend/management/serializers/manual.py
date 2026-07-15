@@ -4,7 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 
-from core.models import Employee
+from core.models import Employee, is_month_locked
 from attendance.models import WorkDay, WorkSession
 
 class ManualSessionSerializer(serializers.Serializer):
@@ -40,6 +40,14 @@ class ManualEntrySerializer(serializers.Serializer):
             joined_formatted = employee.joined_at.strftime('%d.%m.%Y')
             raise serializers.ValidationError({
                 "date": _(f"Einträge vor dem Eintrittsdatum ({joined_formatted}) sind nicht erlaubt.")
+            })
+
+        # NEU: Monatssperre – verhindert neue/geänderte manuelle Einträge für
+        # bereits abgeschlossene (per closeEmployeeMonth) Monate.
+        if is_month_locked(employee, date_obj):
+            month_formatted = date_obj.strftime('%m/%Y')
+            raise serializers.ValidationError({
+                "date": _(f"Der Monat {month_formatted} ist bereits abgeschlossen und kann nicht mehr bearbeitet werden.")
             })
 
         if entry_type in ['vacation', 'sick']:

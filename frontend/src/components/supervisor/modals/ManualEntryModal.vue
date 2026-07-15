@@ -23,6 +23,9 @@ const note = ref('')
 const errorMessage = ref('')
 const isSubmitting = ref(false)
 const isLoadingDay = ref(false)
+const isDeleting = ref(false)
+const showDeleteConfirm = ref(false)
+const deleteError = ref('')
 
 // Info über einen ggf. bereits bestehenden Tag (für den Warnhinweis)
 const existingDayType = ref(null)          // Rohwert, z.B. 'work', 'vacation', 'sick'
@@ -42,6 +45,13 @@ const showLoadedInfo = computed(() =>
 const showOverwriteWarning = computed(() =>
   existingDayType.value !== null &&
   existingDayType.value !== entryType.value
+)
+
+// Löschen ist nur sinnvoll, wenn für diesen Tag tatsächlich schon ein
+// Eintrag existiert (nicht während des Ladens, sonst könnte man versehentlich
+// einen Tag löschen, dessen Zustand noch gar nicht feststeht)
+const canDelete = computed(() =>
+  existingDayType.value !== null && !isLoadingDay.value
 )
 
 // Jede Session: { _key, id (null = neu), check_in, check_out }
@@ -70,6 +80,9 @@ function resetForm() {
   errorMessage.value = ''
   isSubmitting.value = false
   isLoadingDay.value = false
+  isDeleting.value = false
+  showDeleteConfirm.value = false
+  deleteError.value = ''
   sessions.value = [makeSession()]
   deletedSessionIds.value = []
   existingDayType.value = null
@@ -221,6 +234,23 @@ const handleSubmit = async () => {
     }
   } finally {
     isSubmitting.value = false
+  }
+}
+
+const handleDelete = async () => {
+  isDeleting.value = true
+  deleteError.value = ''
+
+  try {
+    await adminStore.deleteManualEntry(props.member.id, date.value)
+    emit('success')
+    emit('close')
+  } catch (error) {
+    console.error("Fehler beim Löschen des Eintrags:", error)
+    deleteError.value = error.response?.data?.error || 'Eintrag konnte nicht gelöscht werden.'
+    showDeleteConfirm.value = false
+  } finally {
+    isDeleting.value = false
   }
 }
 </script>
@@ -429,33 +459,97 @@ const handleSubmit = async () => {
 
             <!-- FIXIERTER FOOTER -->
             <!-- Durch die Platzierung außerhalb der Scroll-Zone bleiben die Buttons immer unten stehen -->
-            <div class="p-6 border-t border-slate-100 bg-slate-50/50 flex gap-3 shrink-0">
-              <button 
-                type="button" 
-                @click="$emit('close')" 
-                :disabled="isSubmitting" 
-                class="flex-1 py-3.5 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all disabled:opacity-50"
-              >
-                Abbrechen
-              </button>
-              <button 
-                type="submit" 
-                :disabled="isSubmitting || !isFormValid()" 
-                class="flex-1 py-3.5 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
-                :class="[
-                  !isFormValid()
-                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
-                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20'
-                ]"
-              >
-                <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
-                <template v-else>
-                  Eintrag buchen
-                </template>
-              </button>
+            <div class="p-6 border-t border-slate-100 bg-slate-50/50 flex flex-col gap-3 shrink-0">
+              <div v-if="deleteError" class="p-3 bg-rose-50 border border-rose-100 rounded-xl flex items-start gap-2">
+                <AlertCircle class="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <p class="text-[10px] text-rose-700 leading-relaxed">{{ deleteError }}</p>
+              </div>
+
+              <div class="flex gap-3">
+                <button 
+                  type="button" 
+                  @click="$emit('close')" 
+                  :disabled="isSubmitting || isDeleting" 
+                  class="flex-1 py-3.5 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all disabled:opacity-50"
+                >
+                  Abbrechen
+                </button>
+                <button 
+                  v-if="canDelete"
+                  type="button"
+                  @click="showDeleteConfirm = true"
+                  :disabled="isSubmitting || isDeleting"
+                  class="py-3.5 px-4 bg-rose-50 text-rose-600 rounded-xl text-sm font-bold hover:bg-rose-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  title="Diesen Eintrag vollständig löschen"
+                >
+                  <Trash2 class="w-4 h-4" />
+                </button>
+                <button 
+                  type="submit" 
+                  :disabled="isSubmitting || isDeleting || !isFormValid()" 
+                  class="flex-1 py-3.5 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+                  :class="[
+                    !isFormValid()
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
+                      : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20'
+                  ]"
+                >
+                  <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
+                  <template v-else>
+                    Eintrag buchen
+                  </template>
+                </button>
+              </div>
             </div>
           </form>
         </div>
+
+        <!-- LÖSCH-BESTÄTIGUNG (eigenes Overlay über dem Modal) -->
+        <Transition
+          enter-active-class="transition duration-200 ease-out"
+          enter-from-class="opacity-0"
+          enter-to-class="opacity-100"
+          leave-active-class="transition duration-150 ease-in"
+          leave-from-class="opacity-100"
+          leave-to-class="opacity-0"
+        >
+          <div v-if="showDeleteConfirm" class="absolute inset-0 z-10 flex items-center justify-center p-6">
+            <div @click="!isDeleting && (showDeleteConfirm = false)" class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm rounded-3xl"></div>
+            <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+              <div class="flex items-start gap-3">
+                <div class="p-2 bg-rose-100 rounded-xl shrink-0">
+                  <AlertTriangle class="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">Eintrag wirklich löschen?</h3>
+                  <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    Der komplette Eintrag ("{{ existingDayTypeDisplay }}") für {{ member?.name }} am
+                    {{ date }} inklusive aller erfassten Zeiten wird unwiderruflich entfernt.
+                  </p>
+                </div>
+              </div>
+              <div class="flex gap-3">
+                <button
+                  type="button"
+                  @click="showDeleteConfirm = false"
+                  :disabled="isDeleting"
+                  class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all disabled:opacity-50"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="button"
+                  @click="handleDelete"
+                  :disabled="isDeleting"
+                  class="flex-1 py-3 bg-rose-600 text-white rounded-xl text-sm font-bold hover:bg-rose-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <Loader2 v-if="isDeleting" class="w-4 h-4 animate-spin" />
+                  <template v-else>Ja, löschen</template>
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
       </div>
     </Transition>
   </Teleport>

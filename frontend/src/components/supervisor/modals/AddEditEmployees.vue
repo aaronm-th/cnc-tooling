@@ -30,13 +30,70 @@ const DISPLAY_DAYS = [
 ]
 
 // --- STATES ---
-const isScanningRFID = ref(false) // Steuert das Overlay für den Scan-Vorgang
-const registrationStatus = ref('waiting') // 'waiting' | 'success' | 'already_assigned' | 'error'
+const isScanningRFID = ref(false) 
+const registrationStatus = ref('waiting') 
 const scannedChipId = ref('')
 const conflictMemberName = ref('')
 const isManualInput = ref(false)
-let pollingInterval = null
+let pollingInterval = null // Polling-Interval-Referenz
 
+// --- RFID POLLING LOGIK (Zuerst deklarieren, damit andere Funktionen darauf zugreifen können) ---
+const stopPolling = () => {
+  if (pollingInterval) {
+    clearInterval(pollingInterval)
+    pollingInterval = null
+  }
+}
+
+const startPolling = () => {
+  stopPolling()
+  pollingInterval = setInterval(async () => {
+    try {
+      const res = await adminStore.fetchLatestPendingChip() 
+      if (res && res.chip_id) {
+        handleChipDetected(res.chip_id)
+      }
+    } catch (e) {
+      console.error("Fehler beim Abrufen des ausstehenden Chips:", e)
+    }
+  }, 2000)
+}
+
+const enableManualInput = () => {
+  isManualInput.value = true
+  stopPolling()
+}
+
+const startRFIDScanWorkflow = () => {
+  isScanningRFID.value = true
+  registrationStatus.value = 'waiting'
+  startPolling()
+}
+
+const handleChipDetected = async (chipId) => {
+  stopPolling()
+  scannedChipId.value = chipId
+
+  try {
+    form.value.chip_id = chipId
+    registrationStatus.value = 'success'
+    
+    setTimeout(() => {
+      isScanningRFID.value = false
+    }, 1500)
+
+  } catch (error) {
+    registrationStatus.value = 'error'
+  }
+}
+
+const handleManualSubmit = () => {
+  if (scannedChipId.value) {
+    handleChipDetected(scannedChipId.value.toUpperCase())
+  }
+}
+
+// --- HELPER & FORMULAR STATE ---
 const todayISO = () => new Date().toISOString().split('T')[0]
 const defaultSchema = () => ({ '0': 8, '1': 8, '2': 8, '3': 8, '4': 8, '5': 0, '6': 0 })
 const hasSchema = (schema) => schema && Object.keys(schema).length > 0
@@ -89,7 +146,7 @@ const populateForm = (data) => {
   scannedChipId.value = ''
   conflictMemberName.value = ''
   isManualInput.value = false
-  stopPolling()
+  stopPolling() // ✅ Existiert jetzt bereits im Scope!
 
   if (data) {
     form.value = {
@@ -134,70 +191,9 @@ watch(() => props.isOpen, async (newIsOpen) => {
       populateForm(null)
     }
   } else {
-    stopPolling()
+    stopPolling() // ✅ Existiert jetzt bereits im Scope!
   }
 }, { immediate: true })
-
-// --- RFID POLLING LOGIK ---
-const startPolling = () => {
-  stopPolling()
-  pollingInterval = setInterval(async () => {
-    try {
-      const res = await adminStore.fetchLatestPendingChip() 
-      if (res && res.chip_id) {
-        handleChipDetected(res.chip_id)
-      }
-    } catch (e) {
-      console.error("Fehler beim Abrufen des ausstehenden Chips:", e)
-    }
-  }, 2000)
-}
-
-const stopPolling = () => {
-  if (pollingInterval) {
-    clearInterval(pollingInterval)
-    pollingInterval = null
-  }
-}
-
-const enableManualInput = () => {
-  isManualInput.value = true
-  stopPolling()
-}
-
-const startRFIDScanWorkflow = () => {
-  isScanningRFID.value = true
-  registrationStatus.value = 'waiting'
-  startPolling()
-}
-
-// Wird aufgerufen, sobald eine ID (egal ob Scan oder Manuell) vorliegt
-const handleChipDetected = async (chipId) => {
-  stopPolling()
-  scannedChipId.value = chipId
-
-  try {
-    // Prüfen, ob der Chip bereits vergeben ist (Simulation via API falls nötig, 
-    // oder wir übernehmen ihn temporär ins Formular und lassen das Backend beim finalen Speichern meckern)
-    // Hier weisen wir ihn direkt dem Formular zu und schließen das Scan-Fenster positiv ab:
-    form.value.chip_id = chipId
-    registrationStatus.value = 'success'
-    
-    // Nach kurzem Erfolgsklingeln zurück zum Hauptformular wechseln
-    setTimeout(() => {
-      isScanningRFID.value = false
-    }, 1500)
-
-  } catch (error) {
-    registrationStatus.value = 'error'
-  }
-}
-
-const handleManualSubmit = () => {
-  if (scannedChipId.value) {
-    handleChipDetected(scannedChipId.value.toUpperCase())
-  }
-}
 
 // --- FINALES SPEICHERN ---
 const handleFinalSubmit = async () => {
@@ -213,12 +209,11 @@ const handleFinalSubmit = async () => {
     })
 
     if (props.member) {
-      // BEARBEITEN
       const payload = {
         joined_at: form.value.joined_at,
         overtime_hours: form.value.overtime_balance,
         vacation_days_per_year: form.value.vacation_days_per_year,
-        chip_id: form.value.chip_id // Schickt den aktuell verknüpften Chip mit
+        chip_id: form.value.chip_id
       }
       if (schemaChanged) {
         payload.work_days_schema = cleanedSchema
@@ -234,7 +229,6 @@ const handleFinalSubmit = async () => {
       }
       
     } else {
-      // NEUANLAGE
       const response = await adminStore.createTeamMember({
         first_name: form.value.first_name,
         last_name: form.value.last_name,

@@ -1,4 +1,5 @@
 import datetime
+from datetime import timedelta
 import calendar
 from datetime import date
 import holidays
@@ -11,6 +12,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.conf import settings
 from django.core.exceptions import ValidationError
+
+
 
 class Employee(AbstractUser):
     # E-Mail wird optional, da Offline-Betrieb
@@ -368,6 +371,36 @@ class MonthlyPayout(models.Model):
 
     def __str__(self):
         return f"{self.employee.name} - {self.month:02d}/{self.year}: {self.overtime_paid} Std ausgezahlt"
+
+
+def is_month_locked(employee, date_obj) -> bool:
+    """
+    Prüft, ob für den Mitarbeiter im Monat von date_obj bereits eine
+    abgeschlossene (verarbeitete) Abrechnung existiert.
+    """
+    return MonthlyPayout.objects.filter(
+        employee=employee,
+        year=date_obj.year,
+        month=date_obj.month,
+        is_processed=True,
+    ).exists()
+
+
+def first_locked_month(employee, start_date, end_date):
+    """
+    Prüft einen Datumsbereich (z.B. einen Urlaubsantrag, der über einen
+    Monatswechsel geht) auf abgeschlossene Monate.
+    Gibt das erste gesperrte Monats-Datum zurück oder None.
+    """
+    current = start_date.replace(day=1)
+    last = end_date.replace(day=1)
+    while current <= last:
+        if is_month_locked(employee, current):
+            return current
+        current = (current.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return None
+
+
 
 
 class Notification(models.Model):

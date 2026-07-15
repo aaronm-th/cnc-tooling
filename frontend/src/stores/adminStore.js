@@ -197,6 +197,23 @@ export const useAdminStore = defineStore('admin', {
       }
     },
 
+    async deleteManualEntry(memberId, date) {
+      this.isLoading = true
+      try {
+        const token = localStorage.getItem('access_token')
+        await axios.delete(`${import.meta.env.VITE_API_URL}/api/mgmt/manual-entries/`, {
+          params: { member_id: memberId, date },
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        await this.fetchTeamMembers()
+      } catch (error) {
+        console.error("Fehler beim Löschen des manuellen Eintrags:", error)
+        throw error
+      } finally {
+        this.isLoading = false
+      }
+    },
+
     async fetchWorkDayDetail(memberId, date) {
       try {
         const token = localStorage.getItem('access_token')

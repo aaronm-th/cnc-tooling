@@ -10,6 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from attendance.models import LeaveRequest, WSChangeRequest, WorkDay
 from management.permissions import IsSupervisor
 from management.serializers import LeaveRequestSerializer, ChangeRequestSerializer
+from core.models import first_locked_month
 from core.utils import create_notification
 from django.core.exceptions import ValidationError
 
@@ -30,6 +31,20 @@ class HandleLeaveRequestView(APIView):
         action = request.data.get('action')
         
         leave_request = get_object_or_404(LeaveRequest, id=request_id)
+
+        # NEU: Monatssperre - nur beim Genehmigen relevant. Ablehnen eines
+        # Antrags für einen gesperrten Monat bleibt bewusst immer möglich,
+        # da es keine Stunden/WorkDays verändert.
+        if action == 'approve':
+            locked_month = first_locked_month(
+                leave_request.employee, leave_request.leave_start, leave_request.leave_end
+            )
+            if locked_month:
+                return Response(
+                    {'error': f"Der Monat {locked_month.strftime('%m/%Y')} ist bereits abgeschlossen "
+                               "und kann nicht mehr bearbeitet werden."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         with transaction.atomic():
             if action == 'approve':
@@ -98,6 +113,9 @@ class HandleChangeRequestView(APIView):
 
         if action == 'approve':
             try:
+                # change_req.approve() prüft die Monatssperre bereits selbst
+                # (siehe attendance/models.py) und wirft bei Bedarf eine
+                # ValidationError - hier nur sauber als 400 abfangen.
                 change_req.approve(reviewer=request.user)
             except ValidationError as e:
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
