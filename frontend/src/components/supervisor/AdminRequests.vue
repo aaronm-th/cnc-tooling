@@ -119,17 +119,17 @@ watch(activeTab, (newTab) => {
         </div>
 
         <!-- Rechte Seite: Status Filter Bar -->
-        <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/60 overflow-x-auto w-full sm:w-auto">
+        <div class="flex items-center bg-slate-50 p-1 rounded-xl border border-slate-200/60 overflow-x-auto w-full sm:w-auto justify-start sm:justify-end">
           <button 
             v-for="filter in filters" 
             :key="filter.id"
             :class="[
-              'flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap text-center cursor-pointer',
-              statusFilter === filter.id 
-                ? 'bg-white text-slate-900 shadow-sm border border-slate-200/60' 
-                : 'text-slate-500 hover:text-slate-700'
+              'px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer',
+              currentFilter === filter.id 
+                ? 'bg-slate-900 text-white shadow-sm' 
+                : 'text-slate-500 hover:bg-white hover:text-slate-800'
             ]"
-            @click="statusFilter = filter.id"
+            @click="currentFilter = filter.id"
           >
             {{ filter.name }}
           </button>
