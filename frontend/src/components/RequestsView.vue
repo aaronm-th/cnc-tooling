@@ -35,6 +35,7 @@ const filters = [
   { id: 'rejected', name: 'Abgelehnt' },
 ]
 
+
 const monthOptions = computed(() => {
   const options = [{ id: 'all', name: 'Alle Monate' }]
   const now = new Date()
@@ -154,9 +155,9 @@ const handleLeaveSuccess = () => {
 
 <template>
   <div class="flex-1 overflow-y-auto p-8 bg-slate-50">
-    <div class="max-w-4xl mx-auto space-y-8">
+    <div class="max-w-7xl mx-auto space-y-8">
       
-      <!-- HEADER (NEUES ADMIN-DESIGN-LAYOUT) -->
+      <!-- HEADER -->
       <section class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div class="flex items-center gap-4">
           <div class="p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
@@ -169,65 +170,67 @@ const handleLeaveSuccess = () => {
         </div>
       </section>
 
-      <!-- FILTERZEILE ALS COMPACT-CARD -->
-      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
-        
-        <!-- Monats-Dropdown -->
-        <div class="relative min-w-[180px] w-full sm:w-auto">
-          <Calendar class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          <select 
-            v-model="selectedMonth"
-            class="w-full pl-10 pr-8 py-2 bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer appearance-none shadow-sm"
-          >
-            <option v-for="month in monthOptions" :key="month.id" :value="month.id">
-              {{ month.name }}
-            </option>
-          </select>
-          <ChevronDown class="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
-
-        <!-- Status Filter Bar -->
-        <div class="flex items-center bg-slate-50 p-1 rounded-xl border border-slate-200/60 overflow-x-auto w-full sm:w-auto justify-start sm:justify-end">
+      <!-- DIE KOMBIFILTER-BOX (Identisch zum neuen Admin-Design) -->
+      <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+          
+        <div class="flex items-center gap-1.5 p-1 bg-slate-50 rounded-xl border border-slate-100 w-full lg:w-auto overflow-x-auto min-w-0 shrink-0">
           <button 
-            v-for="filter in filters" 
-            :key="filter.id"
             :class="[
-              'px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer',
-              currentFilter === filter.id 
+              'flex-1 lg:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-2',
+              activeTab === 'leave' 
                 ? 'bg-slate-900 text-white shadow-sm' 
-                : 'text-slate-500 hover:bg-white hover:text-slate-800'
+                : 'text-slate-500 hover:text-slate-800'
             ]"
-            @click="currentFilter = filter.id"
+            @click="activeTab = 'leave'"
           >
-            {{ filter.name }}
+            <span>Urlaubsanträge</span>
+          </button>
+
+          <button 
+            :class="[
+              'flex-1 lg:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-2',
+              activeTab === 'change' 
+                ? 'bg-slate-900 text-white shadow-sm' 
+                : 'text-slate-500 hover:text-slate-800'
+            ]"
+            @click="activeTab = 'change'"
+          >
+            <span>Zeitkorrekturen</span>
           </button>
         </div>
-      </div>
 
-      <!-- Tab-Leiste -->
-      <div class="flex border-b border-slate-200 bg-white/50 px-2 rounded-xl pt-1">
-        <button 
-          :class="[
-            'pb-3 px-6 font-bold text-xs tracking-wider uppercase border-b-2 transition-all cursor-pointer whitespace-nowrap',
-            activeTab === 'leave'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-400 hover:text-slate-700'
-          ]"
-          @click="activeTab = 'leave'"
-        >
-          Urlaubsanträge
-        </button>
-        <button 
-          :class="[
-            'pb-3 px-6 font-bold text-xs tracking-wider uppercase border-b-2 transition-all cursor-pointer whitespace-nowrap',
-            activeTab === 'change'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-400 hover:text-slate-700'
-          ]"
-          @click="activeTab = 'change'"
-        >
-          Änderungsanträge (Korrekturen)
-        </button>
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto flex-wrap">
+          
+          <div class="relative flex-1 sm:flex-none min-w-[140px]">
+            <Calendar class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            <select 
+              v-model="selectedMonth"
+              class="w-full sm:w-40 pl-9 pr-8 py-1.5 bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer appearance-none shadow-sm"
+            >
+              <option v-for="month in monthOptions" :key="month.id" :value="month.id">
+                {{ month.name }}
+              </option>
+            </select>
+            <ChevronDown class="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          <div class="flex items-center bg-slate-50 p-1 rounded-xl border border-slate-200/60 overflow-x-auto w-full sm:w-auto min-w-0">
+            <button 
+              v-for="filter in filters" 
+              :key="filter.id"
+              :class="[
+                'flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer text-center',
+                currentFilter === filter.id 
+                  ? 'bg-slate-900 text-white shadow-sm' 
+                  : 'text-slate-500 hover:bg-white hover:text-slate-800'
+              ]"
+              @click="currentFilter = filter.id"
+            >
+              {{ filter.name }}
+            </button>
+          </div>
+        </div>
+
       </div>
 
       <!-- Loading State -->
