@@ -75,3 +75,6 @@ LOGGING = {
         'level': 'INFO',
     },
 }
+
+
+MIDDLEWARE.insert(2, 'config.middleware.RestrictAdminToTailscaleMiddleware')
