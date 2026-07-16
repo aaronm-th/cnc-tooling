@@ -7,10 +7,12 @@ import { useAuthStore } from '@/stores/authStore'
 import { storeToRefs } from 'pinia'
 
 defineProps({
-  currentTab: { type: String, required: true }
+  currentTab: { type: String, required: true },
+  isOpen: { type: Boolean, default: false },
+  isAdminView: { type: Boolean, default: true }  // NEU
 })
+const emit = defineEmits(['update:currentTab', 'close'])
 
-const emit = defineEmits(['update:currentTab'])
 
 const authStore = useAuthStore()
 const { isSupervisor } = storeToRefs(authStore)
@@ -36,7 +38,19 @@ const adminNav = [
 </script>
 
 <template>
-  <aside class="w-64 bg-slate-900 text-white flex flex-col">
+
+  <div 
+    v-if="isOpen" 
+    @click="emit('close')"
+    class="fixed inset-0 bg-black/50 z-40 md:hidden"
+  ></div>
+
+  <aside 
+    class="fixed md:static top-0 left-0 h-screen w-64 bg-slate-900 text-white flex flex-col z-50
+           transition-transform duration-300 ease-in-out
+           md:translate-x-0"
+    :class="isOpen ? 'translate-x-0' : '-translate-x-full'"
+  >
     <div class="p-6 flex items-center gap-4 border-b border-slate-800/50">
       <div class="w-15 h-15 flex items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 p-0 shadow-md border border-slate-700/50">
         <img 

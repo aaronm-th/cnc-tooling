@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, watch, onUnmounted } from 'vue'
-import { Bell, Palmtree, Zap, User, LogOut} from 'lucide-vue-next'
+import { Bell, Palmtree, Zap, User, LogOut, Menu} from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/authStore' 
 import { useAdminStore } from '@/stores/adminStore'
 import { storeToRefs } from 'pinia'
@@ -52,7 +52,7 @@ const stopStatsPolling = () => {
   }
 }
 
-const emit = defineEmits(['openEditProfile', 'logout'])
+const emit = defineEmits(['openEditProfile', 'logout', 'toggleSidebar'])
 
 const toggleProfileMenu = () => {
   isProfileMenuOpen.value = !isProfileMenuOpen.value
@@ -115,8 +115,17 @@ watch(() => authStore.isAuthenticated, (val) => {
   <header class="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8">
     <div class="flex items-center gap-8 flex-1">
       
+      <button 
+        @click="$emit('toggleSidebar')" 
+        class="md:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+      >
+        <Menu class="w-6 h-6" />
+      </button>
+
       <!-- Header Stats -->
       <div class="hidden md:flex items-center gap-6">
+
+
 
         <!-- ================= MITARBEITER-ANSICHT ================= -->
         <template v-if="!isSupervisor">

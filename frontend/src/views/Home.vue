@@ -31,6 +31,8 @@ const adminStore = useAdminStore()
 const appStore = useAppStore()
 const router = useRouter()
 const isReady = ref(false)
+const isMobileSidebarOpen = ref(false)
+
 
 const { user, isSupervisor } = storeToRefs(authStore)
 const { activeTab } = storeToRefs(appStore) // Wir nutzen activeTab aus dem Store
@@ -145,15 +147,23 @@ const quickLinks = [
 
 <template>
   <div class="flex h-screen overflow-hidden">
+    
+    
+    
+    
+    
     <AppSidebar 
-      v-model:currentTab="appStore.activeTab" 
-      v-model:isAdminView="isAdminView"
+        v-model:currentTab="appStore.activeTab" 
+        v-model:isAdminView="isAdminView"
+        :isOpen="isMobileSidebarOpen"
+        @close="isMobileSidebarOpen = false"
     />
 
     <main class="flex-1 flex flex-col overflow-hidden">
       <AppHeader 
         @openEditProfile="isEditProfileModalOpen = true"
         @logout="logout"
+        @toggleSidebar="isMobileSidebarOpen = !isMobileSidebarOpen"
       />
 
       <div class="flex-1 overflow-y-auto bg-slate-50">
