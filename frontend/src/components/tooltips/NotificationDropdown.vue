@@ -97,8 +97,11 @@ const getNotificationColor = (type) => {
 
     <div 
       v-if="isOpen" 
-      class="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-100"
+      class="fixed left-4 right-4 top-20 mx-auto max-w-sm
+             md:absolute md:inset-x-auto md:top-auto md:right-0 md:mt-2 md:w-80 md:max-w-none md:mx-0
+             bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-[100]"
     >
+
       <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
         <h3 class="font-bold text-slate-900 text-sm">Benachrichtigungen</h3>
         
@@ -170,6 +173,6 @@ const getNotificationColor = (type) => {
 
     </div>
 
-    <div v-if="isOpen" class="fixed inset-0 z-100‚" @click="emit('close')" />
+    <div v-if="isOpen" class="fixed inset-0 z-[90]" @click="emit('close')" />
   </div>
-</template>‚
+</template>
