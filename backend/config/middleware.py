@@ -1,4 +1,4 @@
-# in deiner middleware.py
+from django.conf import settings
 from django.http import HttpResponseForbidden
 
 class RestrictAdminToTailscaleMiddleware:
@@ -6,15 +6,20 @@ class RestrictAdminToTailscaleMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        # Im Entwicklungsmodus (DEBUG = True) überspringen wir die Prüfung komplett
+        if settings.DEBUG:
+            return self.get_response(request)
+
         if request.path.startswith('/admin/'):
-            host = request.get_host() # Holt den Hostnamen (z.B. "100.115.80.90" oder "minipc.tailscale.net")
+            host = request.get_host().lower() # .lower() verhindert Probleme bei Groß-/Kleinschreibung
             
-            # Prüfen, ob der Aufruf NICHT über Tailscale kam
-            # (Entweder fängt die IP mit 100. an, oder sie enthält deinen Tailscale-Domainnamen)
+            # 1. Erlaubte Hostnamen definieren
+            is_tailscale_name = (host == 'stempelsystem' or '.ts.net' in host)
             is_tailscale_ip = host.startswith('100.')
-            is_tailscale_domain = '.ts.net' in host # MagicDNS von Tailscale
+            is_localhost = host.startswith('localhost') or host.startswith('127.0.0.1')
             
-            if not (is_tailscale_ip or is_tailscale_domain):
+            # 2. Zugriff prüfen
+            if not (is_tailscale_name or is_tailscale_ip or is_localhost):
                 return HttpResponseForbidden("Admin-Zugriff nur via Tailscale erlaubt.")
 
         return self.get_response(request)
