@@ -152,7 +152,7 @@
       <!-- MAIN CONTENT GRID -->
       <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,350px),1fr))] lg:grid-cols-3 gap-8">        
         <!-- LINKE SEITE: Schnelle Notizen -->
-        <div class="lg:col-span-2 flex flex-col min-w-[480px]">
+        <div class="lg:col-span-2 flex flex-col min-w-[280px]">
           <div class="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col flex-1 min-h-[400px]">
             
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
