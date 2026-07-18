@@ -20,7 +20,7 @@ const { formatDate, formatTime } = useDateFormatter()
 
 const filtered = computed(() => {
   return changeRequests.value.filter(req => {
-    const name = (req.employee_name || req.name || '').toLowerCase()
+    const name = (req.requester?.name || '').toLowerCase()
 
     // 1. Textsuche
     const matchesSearch = name.includes((props.search || '').toLowerCase())
@@ -29,7 +29,7 @@ const filtered = computed(() => {
     const matchesStatus = props.status === 'all' || req.status === props.status
 
     // 3. NEU: Mitarbeiter-Filter
-    const reqNameNormalized = req.employee_name || req.name || ''
+    const reqNameNormalized = req.requester?.name || ''
     const matchesEmployee = props.employeeFilter === 'all' || reqNameNormalized === props.employeeFilter
 
     // 4. NEU: Monat-Filter

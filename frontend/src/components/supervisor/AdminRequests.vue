@@ -42,7 +42,8 @@ const employeeOptions = computed(() => {
     if (r.employee_name || r.name) names.add(r.employee_name || r.name)
   })
   changeRequests.value.forEach(r => {
-    if (r.employee_name || r.name) names.add(r.employee_name || r.name)
+    const n = r.requester?.name
+    if (n) names.add(n)
   })
   
   return ['all', ...Array.from(names).sort()]
