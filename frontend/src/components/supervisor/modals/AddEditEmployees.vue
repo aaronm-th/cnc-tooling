@@ -309,7 +309,8 @@ onBeforeUnmount(() => {
                 v-model="form.joined_at" 
                 required
                 type="date" 
-                class="w-full min-w-0 pl-4 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700 font-medium"
+                style="-webkit-appearance: none;"
+                class="w-full min-w-0 max-w-full box-border appearance-none pl-4 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700 font-medium"
               />
               <CalendarDays class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
@@ -385,7 +386,7 @@ onBeforeUnmount(() => {
 
           <div v-if="member && isEditingSchema" class="pt-1 space-y-1">
             <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Neues Schema gilt ab</label>
-            <input v-model="form.schema_valid_from" type="date" :min="todayISO()" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+            <input v-model="form.schema_valid_from" type="date" :min="todayISO()" style="-webkit-appearance: none;" class="w-full min-w-0 max-w-full box-border appearance-none px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
           </div>
         </div>
 
