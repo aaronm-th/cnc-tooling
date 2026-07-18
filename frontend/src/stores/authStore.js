@@ -81,8 +81,11 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async fetchNotes() {
+      // ZUERST PRÜFEN: Gibt es überhaupt ein Token?
+      const token = localStorage.getItem('access_token')
+      if (!token) return // Falls kein Token da ist, abbrechen!
+
       try {
-        const token = localStorage.getItem('access_token')
         // Erwartet vom Backend z.B. { notes: "Hallo Welt" }
         const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/user/scratchpad/`, {
           headers: { Authorization: `Bearer ${token}` }
@@ -92,7 +95,6 @@ export const useAuthStore = defineStore('auth', {
         return this.notes
       } catch (err) {
         console.error("Fehler beim Laden der Notizen vom Server:", err)
-        // Fallback auf LocalStorage, falls die API offline ist
         const userId = this.user?.id || 'guest'
         this.notes = localStorage.getItem(`dashboard_scratchpad_${userId}`) || ''
       }
@@ -114,60 +116,63 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async fetchTodos() {
-    try {
+      // ZUERST PRÜFEN: Gibt es überhaupt ein Token?
       const token = localStorage.getItem('access_token')
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/user/todos/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      this.todos = res.data
-      return this.todos
-    } catch (err) {
-      console.error("Fehler beim Laden der To-Dos:", err)
-    }
-  },
+      if (!token) return // Falls kein Token da ist, abbrechen!
 
-  async addTodo(text) {
-    try {
-      const token = localStorage.getItem('access_token')
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/user/todos/`, 
-        { text },
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
-      // Das vom Server erstellte Todo (inkl. echter ID) lokal hinzufügen
-      this.todos.push(res.data)
-    } catch (err) {
-      console.error("Fehler beim Erstellen des To-Dos:", err)
-    }
-  },
+      try {
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/user/todos/`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        this.todos = res.data
+        return this.todos
+      } catch (err) {
+        console.error("Fehler beim Laden der To-Dos:", err)
+      }
+    },
 
-  async toggleTodo(todoId, completedStatus) {
-    try {
-      const token = localStorage.getItem('access_token')
-      await axios.put(`${import.meta.env.VITE_API_URL}/api/user/todos/`, 
-        { id: todoId, completed: completedStatus },
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
-      // Lokalen Zustand anpassen
-      const todo = this.todos.find(t => t.id === todoId)
-      if (todo) todo.completed = completedStatus
-    } catch (err) {
-      console.error("Fehler beim Aktualisieren des To-Dos:", err)
-    }
-  },
+    async addTodo(text) {
+      try {
+        const token = localStorage.getItem('access_token')
+        const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/user/todos/`, 
+          { text },
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        // Das vom Server erstellte Todo (inkl. echter ID) lokal hinzufügen
+        this.todos.push(res.data)
+      } catch (err) {
+        console.error("Fehler beim Erstellen des To-Dos:", err)
+      }
+    },
 
-  async deleteTodo(todoId) {
-    try {
-      const token = localStorage.getItem('access_token')
-      await axios.delete(`${import.meta.env.VITE_API_URL}/api/user/todos/`, {
-        headers: { Authorization: `Bearer ${token}` },
-        data: { id: todoId } // Axios benötigt bei DELETE die Daten im 'data' Objekt
-      })
-      // Lokal entfernen
-      this.todos = this.todos.filter(t => t.id !== todoId)
-    } catch (err) {
-      console.error("Fehler beim Löschen des To-Dos:", err)
-    }
-  },
+    async toggleTodo(todoId, completedStatus) {
+      try {
+        const token = localStorage.getItem('access_token')
+        await axios.put(`${import.meta.env.VITE_API_URL}/api/user/todos/`, 
+          { id: todoId, completed: completedStatus },
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        // Lokalen Zustand anpassen
+        const todo = this.todos.find(t => t.id === todoId)
+        if (todo) todo.completed = completedStatus
+      } catch (err) {
+        console.error("Fehler beim Aktualisieren des To-Dos:", err)
+      }
+    },
+
+    async deleteTodo(todoId) {
+      try {
+        const token = localStorage.getItem('access_token')
+        await axios.delete(`${import.meta.env.VITE_API_URL}/api/user/todos/`, {
+          headers: { Authorization: `Bearer ${token}` },
+          data: { id: todoId } // Axios benötigt bei DELETE die Daten im 'data' Objekt
+        })
+        // Lokal entfernen
+        this.todos = this.todos.filter(t => t.id !== todoId)
+      } catch (err) {
+        console.error("Fehler beim Löschen des To-Dos:", err)
+      }
+    },
 
 
   logout() {
@@ -196,7 +201,6 @@ export const useAuthStore = defineStore('auth', {
       delete axios.defaults.headers.common['Authorization']
     }
     
-    // HIER KEIN window.location.href mehr!
   }
   }
 })
