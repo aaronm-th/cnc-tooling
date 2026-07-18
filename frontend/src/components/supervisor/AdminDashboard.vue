@@ -166,7 +166,7 @@ onMounted(async () => {
       </section>
 
       <!-- Stat-Cards Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div class="p-4 bg-blue-50 rounded-2xl text-blue-600">
             <Users class="w-7 h-7" />
@@ -199,9 +199,8 @@ onMounted(async () => {
       </div>
 
       <!-- Main Content Grid -->
-      <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,350px),1fr))] lg:grid-cols-3 gap-8">        
-        <!-- Linke Seite: Schnelle Notizen -->
-        <div class="lg:col-span-2 flex flex-col min-w-[280px]">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="sm:col-span-2 lg:col-span-2 flex flex-col min-w-0">
           <div class="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col flex-1 min-h-[400px] shadow-sm">
             
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
@@ -245,16 +244,16 @@ onMounted(async () => {
         </div>
 
         <!-- Rechte Seite: To-Do Liste -->
-        <div class="lg:col-span-1 flex flex-col min-w-[280px]">
+        <div class="sm:col-span-2 lg:col-span-1 flex flex-col min-w-0">
           <div class="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col flex-1 min-h-[400px] shadow-sm">
             
             <!-- Header -->
-            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-              <h2 class="font-bold text-lg flex items-center gap-2 text-slate-800">
-                <ListChecks class="w-5 h-5 text-blue-600" />
-                Meine Aufgaben
+            <div class="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+              <h2 class="font-bold text-lg flex items-center gap-2 text-slate-800 min-w-0 truncate">
+                <ListChecks class="w-5 h-5 text-blue-600 shrink-0" />
+                <span class="truncate">Meine Aufgaben</span>
               </h2>
-              <span class="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+              <span class="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">
                 {{ todos.filter(t => !t.completed).length }} offen
               </span>
             </div>
@@ -265,7 +264,7 @@ onMounted(async () => {
                 v-model="newTodoText"
                 type="text" 
                 placeholder="Neue Aufgabe hinzufügen..." 
-                class="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700"
+                class="flex-1 min-w-0 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700"
               />
               <button 
                 type="submit" 
