@@ -301,21 +301,21 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
-          <div class="space-y-1">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="space-y-1 min-w-0">
             <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">Eintrittsdatum</label>
             <div class="relative">
               <input 
                 v-model="form.joined_at" 
                 required
                 type="date" 
-                class="w-full pl-4 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700 font-medium"
+                class="w-full min-w-0 pl-4 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700 font-medium"
               />
               <CalendarDays class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
 
-          <div class="space-y-1">
+          <div class="space-y-1 min-w-0">
             <label class="text-xs font-bold uppercase text-slate-500 tracking-wider">RFID Transponder</label>
             
             <div v-if="form.chip_id" class="flex items-center justify-between gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl h-[38px]">
