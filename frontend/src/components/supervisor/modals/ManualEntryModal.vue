@@ -47,11 +47,14 @@ const showOverwriteWarning = computed(() =>
   existingDayType.value !== entryType.value
 )
 
-// Löschen ist nur sinnvoll, wenn für diesen Tag tatsächlich schon ein
-// Eintrag existiert (nicht während des Ladens, sonst könnte man versehentlich
-// einen Tag löschen, dessen Zustand noch gar nicht feststeht)
+// Löschen ist nur sinnvoll, wenn der Nutzer bereits eine "Art des Eintrags"
+// gewählt hat UND für diesen Tag tatsächlich schon ein Eintrag existiert
+// (nicht während des Ladens, sonst könnte man versehentlich einen Tag
+// löschen, dessen Zustand noch gar nicht feststeht)
 const canDelete = computed(() =>
-  existingDayType.value !== null && !isLoadingDay.value
+  entryType.value !== '' &&
+  existingDayType.value !== null &&
+  !isLoadingDay.value
 )
 
 // Jede Session: { _key, id (null = neu), check_in, check_out }
@@ -300,7 +303,8 @@ const handleDelete = async () => {
                     v-model="entryType"
                     required
                     :disabled="isSubmitting"
-                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[length:1rem_1rem] bg-[right_1rem_center] bg-no-repeat"
+                    style="-webkit-appearance: none; -moz-appearance: none; text-overflow: ellipsis;"
+                    class="w-full min-w-0 pl-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[length:1rem_1rem] bg-[right_1rem_center] bg-no-repeat"
                   >
                     <option value="" disabled selected>Bitte Typ auswählen...</option>
                     <option v-for="type in ENTRY_TYPES" :key="type.value" :value="type.value">
@@ -318,7 +322,7 @@ const handleDelete = async () => {
                       type="date" 
                       required
                       :disabled="isSubmitting" 
-                      class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                      class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
                     />
                   </div>
 
@@ -391,26 +395,26 @@ const handleDelete = async () => {
                     <div 
                       v-for="(session, index) in sessions" 
                       :key="session._key" 
-                      class="grid grid-cols-[1fr_1fr_auto] gap-2 items-end"
+                      class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end"
                     >
-                      <div class="space-y-1">
+                      <div class="space-y-1 min-w-0">
                         <label class="text-[9px] font-bold uppercase tracking-widest text-slate-400 ml-1">Kommen</label>
                         <input 
                           v-model="session.check_in" 
                           type="time" 
                           required
                           :disabled="isSubmitting" 
-                          class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                          class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
                         />
                       </div>
-                      <div class="space-y-1">
+                      <div class="space-y-1 min-w-0">
                         <label class="text-[9px] font-bold uppercase tracking-widest text-slate-400 ml-1">Gehen</label>
                         <input 
                           v-model="session.check_out" 
                           type="time" 
                           required
                           :disabled="isSubmitting" 
-                          class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                          class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
                         />
                       </div>
                       <button 
