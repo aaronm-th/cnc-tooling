@@ -1,46 +1,48 @@
 import { defineStore } from 'pinia'
+import { computed, ref } from 'vue'
 
+const ACTIVE_TAB_KEY = 'activeTab'
 
-
-const getInitialTab = () => {
-  const savedTab = localStorage.getItem('activeTab')
-  return savedTab || 'dashboard'
+function getInitialTab() {
+  return localStorage.getItem(ACTIVE_TAB_KEY) || 'dashboard'
 }
 
-export const useAppStore = defineStore('app', {
-  state: () => ({
-    activeTab: getInitialTab(),
-    activeSubTab: null,
-    isSidebarOpen: false
-  }),
+// Purely UI-state persistence -- not auth-related, so this stays a
+// simple direct localStorage read/write rather than going through
+// authTokenService.
+export const useAppStore = defineStore('app', () => {
+  const activeTab = ref(getInitialTab())
+  const activeSubTab = ref(null)
+  const isSidebarOpen = ref(false)
 
-  actions: {
+  function setTab(tabName, subTabName = null) {
+    activeTab.value = tabName
+    localStorage.setItem(ACTIVE_TAB_KEY, tabName)
+    activeSubTab.value = subTabName
 
-    setTab(tabName, subTabName = null) {
-      this.activeTab = tabName
-      localStorage.setItem('activeTab', tabName)
-      
-      // Unter-Tab setzen (oder leeren, wenn keiner mitgegeben wird)
-      this.activeSubTab = subTabName
-
-      if (typeof window !== 'undefined') {
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-      }
-    },
-
-    toggleSidebar() {
-      this.isSidebarOpen = !this.isSidebarOpen
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
-  },
-  
-  getters: {
-    currentTabTitle: (state) => {
-      const titles = {
-        'dashboard': 'Übersicht',
-        'attendance': 'Anwesenheit',
-        'calendar': 'Kalender'
-      }
-      return titles[state.activeTab] || 'Home'
-    }
+  }
+
+  function toggleSidebar() {
+    isSidebarOpen.value = !isSidebarOpen.value
+  }
+
+  const TAB_TITLES = {
+    dashboard: 'Übersicht',
+    attendance: 'Anwesenheit',
+    calendar: 'Kalender',
+  }
+
+  const currentTabTitle = computed(() => TAB_TITLES[activeTab.value] || 'Home')
+
+  return {
+    activeTab,
+    activeSubTab,
+    isSidebarOpen,
+    setTab,
+    toggleSidebar,
+    currentTabTitle,
   }
 })

@@ -1,57 +1,57 @@
-
 import { defineStore } from 'pinia'
-import axios from 'axios'
+import { ref } from 'vue'
+import { notificationApi } from '@/api/notificationApi'
 
-export const useNotificationStore = defineStore('notification', {
-  state: () => ({
-    notifications: [],
-    unreadCount: 0
-  }),
+export const useNotificationStore = defineStore('notification', () => {
+  const notifications = ref([])
+  const unreadCount = ref(0)
 
-  actions: {
-    // Hilfsmethode für Header (weniger Tipparbeit)
-    getHeaders() {
-      return { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } };
-    },
+  function updateUnreadCount() {
+    unreadCount.value = notifications.value.filter((n) => !n.read).length
+  }
 
-    async fetchNotifications() {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/notifications/`, this.getHeaders());
-      this.notifications = res.data;
-      this.updateUnreadCount();
-    },
+  async function fetchNotifications() {
+    const { data } = await notificationApi.fetchAll()
+    notifications.value = data
+    updateUnreadCount()
+  }
 
-    updateUnreadCount() {
-      this.unreadCount = this.notifications.filter(n => !n.read).length;
-    },
-
-    async markAsRead(notificationId) {
-      // Einzel-Pfad: /api/notifications/ID/
-      await axios.patch(`${import.meta.env.VITE_API_URL}/api/notifications/${notificationId}/`, { read: true }, this.getHeaders());
-      const n = this.notifications.find(n => n.id === notificationId);
-      if (n) { n.read = true; this.updateUnreadCount(); }
-    },
-
-    async markAllAsRead() {
-      // Custom-Pfad: /api/notifications/mark-all-as-read/
-      await axios.patch(`${import.meta.env.VITE_API_URL}/api/notifications/mark-all-as-read/`, {}, this.getHeaders());
-      this.notifications.forEach(n => n.read = true);
-      this.unreadCount = 0;
-    },
-
-    async clearNotification(notificationId) {
-      // Standard-Delete-Pfad: /api/notifications/ID/
-      await axios.delete(`${import.meta.env.VITE_API_URL}/api/notifications/${notificationId}/`, this.getHeaders());
-      this.notifications = this.notifications.filter(n => n.id !== notificationId);
-      this.updateUnreadCount();
-    },
-
-    async clearAll() {
-      // Custom-Pfad: /api/notifications/delete-all/
-      await axios.delete(`${import.meta.env.VITE_API_URL}/api/notifications/delete-all/`, this.getHeaders());
-      this.notifications = [];
-      this.unreadCount = 0;
+  async function markAsRead(notificationId) {
+    await notificationApi.markAsRead(notificationId)
+    const n = notifications.value.find((n) => n.id === notificationId)
+    if (n) {
+      n.read = true
+      updateUnreadCount()
     }
   }
+
+  async function markAllAsRead() {
+    await notificationApi.markAllAsRead()
+    notifications.value.forEach((n) => {
+      n.read = true
+    })
+    unreadCount.value = 0
+  }
+
+  async function clearNotification(notificationId) {
+    await notificationApi.delete(notificationId)
+    notifications.value = notifications.value.filter((n) => n.id !== notificationId)
+    updateUnreadCount()
+  }
+
+  async function clearAll() {
+    await notificationApi.deleteAll()
+    notifications.value = []
+    unreadCount.value = 0
+  }
+
+  return {
+    notifications,
+    unreadCount,
+    fetchNotifications,
+    markAsRead,
+    markAllAsRead,
+    clearNotification,
+    clearAll,
+  }
 })
-
-

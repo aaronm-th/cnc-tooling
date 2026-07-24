@@ -1,207 +1,162 @@
 import { defineStore } from 'pinia'
-import axios from 'axios'
+import { ref } from 'vue'
+import { scheduleApi } from '@/api/scheduleApi'
 
-export const useScheduleStore = defineStore('schedule', {
-  state: () => ({
-    events: [],           
-    leaveRequests: [],
-    changeRequests: [],    
-    activeSession: null,  
-    isLoading: false,
-    error: null
-  }),
+export const useScheduleStore = defineStore('schedule', () => {
+  const events = ref([])
+  const leaveRequests = ref([])
+  const changeRequests = ref([])
+  const activeSession = ref(null)
+  const isLoading = ref(false)
+  const error = ref(null)
 
-  actions: {
-    getAuthHeader() {
-      const token = localStorage.getItem('access_token')
-      return { Authorization: `Bearer ${token}` }
-    },
+  // --- WORK SESSIONS & DAYS ---
 
-    cleanId(id) {
-      return String(id).replace('wd-', '')
-    },
-
-    // --- WORK SESSIONS & DAYS ---
-
-    async fetchMonthlyWorkSessions(month, year) {
-      this.isLoading = true;
-      try {
-        const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-        const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
-
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/work-days/`, {
-          params: { start: startDate, end: endDate },
-          headers: this.getAuthHeader()
-        });
-        return res.data; 
-      } catch (err) {
-        this.error = "Konnte Arbeitszeiten nicht laden";
-        throw err; 
-      } finally {
-        this.isLoading = false;
-      }
-    },
-
-    async fetchWorkDaySessions(workDayId) {
-      this.isLoading = true
-      try {
-        const id = this.cleanId(workDayId)
-        const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/workday-details/${id}/`, 
-          { headers: this.getAuthHeader() }
-        )
-        return res.data // { date: '...', sessions: [...] }
-      } catch (error) {
-        throw error
-      } finally {
-        this.isLoading = false
-      }
-    },
-
-    async fetchWorkSessionDetail(sessionId) {
-      this.isLoading = true
-      try {
-        const id = this.cleanId(sessionId)
-        const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/work-session-request/${id}/`, 
-          { headers: this.getAuthHeader() }
-        )
-        return res.data
-      } catch (error) {
-        throw error
-      } finally {
-        this.isLoading = false
-      }
-    },
-
-    async fetchChangeRequests() {
-      try {
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/change-request/`, {
-          headers: this.getAuthHeader()
-        })
-        // Korrigiert: Jetzt wird der changeRequests-State befüllt!
-        this.changeRequests = res.data
-      } catch (error) {
-        console.error("Fehler beim Laden der Änderungsanträge:", error)
-      }
-    },
-
-  async submitShiftChangeRequest(payload) {
-    this.isLoading = true
+  async function fetchMonthlyWorkSessions(month, year) {
+    isLoading.value = true
     try {
-      // Wenn eine worksession_id existiert ODER es sich um einen Eintrag handelt,
-      // der bereits eine ID besitzt, aber keine originale Session hat.
-      const isSessionCorrection = !!payload.worksession_id;
-      
-      // Falls keine Session existiert, aber das Objekt eine ID hat, ist es ein Update eines bestehenden Day-Level-Requests
-      const isDayRequestUpdate = !payload.worksession_id && !!payload.id;
-
-      let url;
-      if (isSessionCorrection) {
-        url = `${import.meta.env.VITE_API_URL}/api/work-session-request/${this.cleanId(payload.worksession_id)}/`;
-      } else {
-        url = `${import.meta.env.VITE_API_URL}/api/work-day-request/${this.cleanId(payload.workday_id)}/`;
-      }
-
-      const res = await axios.post(url, payload, { 
-        headers: this.getAuthHeader() 
-      });
-      
-      return res.data;
-    } catch (error) {
-      console.error("Fehler beim Schicht-Antrag:", error);
-      throw error;
+      const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`
+      const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0]
+      const { data } = await scheduleApi.fetchMonthlyWorkSessions(startDate, endDate)
+      return data
+    } catch (err) {
+      error.value = 'Konnte Arbeitszeiten nicht laden'
+      throw err
     } finally {
-      this.isLoading = false;
+      isLoading.value = false
     }
-  },
+  }
 
-    async withdrawShiftChangeRequest(targetId) {
-      this.isLoading = true
-      try {
-        
-        const id = this.cleanId(targetId)
-        await axios.delete(
-          `${import.meta.env.VITE_API_URL}/api/work-session-request/${id}/`, 
-          { headers: this.getAuthHeader() }
-        )
-        
-      } catch (error) {
-        throw error
-      } finally {
-        this.isLoading = false
-      }
-    },
+  async function fetchWorkDaySessions(workDayId) {
+    isLoading.value = true
+    try {
+      const { data } = await scheduleApi.fetchWorkDaySessions(workDayId)
+      return data // { date: '...', sessions: [...] }
+    } finally {
+      isLoading.value = false
+    }
+  }
 
-    // --- CALENDER & LEAVE (Unverändert, nur Cleanup) ---
+  async function fetchWorkSessionDetail(sessionId) {
+    isLoading.value = true
+    try {
+      const { data } = await scheduleApi.fetchWorkSessionDetail(sessionId)
+      return data
+    } finally {
+      isLoading.value = false
+    }
+  }
 
-    async fetchCalendarFeed(start, end) {
-      if (!start || !end) return
-      this.isLoading = true
-      try {
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/user-calendar/`, {
-          params: { start, end },
-          headers: this.getAuthHeader()
-        })
-        this.events = res.data
-      } finally {
-        this.isLoading = false
-      }
-    },
+  async function fetchChangeRequests() {
+    try {
+      const { data } = await scheduleApi.fetchChangeRequests()
+      changeRequests.value = data
+    } catch (err) {
+      console.error('Fehler beim Laden der Änderungsanträge:', err)
+    }
+  }
 
-    async fetchLeaveRequests() {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/leave-request/`, {
-        headers: this.getAuthHeader()
-      })
+  async function submitShiftChangeRequest(payload) {
+    isLoading.value = true
+    try {
+      // A worksession_id means we're correcting an existing session;
+      // otherwise it's a fresh day-level request (e.g. a forgotten day).
+      const isSessionCorrection = !!payload.worksession_id
 
-      this.leaveRequests = res.data
-    },
+      const { data } = isSessionCorrection
+        ? await scheduleApi.submitSessionCorrection(payload.worksession_id, payload)
+        : await scheduleApi.submitDayRequest(payload.workday_id, payload)
 
-    async createLeaveRequest(formData) {
-      this.isLoading = true
-      try {
-        const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/leave-request/`, formData, { headers: this.getAuthHeader() })
-        await this.fetchLeaveRequests() 
-        return res.data
-      } finally { this.isLoading = false }
-    },
+      return data
+    } catch (err) {
+      console.error('Fehler beim Schicht-Antrag:', err)
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
 
-    async updateLeaveRequest(leaveId, formData) {
-      this.isLoading = true
-      try {
-        const id = this.cleanId(leaveId)
-        const res = await axios.put(
-          `${import.meta.env.VITE_API_URL}/api/leave-request/${id}/`, 
-          formData, 
-          { headers: this.getAuthHeader() }
-        )
-        await this.fetchLeaveRequests() 
-        return res.data
-      } finally { 
-        this.isLoading = false 
-      }
-    },
+  async function withdrawShiftChangeRequest(targetId) {
+    isLoading.value = true
+    try {
+      await scheduleApi.withdrawChangeRequest(targetId)
+    } finally {
+      isLoading.value = false
+    }
+  }
 
-    async deleteLeaveRequest(leaveId) {
-      this.isLoading = true
-      try {
-        const id = this.cleanId(leaveId)
-        await axios.delete(
-          `${import.meta.env.VITE_API_URL}/api/leave-request/${id}/`, 
-          { headers: this.getAuthHeader() }
-        )
-      } catch (error) {
-        // Extrahiere die Fehlermeldung vom Backend
-        const serverMessage = error.response?.data?.error || error.response?.data?.detail || "Ein unerwarteter Fehler ist aufgetreten."
-        
-        // Erstelle einen neuen Fehler mit der Nachricht vom Server
-        const customError = new Error(serverMessage)
-        customError.response = error.response // Falls du den Statuscode noch brauchst
-        throw customError
-      } finally {
-        this.isLoading = false
-      }
-    },
+  // --- CALENDAR & LEAVE ---
 
+  async function fetchCalendarFeed(start, end) {
+    if (!start || !end) return
+    isLoading.value = true
+    try {
+      const { data } = await scheduleApi.fetchCalendarFeed(start, end)
+      events.value = data
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function fetchLeaveRequests() {
+    const { data } = await scheduleApi.fetchLeaveRequests()
+    leaveRequests.value = data
+  }
+
+  async function createLeaveRequest(formData) {
+    isLoading.value = true
+    try {
+      const { data } = await scheduleApi.createLeaveRequest(formData)
+      await fetchLeaveRequests()
+      return data
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function updateLeaveRequest(leaveId, formData) {
+    isLoading.value = true
+    try {
+      const { data } = await scheduleApi.updateLeaveRequest(leaveId, formData)
+      await fetchLeaveRequests()
+      return data
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function deleteLeaveRequest(leaveId) {
+    isLoading.value = true
+    try {
+      await scheduleApi.deleteLeaveRequest(leaveId)
+    } catch (err) {
+      const serverMessage =
+        err.response?.data?.error || err.response?.data?.detail || 'Ein unerwarteter Fehler ist aufgetreten.'
+      const customError = new Error(serverMessage)
+      customError.response = err.response
+      throw customError
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  return {
+    events,
+    leaveRequests,
+    changeRequests,
+    activeSession,
+    isLoading,
+    error,
+    fetchMonthlyWorkSessions,
+    fetchWorkDaySessions,
+    fetchWorkSessionDetail,
+    fetchChangeRequests,
+    submitShiftChangeRequest,
+    withdrawShiftChangeRequest,
+    fetchCalendarFeed,
+    fetchLeaveRequests,
+    createLeaveRequest,
+    updateLeaveRequest,
+    deleteLeaveRequest,
   }
 })
