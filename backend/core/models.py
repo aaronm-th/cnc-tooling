@@ -59,7 +59,7 @@ class Employee(AbstractUser):
         # Holt die chronologisch letzte WorkSession des Mitarbeiters
         last_session = WorkSession.objects.filter(
             work_day__employee=self
-        ).order_by('-id').first() # Alternativ: '-work_day' oder '-check_in'
+        ).order_by('-work_day').first() # Alternativ: '-work_day' oder '-check_in'
         
         # Wenn es eine Session gibt und check_out None ist, ist er aktiv
         return last_session is not None and last_session.check_out is None
