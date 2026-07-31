@@ -103,7 +103,7 @@ class TeamMemberDetailSerializer(TeamMemberSummarySerializer):
         return {
             'valid_from': future.valid_from.isoformat(),
             'work_days_schema': future.work_days_schema,
-    }
+        }
 
     def validate_schema_valid_from(self, value):
         if value < timezone.now().date():
@@ -115,76 +115,94 @@ class TeamMemberDetailSerializer(TeamMemberSummarySerializer):
     class Meta:
         model = Employee
         fields = TeamMemberSummarySerializer.Meta.fields + [
-            'work_days_schema', 'is_active', 'vacation_days_per_year', 'schema_valid_from', 'upcoming_schema_change', 'chip_id'
+            'work_days_schema', 'is_active', 'vacation_days_per_year', 
+            'schema_valid_from', 'upcoming_schema_change', 'chip_id', 'joined_at'
         ]
         read_only_fields = ['id', 'name', 'first_name', 'last_name', 'initials', 'avatar', 'status_text']
 
     def validate_chip_id(self, value):
         if value:
-            # Säubern (Leerzeichen weg, Großbuchstaben)
             value = value.strip().upper()
-            
-            # Prüfen, ob ein ANDERER aktiver Mitarbeiter diesen Chip hat
             queryset = Employee.objects.filter(chip_id=value, is_active=True)
             if self.instance:
                 queryset = queryset.exclude(id=self.instance.id)
                 
             if queryset.exists():
-                # Dieser String-Key triggert im Frontend das Feld 'already_assigned'
                 raise serializers.ValidationError("already_assigned")
         return value
 
     def update(self, instance, validated_data):
-            from datetime import timedelta
+        from datetime import timedelta
+        from core.models import WorkingTimeHistory
 
-            # --- RFID CHIP SPEICHERUNG KORREKTUR ---
-            # Wir setzen den bereinigten Wert direkt auf die Instanz, BEVOR die restlichen Daten 
-            # via super().update verarbeitet und schlussendlich gespeichert werden.
-            if 'chip_id' in validated_data:
-                chip_val = validated_data.get('chip_id')
-                instance.chip_id = chip_val.strip().upper() if chip_val else None
+        # 1. Altes Eintrittsdatum vor dem Speichern merken
+        old_joined_at = instance.joined_at
 
-            vacation_days = validated_data.get('vacation_days_per_year')
-            new_schema = validated_data.pop('work_days_schema', None)
-            valid_from = validated_data.pop('schema_valid_from', None) or timezone.now().date()
+        # 2. RFID Chip Vorbereiten
+        if 'chip_id' in validated_data:
+            chip_val = validated_data.get('chip_id')
+            instance.chip_id = chip_val.strip().upper() if chip_val else None
 
-            # Führt das Standard-Update inklusive eines .save() durch
-            instance = super().update(instance, validated_data)
+        vacation_days = validated_data.get('vacation_days_per_year')
+        new_schema = validated_data.pop('work_days_schema', None)
+        valid_from = validated_data.pop('schema_valid_from', None) or timezone.now().date()
 
-            if new_schema is not None:
-                from core.models import WorkingTimeHistory
+        # 3. Standard-Update durchführen (speichert u.a. das neue joined_at)
+        instance = super().update(instance, validated_data)
 
-                normalized_new = Employee.normalize_schema(new_schema)
-                day_before = valid_from - timedelta(days=1)
-                preceding_schema = instance.get_schema_for_date(day_before)
-                normalized_preceding = Employee.normalize_schema(preceding_schema)
-
-                if normalized_new == normalized_preceding:
-                    WorkingTimeHistory.objects.filter(
-                        employee=instance, valid_from=valid_from
-                    ).delete()
-                else:
-                    WorkingTimeHistory.objects.update_or_create(
-                        employee=instance,
-                        valid_from=valid_from,
-                        defaults={'work_days_schema': {str(k): v for k, v in new_schema.items()}}
-                    )
-
-            current_year = timezone.now().year
-            if vacation_days is not None:
-                allocated_days = vacation_days
+        # 4. KORREKTUR: joined_at Verschiebung in der Historie nachziehen
+        if instance.joined_at and (old_joined_at != instance.joined_at):
+            first_history = instance.time_histories.order_by('valid_from').first()
+            
+            if first_history:
+                # Wenn Eintrittsdatum VOR den ersten Eintrag verschoben wurde, Startdatum anpassen
+                if instance.joined_at < first_history.valid_from:
+                    first_history.valid_from = instance.joined_at
+                    first_history.save()
             else:
-                allocated_days = VacationService.get_total_days_for_year(instance, current_year)
+                # Falls noch gar keine History existiert, eine Basis-History anlegen
+                schema_to_use = new_schema or instance.work_days_schema or {}
+                WorkingTimeHistory.objects.create(
+                    employee=instance,
+                    valid_from=instance.joined_at,
+                    work_days_schema={str(k): v for k, v in schema_to_use.items()}
+                )
 
-            VacationQuota.objects.update_or_create(
-                employee=instance,
-                year=current_year,
-                defaults={'total_days': allocated_days}
-            )
+        # 5. Neues Wochenplan-Schema speichern
+        if new_schema is not None:
+            normalized_new = Employee.normalize_schema(new_schema)
+            day_before = valid_from - timedelta(days=1)
+            preceding_schema = instance.get_schema_for_date(day_before)
+            
+            # Sicherstellen, dass kein None übergeben wird
+            normalized_preceding = Employee.normalize_schema(preceding_schema or {})
 
-            return instance
+            if normalized_new == normalized_preceding:
+                WorkingTimeHistory.objects.filter(
+                    employee=instance, valid_from=valid_from
+                ).delete()
+            else:
+                WorkingTimeHistory.objects.update_or_create(
+                    employee=instance,
+                    valid_from=valid_from,
+                    defaults={'work_days_schema': {str(k): v for k, v in new_schema.items()}}
+                )
+
+        # 6. Urlaubsanspruch anpassen
+        current_year = timezone.now().year
+        if vacation_days is not None:
+            allocated_days = vacation_days
+        else:
+            allocated_days = VacationService.get_total_days_for_year(instance, current_year)
+
+        VacationQuota.objects.update_or_create(
+            employee=instance,
+            year=current_year,
+            defaults={'total_days': allocated_days}
+        )
+
+        return instance
     
-
 
 class CreateEditEmployeeSerializer(serializers.Serializer):
 
@@ -194,8 +212,7 @@ class CreateEditEmployeeSerializer(serializers.Serializer):
     work_days_schema = serializers.JSONField(required=False, default=dict)
     vacation_days_per_year = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, default=30.0)
     joined_at = serializers.DateField(required=False)
-    chip_id = serializers.CharField(required=False, allow_null=True, allow_blank=True) # <-- NEU
-
+    chip_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     def validate(self, attrs):
         """
         Objektübergreifende Validierung: Verhindert, dass ein Mitarbeiter 

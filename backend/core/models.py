@@ -26,15 +26,6 @@ class Employee(AbstractUser):
     joined_at = models.DateField(default=timezone.now)
     vacation_days_per_year = models.DecimalField(max_digits=5, decimal_places=2, default=30.0)
 
-    def get_schema_for_date(self, date_obj):
-        """Holt das für dieses Datum gültige Arbeitszeitschema."""
-        history = self.time_histories.filter(valid_from__lte=date_obj).order_by('-valid_from').first()
-        if history:
-            return history.work_days_schema
-        
-        # Fallback, falls kein Eintrag existiert (z.B. Migration aus Altdaten)
-        return getattr(self, '_legacy_work_days_schema', {})
-
     @property
     def weekly_hours(self) -> float:
         """
@@ -93,6 +84,13 @@ class Employee(AbstractUser):
         history = self.time_histories.filter(valid_from__lte=date_obj).order_by('-valid_from').first()
         if history:
             return history.work_days_schema
+        
+        # Fallback 1: Ältester Eintrag, falls date_obj vor allen Historieneinträgen liegt
+        first_history = self.time_histories.order_by('valid_from').first()
+        if first_history:
+            return first_history.work_days_schema
+
+        # Fallback 2: Altdaten / Migration
         return getattr(self, '_legacy_work_days_schema', {})
 
     @property
@@ -116,11 +114,9 @@ class Employee(AbstractUser):
         """
         Berechnet die durchschnittliche tägliche Arbeitszeit basierend auf den 
         Tagen, an denen der Mitarbeiter laut Schema tatsächlich arbeitet.
-        Beispiel: 38 Std verteilt auf 5 Tage = 7.6 Std/Tag.
         """
-        total_hours = self.weekly_hours  # Nutzt dein bestehendes Property
+        total_hours = self.weekly_hours
         
-        # Zählen, an wie vielen Tagen laut Schema gearbeitet wird
         active_days_count = 0
         for i in range(7):
             weekday_key = str(i)
@@ -128,11 +124,10 @@ class Employee(AbstractUser):
                 if float(self.work_days_schema[weekday_key]) > 0:
                     active_days_count += 1
             elif i < 5:
-                # Fallback für Werktage
                 active_days_count += 1
                 
         if active_days_count == 0:
-            return float(getattr(self, 'hours_per_day', 8.0))
+            return 8.0  # REKURSIONS-FIX: Direkt 8.0 zurückgeben statt getattr(self, 'hours_per_day')
             
         return round(total_hours / active_days_count, 2)
 
@@ -181,7 +176,6 @@ class Employee(AbstractUser):
 
         de_holidays = holidays.Germany(subdiv='BW', years=year)
 
-        # NEU: alle relevanten Schema-Wechsel einmalig laden, aufsteigend sortiert
         schema_history = list(
             self.time_histories.filter(valid_from__lte=end_date)
             .order_by('valid_from')
@@ -195,6 +189,11 @@ class Employee(AbstractUser):
                     applicable = schema
                 else:
                     break
+            
+            # FALLBACK-FIX: Falls d vor dem ersten Historien-Eintrag liegt
+            if applicable is None and schema_history:
+                applicable = schema_history[0][1]
+
             return applicable or {}
 
         total_expected = 0.0
