@@ -110,7 +110,7 @@ def generate_workdays_for_range(employee_id, start_date_str, end_date_str):
         
         day_type = WorkDay.DayType.WORK
         if leave:
-            mapping = {'vacation': WorkDay.DayType.VACATION, 'sick': WorkDay.DayType.SICK, 'overtime': WorkDay.DayType.OVERTIME}
+            mapping = {'vacation': WorkDay.DayType.VACATION, 'sick': WorkDay.DayType.SICK}
             day_type = mapping.get(leave.leave_type, WorkDay.DayType.WORK)
         elif is_holiday:
             day_type = WorkDay.DayType.HOLIDAY

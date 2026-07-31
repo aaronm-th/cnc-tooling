@@ -121,7 +121,7 @@ async function loadExistingDay() {
       existingDayTypeDisplay.value = data.day_type_display || data.day_type
       existingSessionCount.value = data.sessions?.length || 0
 
-      if (data.day_type === 'work' && data.sessions?.length) {
+      if (data.sessions?.length) {
         sessions.value = data.sessions.map(s => makeSession(s))
       } else {
         sessions.value = [makeSession()]

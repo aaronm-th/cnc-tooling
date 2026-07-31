@@ -1,10 +1,19 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
 from . import models as md
 from django.utils.html import format_html
 
 from django import forms
 from django.utils import timezone
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import path
+from datetime import datetime
+
+from .csv_import import parse_legacy_csv
+
+
+class TimeImportForm(forms.Form):
+    csv_file = forms.FileField(label="CSV-Datei")
 
 class WorkingTimeHistoryInline(admin.TabularInline):
     model = md.WorkingTimeHistory
@@ -82,10 +91,70 @@ class EmployeeAdmin(UserAdmin):
 
         )
 
+    change_form_template = "core/employee_change_form.html"
+
     def display_groups(self, obj):
         return ", ".join([group.name for group in obj.groups.all()])
     
     display_groups.short_description = 'Groups'
+
+    def get_urls(self):
+        custom_urls = [
+            path(
+                "<int:employee_id>/import-times/",
+                self.admin_site.admin_view(self.import_times_view),
+                name="core_employee_import_times",
+            ),
+        ]
+        return custom_urls + super().get_urls()
+
+    def import_times_view(self, request, employee_id):
+        from attendance.models import WorkDay, WorkSession
+
+        employee = get_object_or_404(md.Employee, pk=employee_id)
+
+        if request.method == "POST":
+            form = TimeImportForm(request.POST, request.FILES)
+            if form.is_valid():
+                try:
+                    days = parse_legacy_csv(form.cleaned_data["csv_file"].file)
+                except ValueError as e:
+                    messages.error(request, f"CSV konnte nicht gelesen werden: {e}")
+                    return redirect("admin:core_employee_import_times", employee_id=employee.id)
+
+                imported, skipped = 0, []
+
+                for day_date, pairs in days:
+                    work_day, _ = WorkDay.objects.get_or_create(
+                        employee=employee, date=day_date,
+                        defaults={"day_type": WorkDay.DayType.WORK},
+                    )
+                    for t_in, t_out in pairs:
+                        if t_out is None:
+                            skipped.append(
+                                f"{day_date} {t_in}: kein Check-Out vorhanden – übersprungen."
+                            )
+                            continue
+                        check_in = timezone.make_aware(datetime.combine(day_date, t_in))
+                        check_out = timezone.make_aware(datetime.combine(day_date, t_out))
+                        try:
+                            WorkSession(work_day=work_day, check_in=check_in, check_out=check_out).save()
+                            imported += 1
+                        except Exception as e:
+                            skipped.append(f"{day_date} {t_in}–{t_out}: {e}")
+
+                messages.success(request, f"{imported} Zeiterfassungen importiert für {employee.name}.")
+                if skipped:
+                    messages.warning(request, "Übersprungen:\n" + "\n".join(skipped))
+                return redirect("admin:core_employee_change", employee.id)
+        else:
+            form = TimeImportForm()
+
+        return render(
+            request,
+            "core/employee_import_times.html",
+            {"form": form, "employee": employee, "opts": self.model._meta},
+        )
 
     def get_form(self, request, obj=None, **kwargs):
         """

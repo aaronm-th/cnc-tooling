@@ -102,13 +102,16 @@ class WorkDayWithSessionsSerializer(serializers.ModelSerializer):
         fields = ['id', 'date', 'day_type', 'day_type_display', 'actual_hours', 'diff', 'session_details']
 
     def get_diff(self, obj):
-        if obj.day_type in [WorkDay.DayType.HOLIDAY, WorkDay.DayType.WEEKEND]:
-            return 0.0
-            
         if obj.day_type in [WorkDay.DayType.VACATION, WorkDay.DayType.SICK]:
             return 0.0
 
         ist = float(obj.total_hours or 0.0)
+
+        # Feiertag/Wochenende OHNE geleistete Stunden: kein Soll erwartet, Saldo bleibt 0.
+        # Wurde trotzdem gearbeitet, zählt es ganz normal als Plusstunden.
+        if obj.day_type in [WorkDay.DayType.HOLIDAY, WorkDay.DayType.WEEKEND] and ist == 0:
+            return 0.0
+
         soll = 0.0
         if obj.employee and hasattr(obj.employee, 'get_expected_hours_for_date'):
             soll = float(obj.employee.get_expected_hours_for_date(obj.date) or 0.0)

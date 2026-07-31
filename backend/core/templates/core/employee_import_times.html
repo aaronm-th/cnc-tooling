@@ -1,0 +1,20 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<h1>Zeiten importieren für {{ employee.name }}</h1>
+
+<p>
+    Format der CSV (eine Spalte, keine Kopfzeile):<br>
+    Datum (z. B. 01.03.2024)<br>
+    Check-In 1 (z. B. 08:00)<br>
+    Check-Out 1 (z. B. 12:00)<br>
+    Check-In 2 ...<br>
+    ... dann nächstes Datum
+</p>
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <input type="submit" value="Importieren" class="default">
+</form>
+{% endblock %}

@@ -38,5 +38,11 @@ def auto_classify_day(sender, instance, **kwargs):
             instance.day_type = WorkDay.DayType.HOLIDAY
         
         # 2. Wochenenden prüfen (Samstag=5, Sonntag=6)
-        elif instance.date.weekday() >= 5 and not instance.sessions.exists():
-            instance.day_type = WorkDay.DayType.WEEKEND
+        elif instance.date.weekday() >= 5:
+            # instance.sessions.exists() darf erst abgefragt werden, wenn die
+            # Instanz eine pk hat (pre_save kann auch VOR dem ersten Insert
+            # feuern). Ein neuer WorkDay kann ohnehin noch keine Sessions
+            # haben, daher zählt das hier als "keine Sessions vorhanden".
+            has_sessions = instance.pk is not None and instance.sessions.exists()
+            if not has_sessions:
+                instance.day_type = WorkDay.DayType.WEEKEND

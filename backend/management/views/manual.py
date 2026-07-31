@@ -13,6 +13,9 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db import transaction
 
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework.exceptions import ValidationError as DRFValidationError
+
 
 class ManualEntriesView(APIView):
     permission_classes = [IsSupervisor]
@@ -59,19 +62,23 @@ class ManualEntriesView(APIView):
             "sessions": sessions,
         })
 
+
     @transaction.atomic
     def post(self, request, *args, **kwargs):
-        # Context mitgeben, damit der Serializer weiß, welcher Admin den Eintrag bucht
         serializer = ManualEntrySerializer(data=request.data, context={'request': request})
-        
+
         if serializer.is_valid():
-            serializer.save()  # Triggert die create() Methode im Serializer
+            try:
+                serializer.save()
+            except DjangoValidationError as exc:
+                error_messages = exc.message_dict.get('__all__', [str(exc)])
+                raise DRFValidationError({"non_field_errors": error_messages})
+
             return Response(
-                {"detail": "Manueller Eintrag erfolgreich gebucht."}, 
+                {"detail": "Manueller Eintrag erfolgreich gebucht."},
                 status=status.HTTP_201_CREATED
             )
-        
-        # Wenn Validierungsfehler auftreten, senden wir die exakten Feld-Fehler an das Vue-Frontend
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @transaction.atomic
