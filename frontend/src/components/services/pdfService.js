@@ -38,7 +38,7 @@ export const saveWorkingHoursPDFAs = async (pdfBlob, filename) => {
 
 // ---------------------------------------------------------------------------
 // Reine PDF-Erzeugung: baut das jsPDF-Dokument auf und gibt es zurück.
-// Wird sowohl von generateWorkingHoursPDF (Download/Tab) als auch von
+// Wird sowohl von generateWorkingHoursPDF (Tab/Download) als auch von
 // printWorkingHoursPDF (Direktdruck) genutzt, damit die Layout-Logik nur
 // an einer Stelle gepflegt werden muss.
 // ---------------------------------------------------------------------------
@@ -239,10 +239,9 @@ const buildWorkingHoursPDF = (data) => {
 }
 
 // ---------------------------------------------------------------------------
-// Direktdruck: völlig unabhängig vom Wrapper-Tab. Nutzt ein unsichtbares
+// Direktdruck: unabhängig vom Tab-Öffnen unten. Nutzt ein unsichtbares
 // iframe im aktuellen Fenster, keine Navigation, kein Download-Trigger ->
-// wird von Chromes "Insecure Download Blocking" nicht erfasst und braucht
-// keinen Secure Context.
+// funktioniert auch unter HTTP, ohne Secure Context.
 // ---------------------------------------------------------------------------
 const printPdfBlob = (pdfBlob) => {
   const blobUrl = URL.createObjectURL(pdfBlob)
@@ -283,106 +282,25 @@ export const printWorkingHoursPDF = (data) => {
 }
 
 // ---------------------------------------------------------------------------
-// Generiert den Report und gibt ihn aus: entweder in einem übergebenen
-// Tab-Fenster (mit Speichern-unter/Drucken/Herunterladen-Toolbar) oder,
-// falls kein Fenster übergeben wurde, als klassischer Download.
+// Generiert den Report und öffnet ihn direkt im übergebenen Tab-Fenster
+// (nativer Browser-PDF-Viewer, keine eigene Toolbar) oder lädt ihn,
+// falls kein Fenster übergeben wurde, klassisch herunter.
 // ---------------------------------------------------------------------------
 export const generateWorkingHoursPDF = async (data, targetWindow = null) => {
   const doc = buildWorkingHoursPDF(data)
   const { userName, monthName, year } = data
 
-  // --- PDF ausgeben: In Tab öffnen (mit Download + Speichern-unter) oder direkt herunterladen ---
   const employeeName = (userName).replace(/\s+/g, '_')
   const suffix = data.is_locked ? '' : '_draft'
   const filename = `Zeitnachweis_${year}_${monthName}_${employeeName}${suffix}.pdf`
 
+  // Titel in den PDF-Metadaten setzen, damit der Tab im Browser sinnvoll benannt ist
   doc.setProperties({ title: filename })
 
   if (targetWindow && !targetWindow.closed) {
     const pdfBlob = doc.output('blob')
     const blobUrl = URL.createObjectURL(pdfBlob)
-
-    const supportsSaveAs = 'showSaveFilePicker' in targetWindow
-    const saveAsButtonHtml = supportsSaveAs
-      ? `<button id="saveAsBtn">Speichern unter…</button>`
-      : ''
-
-    const wrapperHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>${filename}</title>
-          <style>
-            html, body { margin: 0; height: 100%; font-family: sans-serif; }
-            .toolbar {
-              display: flex; align-items: center; justify-content: space-between;
-              padding: 8px 16px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;
-            }
-            .toolbar span { font-size: 13px; color: #334155; font-weight: 600; }
-            .actions { display: flex; align-items: center; gap: 8px; }
-            .actions a, .actions button {
-              display: inline-flex; align-items: center;
-              background: #2563eb; color: white;
-              text-decoration: none; border: none; cursor: pointer;
-              padding: 6px 14px; border-radius: 8px;
-              font-size: 13px; font-weight: 600;
-              font-family: inherit;
-            }
-            .actions a:hover, .actions button:hover { background: #1d4ed8; }
-            iframe { width: 100%; height: calc(100% - 41px); border: none; }
-          </style>
-        </head>
-        <body>
-          <div class="toolbar">
-            <span>${filename}</span>
-            <div class="actions">
-              ${saveAsButtonHtml}
-              <button id="printBtn">Drucken</button>
-              <a href="${blobUrl}" download="${filename}">Herunterladen</a>
-            </div>
-          </div>
-          <iframe id="pdfFrame" src="${blobUrl}#toolbar=0"></iframe>
-        </body>
-      </html>
-    `
-
-    targetWindow.document.open()
-    targetWindow.document.write(wrapperHtml)
-    targetWindow.document.close()
-
-    // Drucken-Button im Tab: leitet an die PDF-Rendering-Engine des iframes weiter
-    const printBtn = targetWindow.document.getElementById('printBtn')
-    const pdfFrame = targetWindow.document.getElementById('pdfFrame')
-    if (printBtn && pdfFrame) {
-      printBtn.addEventListener('click', () => {
-        pdfFrame.contentWindow.focus()
-        pdfFrame.contentWindow.print()
-      })
-    }
-
-    if (supportsSaveAs) {
-      const btn = targetWindow.document.getElementById('saveAsBtn')
-      if (btn) {
-        btn.addEventListener('click', async () => {
-          try {
-            const handle = await targetWindow.showSaveFilePicker({
-              suggestedName: filename,
-              types: [{
-                description: 'PDF-Dokument',
-                accept: { 'application/pdf': ['.pdf'] }
-              }]
-            })
-            const writable = await handle.createWritable()
-            await writable.write(pdfBlob)
-            await writable.close()
-          } catch (err) {
-            if (err.name !== 'AbortError') {
-              console.error('Fehler beim Speichern:', err)
-            }
-          }
-        })
-      }
-    }
+    targetWindow.location.href = blobUrl
   } else {
     const pdfBlob = doc.output('blob')
     await saveWorkingHoursPDFAs(pdfBlob, filename)
