@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { generateWorkingHoursPDF } from '@/components/services/pdfService'
+import { generateWorkingHoursPDF, printWorkingHoursPDF} from '@/components/services/pdfService'
 import { documentApi } from '@/api/documentApi'
 
 export const useDocumentStore = defineStore('document', () => {
@@ -84,6 +84,20 @@ export const useDocumentStore = defineStore('document', () => {
     return true
   }
 
+  async function printWorkReport(month, year) {
+    const data = await _generateReportPDF(month, year)
+    if (data) printWorkingHoursPDF(data)
+    return true
+  }
+
+  async function printAdminEmployeeReport(memberId, month, year) {
+    const data = await _generateReportPDF(month, year, memberId)
+    if (data) printWorkingHoursPDF(data)
+    return true
+  }
+
+
+
   async function uploadEmployeeDocument(memberId, formData) {
     isUploading.value = true
     lastError.value = null
@@ -136,6 +150,8 @@ export const useDocumentStore = defineStore('document', () => {
     fetchEmployeeDocuments,
     downloadEmployeeDocument,
     downloadWorkReport,
+    printWorkReport,
+    printAdminEmployeeReport,
     uploadEmployeeDocument,
     deleteEmployeeDocument,
     adminReportsOverview,

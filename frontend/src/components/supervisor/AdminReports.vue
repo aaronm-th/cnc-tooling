@@ -9,6 +9,7 @@ import {
   Calendar, 
   AlertCircle,
   DownloadIcon,
+  Printer,
   Lock,
   Unlock,
   CheckCircle2,
@@ -24,6 +25,7 @@ const searchQuery = ref('')
 const selectedMonth = ref(new Date().getMonth() + 1)
 const selectedYear = ref(new Date().getFullYear())
 const isProcessingAction = ref(false) // Lokaler Lade-State für Lock/Unlock
+const printingMemberId = ref(null) // Lokaler Lade-State für den Druck-Button pro Zeile
 
 const months = [
   { value: 1, name: 'Januar' },
@@ -64,17 +66,26 @@ const filteredMembers = computed(() => {
   })
 })
 
-// PDF Zeitnachweis herunterladen
+// PDF Zeitnachweis herunterladen (öffnet Tab mit Download/Speichern-unter/Drucken-Toolbar)
 const handleDownloadPDF = async (member) => {
   const newTab = window.open('', '_blank')
-  if (newTab) {
-    newTab.document.write('Zeitnachweis wird erstellt …')
-  }
   try {
     await documentStore.downloadAdminEmployeeReport(member.id, selectedMonth.value, selectedYear.value, newTab)
   } catch (error) {
     if (newTab) newTab.close()
     alert(`Fehler beim Generieren des Zeitnachweises für ${member.name}`)
+  }
+}
+
+// PDF Zeitnachweis direkt drucken (kein Tab, kein Download-Trigger)
+const handlePrintPDF = async (member) => {
+  printingMemberId.value = member.id
+  try {
+    await documentStore.printAdminEmployeeReport(member.id, selectedMonth.value, selectedYear.value)
+  } catch (error) {
+    alert(`Fehler beim Drucken des Zeitnachweises für ${member.name}`)
+  } finally {
+    printingMemberId.value = null
   }
 }
 
@@ -249,6 +260,15 @@ const handleToggleEmployeeLock = async (member) => {
                         <Lock class="w-3 h-3" />
                         <span>Abschließen</span>
                       </template>
+                    </button>
+
+                    <button 
+                      @click="handlePrintPDF(member)"
+                      :disabled="printingMemberId === member.id"
+                      class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white disabled:bg-slate-100 disabled:text-slate-400 rounded-lg border border-blue-100 hover:border-blue-600 font-semibold text-xs transition-all cursor-pointer"
+                    >
+                      <Printer class="w-3 h-3" />
+                      <span>{{ printingMemberId === member.id ? '...' : 'Drucken' }}</span>
                     </button>
 
                     <button 

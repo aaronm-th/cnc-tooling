@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
-import { X, Calendar, Download, CheckCircle2, Loader2, ChevronRight, FileText } from 'lucide-vue-next'
+import { X, Calendar, Download, Printer, CheckCircle2, Loader2, ChevronRight, FileText } from 'lucide-vue-next'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useDocumentStore } from '@/stores/documentStore'
@@ -27,6 +27,7 @@ const isFinished = ref(false)
 
 const showPreview = ref(false)
 const isGenerating = ref(false)
+const isPrinting = ref(false)
 const previewEvents = ref([])
 const isPreviewLoading = ref(false)
 
@@ -112,6 +113,17 @@ const handleDownload = async () => {
   }
 }
 
+const handlePrint = async () => {
+  isPrinting.value = true
+  try {
+    await docStore.printWorkReport(selectedMonth.value + 1, selectedYear.value)
+  } catch (err) {
+    alert(docStore.lastError || "Fehler beim Drucken")
+  } finally {
+    isPrinting.value = false
+  }
+}
+
 const handleClose = () => {
   emit('close')
   setTimeout(() => {
@@ -179,9 +191,11 @@ watch([showPreview, selectedMonth, selectedYear], fetchPreviewData)
             </div>
             <div class="space-y-2">
               <h2 class="text-2xl font-bold text-slate-900">
-                Zeitnachweis erfolgreich erstellt!
+                Zeitnachweis erstellt
               </h2>
-
+              <p class="text-slate-500">
+                Der Stundennachweis für {{ docStore.months[selectedMonth] }} {{ selectedYear }} wurde in einem neuen Tab geöffnet.
+              </p>
             </div>
             <button 
               class="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-lg"
@@ -335,21 +349,39 @@ watch([showPreview, selectedMonth, selectedYear], fetchPreviewData)
                 </div>
               </div>
 
-              <button 
-                :disabled="isGenerating"
-                class="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 shadow-xl shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 group"
-                @click="handleDownload"
-              >
-                <Loader2
-                  v-if="isGenerating"
-                  class="w-5 h-5 animate-spin"
-                />
-                <Download
-                  v-else
-                  class="w-5 h-5 group-hover:scale-110 transition-transform"
-                />
-                <span>{{ isGenerating ? 'Generiere PDF...' : 'Zeitnachweis herunterladen' }}</span>
-              </button>
+              <div class="space-y-3">
+                <button 
+                  :disabled="isGenerating || isPrinting"
+                  class="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 shadow-xl shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 group"
+                  @click="handleDownload"
+                >
+                  <Loader2
+                    v-if="isGenerating"
+                    class="w-5 h-5 animate-spin"
+                  />
+                  <Download
+                    v-else
+                    class="w-5 h-5 group-hover:scale-110 transition-transform"
+                  />
+                  <span>{{ isGenerating ? 'Generiere PDF...' : 'Zeitnachweis herunterladen' }}</span>
+                </button>
+
+                <button 
+                  :disabled="isGenerating || isPrinting"
+                  class="w-full py-3 bg-slate-100 text-slate-700 rounded-2xl font-bold hover:bg-slate-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 group"
+                  @click="handlePrint"
+                >
+                  <Loader2
+                    v-if="isPrinting"
+                    class="w-5 h-5 animate-spin"
+                  />
+                  <Printer
+                    v-else
+                    class="w-5 h-5 group-hover:scale-110 transition-transform"
+                  />
+                  <span>{{ isPrinting ? 'Bereite Druck vor...' : 'Direkt drucken' }}</span>
+                </button>
+              </div>
             </div>
           </template>
         </div>
