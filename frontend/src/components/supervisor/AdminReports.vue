@@ -66,9 +66,14 @@ const filteredMembers = computed(() => {
 
 // PDF Zeitnachweis herunterladen
 const handleDownloadPDF = async (member) => {
+  const newTab = window.open('', '_blank')
+  if (newTab) {
+    newTab.document.write('Zeitnachweis wird erstellt …')
+  }
   try {
-    await documentStore.downloadAdminEmployeeReport(member.id, selectedMonth.value, selectedYear.value)
+    await documentStore.downloadAdminEmployeeReport(member.id, selectedMonth.value, selectedYear.value, newTab)
   } catch (error) {
+    if (newTab) newTab.close()
     alert(`Fehler beim Generieren des Zeitnachweises für ${member.name}`)
   }
 }

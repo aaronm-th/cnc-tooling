@@ -1,11 +1,44 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
+export const saveWorkingHoursPDFAs = async (pdfBlob, filename) => {
+  // Feature-Check: File System Access API verfügbar?
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{
+          description: 'PDF-Dokument',
+          accept: { 'application/pdf': ['.pdf'] }
+        }]
+      })
+      const writable = await handle.createWritable()
+      await writable.write(pdfBlob)
+      await writable.close()
+      return true
+    } catch (err) {
+      // Nutzer hat den Dialog abgebrochen -> kein Fehler, einfach nichts tun
+      if (err.name === 'AbortError') return false
+      throw err
+    }
+  } else {
+    // Fallback für Firefox/Safari: klassischer Download
+    const url = URL.createObjectURL(pdfBlob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(url)
+    return true
+  }
+}
+
+
 /**
  * Generiert einen Arbeitsstunden-Report im klassischen Schreibmaschinen-Stil.
  * Garantiert das Layout auf genau einer DIN-A4-Seite.
  */
-export const generateWorkingHoursPDF = async (data) => {
+export const generateWorkingHoursPDF = async (data, targetWindow = null) => {
   // Wir packen die neuen monatlichen Gesamtsummen direkt mit aus!
   const { monthName, year, userName, events, monthly_soll, monthly_ist, monthly_diff } = data
   
@@ -121,7 +154,7 @@ export const generateWorkingHoursPDF = async (data) => {
       valign: 'middle'
     },
     headStyles: { 
-      fillColor: [240, 240, 240], // Sehr dezentes Grau für den Header
+      fillColor: [255, 255, 255], // Sehr dezentes Grau für den Header
       textColor: [0, 0, 0],
       fontStyle: 'bold',
       lineWidth: 0.2,
@@ -142,18 +175,9 @@ export const generateWorkingHoursPDF = async (data) => {
         if (rawDay) {
           // Wochenenden & Feiertage leicht ausgrauen
           if (['weekend', 'holiday'].includes(rawDay.day_type)) {
-            data.cell.styles.textColor = [120, 120, 120]
+            data.cell.styles.textColor = [0, 0, 0]
           }
           
-          // Negative Salden (Minus-Stunden) in der Saldo-Spalte (Index 3) klassisch rot markieren
-          if (data.column.index === 3 && parseFloat(rawDay.diff) < 0) {
-            data.cell.styles.textColor = [180, 0, 0]
-          }
-          // Positive Salden (Überstunden) dezent dunkelgrün markieren
-          if (data.column.index === 3 && parseFloat(rawDay.diff) > 0) {
-            data.cell.styles.textColor = [0, 100, 0]
-          }
-
           // Urlaub & Krankheit fett hervorheben
           if (['vacation', 'leave', 'sick'].includes(rawDay.day_type)) {
             data.cell.styles.fontStyle = 'bold'
@@ -183,6 +207,7 @@ export const generateWorkingHoursPDF = async (data) => {
   }
 
   // --- 6. Zusammenfassung & Abschluss ---
+  doc.setTextColor(0, 0, 0)
   const finalY = doc.lastAutoTable.finalY + 8
   
   doc.setFontSize(10)
@@ -193,13 +218,7 @@ export const generateWorkingHoursPDF = async (data) => {
   const finalPrefix = finalDiffNum > 0 ? '+' : ''
   const balanceText = `GESAMT-SALDO MONAT: ${finalPrefix}${finalDiffNum.toFixed(2)} h`
   
-  if (finalDiffNum < 0) {
-    doc.setTextColor(180, 0, 0) // Rot bei Gesamt-Minus
-  } else if (finalDiffNum > 0) {
-    doc.setTextColor(0, 100, 0) // Dunkelgrün bei Gesamt-Plus
-  } else {
-    doc.setTextColor(0, 0, 0) // Schwarz bei Punktlandung 0.00
-  }
+
   doc.text(balanceText, 195, finalY, { align: 'right' })
 
   // --- 7. Unterschriftenbereich (weit unten platziert) ---
@@ -215,15 +234,103 @@ export const generateWorkingHoursPDF = async (data) => {
   doc.text('Unterschrift Mitarbeiter/in', 15, sigY + 4)
   doc.text('Bestätigt (Vorgesetzte/r / HR)', 125, sigY + 4)
 
-  // --- 8. PDF Speichern ---
+  // --- 8. PDF ausgeben: In Tab öffnen (mit Download + Speichern-unter) oder direkt herunterladen ---
   const employeeName = (userName).replace(/\s+/g, '_')
-  // Suffix bestimmen: Wenn NICHT gesperrt, hängen wir "_draft" an
   const suffix = data.is_locked ? '' : '_draft'
-  
   const filename = `Zeitnachweis_${year}_${monthName}_${employeeName}${suffix}.pdf`
 
-  // PDF speichern
-  doc.save(filename)
+  doc.setProperties({ title: filename })
+
+if (targetWindow && !targetWindow.closed) {
+    const pdfBlob = doc.output('blob')
+    const blobUrl = URL.createObjectURL(pdfBlob)
+
+    const supportsSaveAs = 'showSaveFilePicker' in targetWindow
+    const saveAsButtonHtml = supportsSaveAs
+      ? `<button id="saveAsBtn">Speichern unter…</button>`
+      : ''
+
+    const wrapperHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${filename}</title>
+          <style>
+            html, body { margin: 0; height: 100%; font-family: sans-serif; }
+            .toolbar {
+              display: flex; align-items: center; justify-content: space-between;
+              padding: 8px 16px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;
+            }
+            .toolbar span { font-size: 13px; color: #334155; font-weight: 600; }
+            .actions { display: flex; align-items: center; gap: 8px; }
+            .actions a, .actions button {
+              display: inline-flex; align-items: center;
+              background: #2563eb; color: white;
+              text-decoration: none; border: none; cursor: pointer;
+              padding: 6px 14px; border-radius: 8px;
+              font-size: 13px; font-weight: 600;
+              font-family: inherit;
+            }
+            .actions a:hover, .actions button:hover { background: #1d4ed8; }
+            iframe { width: 100%; height: calc(100% - 41px); border: none; }
+          </style>
+        </head>
+        <body>
+          <div class="toolbar">
+            <span>${filename}</span>
+            <div class="actions">
+              ${saveAsButtonHtml}
+              <button id="printBtn">Drucken</button>
+              <a href="${blobUrl}" download="${filename}">Herunterladen</a>
+            </div>
+          </div>
+          <iframe id="pdfFrame" src="${blobUrl}#toolbar=0"></iframe>
+        </body>
+      </html>
+    `
+
+
+    targetWindow.document.open()
+    targetWindow.document.write(wrapperHtml)
+    targetWindow.document.close()
+
+    // Drucken-Button: leitet an die PDF-Rendering-Engine des iframes weiter
+    const printBtn = targetWindow.document.getElementById('printBtn')
+    const pdfFrame = targetWindow.document.getElementById('pdfFrame')
+    if (printBtn && pdfFrame) {
+      printBtn.addEventListener('click', () => {
+        pdfFrame.contentWindow.focus()
+        pdfFrame.contentWindow.print()
+      })
+    }
+
+    if (supportsSaveAs) {
+      const btn = targetWindow.document.getElementById('saveAsBtn')
+      if (btn) {
+        btn.addEventListener('click', async () => {
+          try {
+            const handle = await targetWindow.showSaveFilePicker({
+              suggestedName: filename,
+              types: [{
+                description: 'PDF-Dokument',
+                accept: { 'application/pdf': ['.pdf'] }
+              }]
+            })
+            const writable = await handle.createWritable()
+            await writable.write(pdfBlob)
+            await writable.close()
+          } catch (err) {
+            if (err.name !== 'AbortError') {
+              console.error('Fehler beim Speichern:', err)
+            }
+          }
+        })
+      }
+    }
+  } else {
+    const pdfBlob = doc.output('blob')
+    await saveWorkingHoursPDFAs(pdfBlob, filename)
+  }
 
   return true
 }

@@ -99,10 +99,12 @@ onMounted(async () => {
 
 const handleDownload = async () => {
   isGenerating.value = true
+  const newTab = window.open('', '_blank')
   try {
-    const success = await docStore.downloadWorkReport(selectedMonth.value + 1, selectedYear.value)
+    const success = await docStore.downloadWorkReport(selectedMonth.value + 1, selectedYear.value, newTab)
     if (success) isFinished.value = true
   } catch (err) {
+    if (newTab) newTab.close()
     alert(docStore.lastError || "Fehler beim Download")
     isFinished.value = false
   } finally {
@@ -177,11 +179,9 @@ watch([showPreview, selectedMonth, selectedYear], fetchPreviewData)
             </div>
             <div class="space-y-2">
               <h2 class="text-2xl font-bold text-slate-900">
-                Download gestartet
+                Zeitnachweis erfolgreich erstellt!
               </h2>
-              <p class="text-slate-500">
-                Der Stundennachweis für {{ docStore.months[selectedMonth] }} {{ selectedYear }} wird heruntergeladen.
-              </p>
+
             </div>
             <button 
               class="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-lg"

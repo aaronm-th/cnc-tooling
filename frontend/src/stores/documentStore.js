@@ -72,15 +72,15 @@ export const useDocumentStore = defineStore('document', () => {
     }
   }
 
-  async function downloadWorkReport(month, year) {
+  async function downloadWorkReport(month, year, targetWindow = null) {
     const data = await _generateReportPDF(month, year)
-    if (data) await generateWorkingHoursPDF(data)
+    if (data) await generateWorkingHoursPDF(data, targetWindow)
     return true
   }
 
-  async function downloadAdminEmployeeReport(memberId, month, year) {
+  async function downloadAdminEmployeeReport(memberId, month, year, targetWindow = null) {
     const data = await _generateReportPDF(month, year, memberId)
-    if (data) await generateWorkingHoursPDF(data)
+    if (data) await generateWorkingHoursPDF(data, targetWindow)
     return true
   }
 
