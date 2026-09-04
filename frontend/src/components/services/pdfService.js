@@ -193,7 +193,7 @@ const buildWorkingHoursPDF = (data) => {
 
   // --- Wasserzeichen absolut über die ganze Seite (ohne Align-Bug) ---
   if (!data.is_locked) {
-    const opacityState = new doc.GState({ opacity: 0.10 }) // 10% Deckkraft
+    const opacityState = new doc.GState({ opacity: 0.15 })
     doc.setGState(opacityState)
 
     doc.setTextColor(220, 38, 38) // Ein dezenter Rotton
@@ -203,7 +203,7 @@ const buildWorkingHoursPDF = (data) => {
     // Absolute Platzierung auf DIN A4 (Breite 210mm, Höhe 297mm)
     // Wir starten im linken unteren Quadranten (x=35, y=190) und rotieren um 45 Grad nach rechts oben.
     // Das zieht den Text quer über das gesamte Blatt, ohne vom Koordinatensystem der Tabelle gestört zu werden.
-    doc.text('VORLÄUFIG / DRAFT', 35, 190, { angle: 45 })
+    doc.text('VORLÄUFIG / DRAFT', 35, 210, { angle: 45 })
 
     // Status sofort wieder für den Rest des Dokuments zurücksetzen!
     const normalState = new doc.GState({ opacity: 1.0 })
