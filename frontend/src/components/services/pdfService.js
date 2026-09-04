@@ -133,8 +133,8 @@ const buildWorkingHoursPDF = (data) => {
     return [
       germanDate,
       day.day_type_display ? day.day_type_display.toUpperCase() : 'ARBEITSTAG',
-      day.actual_hours != null ? `${parseFloat(day.actual_hours).toFixed(2)} h` : '0.00 h',
-      day.soll_hours != null ? `${parseFloat(day.soll_hours).toFixed(2)} h` : '0.00 h',
+      day.soll_hours != null ? `${parseFloat(day.soll_hours).toFixed(2)} h` : '0.00 h',     // SOLL ZUERST
+      day.actual_hours != null ? `${parseFloat(day.actual_hours).toFixed(2)} h` : '0.00 h', // IST DANACH
       diffStr, // Das berechnete Tages-Saldo (Abweichung von der Soll-Arbeitszeit)
       day.session_details || '-'
     ]
@@ -144,7 +144,7 @@ const buildWorkingHoursPDF = (data) => {
   autoTable(doc, {
     startY: 52,
     margin: { left: 15, right: 15 },
-    head: [['DATUM', 'STATUS / TYP', 'IST', 'SOLL', 'SALDO', 'ZEITRÄUME']],
+    head: [['DATUM', 'STATUS / TYP', 'SOLL', 'IST', 'SALDO', 'DETAILS']],
     body: tableData,
     theme: 'grid', // Striktes Gitternetz
     styles: {
@@ -166,8 +166,8 @@ const buildWorkingHoursPDF = (data) => {
     columnStyles: {
       0: { cellWidth: 20 },  // DATUM
       1: { cellWidth: 26 },  // STATUS / TYP
-      2: { cellWidth: 16, halign: 'right' }, // IST
-      3: { cellWidth: 16, halign: 'right' }, // SOLL
+      2: { cellWidth: 16, halign: 'right' }, // SOLL
+      3: { cellWidth: 16, halign: 'right' }, // IST
       4: { cellWidth: 18, halign: 'right' }, // SALDO
       5: { cellWidth: 'auto' } // ZEITRÄUME
     },
@@ -201,8 +201,6 @@ const buildWorkingHoursPDF = (data) => {
     doc.setFontSize(60)
 
     // Absolute Platzierung auf DIN A4 (Breite 210mm, Höhe 297mm)
-    // Wir starten im linken unteren Quadranten (x=35, y=190) und rotieren um 45 Grad nach rechts oben.
-    // Das zieht den Text quer über das gesamte Blatt, ohne vom Koordinatensystem der Tabelle gestört zu werden.
     doc.text('VORLÄUFIG / DRAFT', 35, 210, { angle: 45 })
 
     // Status sofort wieder für den Rest des Dokuments zurücksetzen!
@@ -262,16 +260,12 @@ const printPdfBlob = (pdfBlob) => {
   }
 
   iframe.onload = () => {
-    // Kleine Verzögerung, damit der PDF-Renderer im iframe wirklich fertig ist,
-    // bevor der Druckdialog aufgerufen wird
     setTimeout(() => {
       iframe.contentWindow.focus()
       iframe.contentWindow.print()
     }, 300)
   }
 
-  // Aufräumen, sobald der Druckdialog geschlossen wird
-  // (Fokus kehrt zum Hauptfenster zurück, egal ob gedruckt oder abgebrochen)
   window.addEventListener('focus', cleanup, { once: true })
 
   document.body.appendChild(iframe)
