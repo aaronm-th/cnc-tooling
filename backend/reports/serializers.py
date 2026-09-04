@@ -6,6 +6,7 @@ from django.db.models import Sum
 from datetime import date
 from django.utils import timezone
 import holidays
+import calendar
 
 # --- 1. Bestehende Serializer (Bleiben unverändert wie in deiner Datei) ---
 
@@ -88,37 +89,25 @@ class AdminMonthlyReportOverviewSerializer(serializers.ModelSerializer):
 
 
 class WorkDayWithSessionsSerializer(serializers.ModelSerializer):
-    """
-    Bereitet einen einzelnen Tag exakt so vor, wie das Schleifen-Array im jspdf-Service
-    es für das Tabellenraster erwartet.
-    """
-    actual_hours = serializers.ReadOnlyField(source='total_hours')
-    diff = serializers.SerializerMethodField() 
+    actual_hours = serializers.SerializerMethodField()
+    soll_hours = serializers.SerializerMethodField()
+    diff = serializers.SerializerMethodField()
     session_details = serializers.SerializerMethodField()
     day_type_display = serializers.SerializerMethodField()
 
     class Meta:
         model = WorkDay
-        fields = ['id', 'date', 'day_type', 'day_type_display', 'actual_hours', 'diff', 'session_details']
+        fields = ['id', 'date', 'day_type', 'day_type_display', 'actual_hours', 'soll_hours', 'diff', 'session_details']
+
+    def get_actual_hours(self, obj):
+        return round(obj.get_credited_hours(), 2)
+
+    def get_soll_hours(self, obj):
+        return round(obj.get_scheduled_hours(), 2)
 
     def get_diff(self, obj):
-        if obj.day_type in [WorkDay.DayType.VACATION, WorkDay.DayType.SICK]:
-            return 0.0
+        return round(self.get_actual_hours(obj) - self.get_soll_hours(obj), 2)
 
-        ist = float(obj.total_hours or 0.0)
-
-        # Feiertag/Wochenende OHNE geleistete Stunden: kein Soll erwartet, Saldo bleibt 0.
-        # Wurde trotzdem gearbeitet, zählt es ganz normal als Plusstunden.
-        if obj.day_type in [WorkDay.DayType.HOLIDAY, WorkDay.DayType.WEEKEND] and ist == 0:
-            return 0.0
-
-        soll = 0.0
-        if obj.employee and hasattr(obj.employee, 'get_expected_hours_for_date'):
-            soll = float(obj.employee.get_expected_hours_for_date(obj.date) or 0.0)
-        else:
-            soll = 8.0
-
-        return round(ist - soll, 2)
 
     def get_day_type_display(self, obj):
         today = timezone.localdate()
@@ -174,7 +163,9 @@ class WorkDayWithSessionsSerializer(serializers.ModelSerializer):
 class EmployeeMonthlyReportDetailSerializer(serializers.ModelSerializer):
     """
     Der universelle Detail-Serializer für die PDF-Daten-Generierung.
-    Nutzt nun für das Monats-Ist ebenfalls die tagesgenaue Soll-Berechnung bei Fehlzeiten.
+    WICHTIG: monthly_soll/ist/diff werden NICHT mehr separat berechnet,
+    sondern aus denselben Tageswerten aufsummiert, die auch in 'events'
+    landen. Damit können Kopfzeile und Tabelle im PDF nie mehr auseinanderlaufen.
     """
     userName = serializers.CharField(source='get_full_name', read_only=True)
     monthName = serializers.SerializerMethodField()
@@ -184,7 +175,7 @@ class EmployeeMonthlyReportDetailSerializer(serializers.ModelSerializer):
     monthly_soll = serializers.SerializerMethodField()
     monthly_ist = serializers.SerializerMethodField()
     monthly_diff = serializers.SerializerMethodField()
-    
+
     events = serializers.SerializerMethodField()
 
     class Meta:
@@ -201,45 +192,69 @@ class EmployeeMonthlyReportDetailSerializer(serializers.ModelSerializer):
 
     def get_is_locked(self, obj):
         return self.context.get('is_locked', False)
-    
-    def get_monthly_soll(self, obj):
-        return round(obj.get_expected_hours_for_month(self.context.get('year'), self.context.get('month')), 2)
 
-    def get_monthly_ist(self, obj):
+    def _get_events_data(self, obj):
+        """
+        Holt NUR die echten, in der DB existierenden Tage. Bleibt die alleinige
+        Quelle für monthly_soll/ist – hier dürfen NIE Platzhalter-Tage rein,
+        sonst verfälscht das die Summen.
+        """
+        if not hasattr(self, '_cached_events'):
+            year = self.context.get('year')
+            month = self.context.get('month')
+            workdays = WorkDay.objects.filter(
+                employee=obj, date__year=year, date__month=month
+            ).order_by('date')
+            self._cached_events = WorkDayWithSessionsSerializer(
+                workdays, many=True, context=self.context
+            ).data
+        return self._cached_events
+
+    def get_events(self, obj):
+        """
+        Für die PDF-ANZEIGE: füllt fehlende Kalendertage (i.d.R. Zukunft) mit
+        rein optischen Platzhaltern auf. Diese existieren NUR hier, nicht in
+        der DB und NICHT in den Summen (_get_events_data bleibt unberührt).
+        """
+        real_events = self._get_events_data(obj)
+        events_by_date = {e['date']: e for e in real_events}
+
         year = self.context.get('year')
         month = self.context.get('month')
-        workdays = WorkDay.objects.filter(employee=obj, date__year=year, date__month=month)
-        
-        ist_sum = 0.0
-        for day in workdays:
-            # Bei genehmigten Fehlzeiten (Urlaub, Krankheit, Feiertag) rechnen wir 
-            # das tagesgenaue Soll als geleistet an, damit kein Monats-Minus entsteht:
-            if day.day_type in [WorkDay.DayType.VACATION, WorkDay.DayType.SICK, WorkDay.DayType.HOLIDAY]:
-                if hasattr(obj, 'get_expected_hours_for_date'):
-                    ist_sum += float(obj.get_expected_hours_for_date(day.date) or 0.0)
-                else:
-                    ist_sum += 8.0
-            else:
-                ist_sum += float(day.total_hours or 0.0)
-                
-        return round(ist_sum, 2)
+        _, num_days = calendar.monthrange(year, month)
+
+        full_events = []
+        for day in range(1, num_days + 1):
+            current_date = date(year, month, day)
+            key = current_date.isoformat()
+
+            if key in events_by_date:
+                full_events.append(events_by_date[key])
+                continue
+
+            is_weekend = current_date.weekday() >= 5
+            full_events.append({
+                'id': None,
+                'date': key,
+                'day_type': 'weekend' if is_weekend else 'work',
+                'day_type_display': 'Wochenende' if is_weekend else 'Geplant',
+                'actual_hours': None,
+                'soll_hours': None,
+                'diff': None,
+                'session_details': '-',
+            })
+
+        return full_events
+
+    def get_monthly_soll(self, obj):
+        events = self._get_events_data(obj)  # weiterhin NUR echte Tage
+        return round(sum(float(e['soll_hours'] or 0.0) for e in events), 2)
+
+    def get_monthly_ist(self, obj):
+        events = self._get_events_data(obj)  # weiterhin NUR echte Tage
+        return round(sum(float(e['actual_hours'] or 0.0) for e in events), 2)
 
     def get_monthly_diff(self, obj):
         return round(self.get_monthly_ist(obj) - self.get_monthly_soll(obj), 2)
-
-    def get_events(self, obj):
-        year = self.context.get('year')
-        month = self.context.get('month')
-        
-        workdays = WorkDay.objects.filter(
-            employee=obj,
-            date__year=year,
-            date__month=month
-        ).order_by('date')
-        
-        return WorkDayWithSessionsSerializer(workdays, many=True, context=self.context).data
-
-
-
 
 

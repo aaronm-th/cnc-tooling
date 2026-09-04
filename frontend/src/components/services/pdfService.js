@@ -105,7 +105,7 @@ const buildWorkingHoursPDF = (data) => {
   doc.text(`${parseFloat(monthly_ist || 0).toFixed(2)} h`, 172, 41)
 
   doc.setFont('courier', 'bold')
-  doc.text('DIFFERENZ:', 140, 46)
+  doc.text('SALDO:', 140, 46)
   doc.setFont('courier', 'normal')
   const totalDiffNum = parseFloat(monthly_diff || 0)
   const totalPrefix = totalDiffNum > 0 ? '+' : ''
@@ -133,7 +133,8 @@ const buildWorkingHoursPDF = (data) => {
     return [
       germanDate,
       day.day_type_display ? day.day_type_display.toUpperCase() : 'ARBEITSTAG',
-      day.actual_hours ? `${parseFloat(day.actual_hours).toFixed(2)} h` : '0.00 h',
+      day.actual_hours != null ? `${parseFloat(day.actual_hours).toFixed(2)} h` : '0.00 h',
+      day.soll_hours != null ? `${parseFloat(day.soll_hours).toFixed(2)} h` : '0.00 h',
       diffStr, // Das berechnete Tages-Saldo (Abweichung von der Soll-Arbeitszeit)
       day.session_details || '-'
     ]
@@ -143,7 +144,7 @@ const buildWorkingHoursPDF = (data) => {
   autoTable(doc, {
     startY: 52,
     margin: { left: 15, right: 15 },
-    head: [['DATUM', 'STATUS / TYP', 'GEARBEITET', 'SALDO', 'ZEITRÄUME']],
+    head: [['DATUM', 'STATUS / TYP', 'IST', 'SOLL', 'SALDO', 'ZEITRÄUME']],
     body: tableData,
     theme: 'grid', // Striktes Gitternetz
     styles: {
@@ -163,11 +164,12 @@ const buildWorkingHoursPDF = (data) => {
       halign: 'left'
     },
     columnStyles: {
-      0: { cellWidth: 22 },
-      1: { cellWidth: 32 },
-      2: { cellWidth: 25, halign: 'right' },
-      3: { cellWidth: 22, halign: 'right' },
-      4: { cellWidth: 'auto' }
+      0: { cellWidth: 20 },  // DATUM
+      1: { cellWidth: 26 },  // STATUS / TYP
+      2: { cellWidth: 16, halign: 'right' }, // IST
+      3: { cellWidth: 16, halign: 'right' }, // SOLL
+      4: { cellWidth: 18, halign: 'right' }, // SALDO
+      5: { cellWidth: 'auto' } // ZEITRÄUME
     },
     didParseCell: function (data) {
       if (data.section === 'body') {

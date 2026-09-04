@@ -43,6 +43,23 @@ class WorkDay(models.Model):
         return f"{self.date} | {self.employee} ({self.day_type})"
 
 
+    def get_scheduled_hours(self):
+        """Reine Schema-Stunden für den Wochentag – ohne jegliche Abzüge (Feiertag, Urlaub etc.)."""
+        if hasattr(self.employee, 'get_scheduled_hours_for_date'):
+            return float(self.employee.get_scheduled_hours_for_date(self.date) or 0.0)
+        return 8.0 if self.date.weekday() < 5 else 0.0
+
+    def get_credited_hours(self):
+        """
+        Angerechnete Ist-Stunden für Soll/Ist-Vergleiche:
+        - Urlaub/Krank/Feiertag: volle Schema-Stunden (keine Fehlzeiten-Lücke)
+        - sonst: tatsächlich erfasste Zeit (Sessions)
+        """
+        if self.day_type in (self.DayType.VACATION, self.DayType.SICK, self.DayType.HOLIDAY):
+            return self.get_scheduled_hours()
+        return float(self.total_hours or 0.0)
+
+
 class WorkSession(models.Model):
     work_day = models.ForeignKey(WorkDay, related_name='sessions', on_delete=models.CASCADE)
     check_in = models.DateTimeField()

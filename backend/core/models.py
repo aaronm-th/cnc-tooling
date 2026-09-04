@@ -131,6 +131,21 @@ class Employee(AbstractUser):
             
         return round(total_hours / active_days_count, 2)
 
+    def get_scheduled_hours_for_date(self, date_obj):
+        """
+        Reine Soll-Stunden laut Arbeitszeitschema für diesen Wochentag –
+        OHNE Rücksicht auf Feiertag/Urlaub/Krankheit. Wird genutzt, um
+        Fehlzeiten (Urlaub, Krankheit, Feiertag) mit der vollen 
+        Normalarbeitszeit anzurechnen.
+        """
+        schema = self.get_schema_for_date(date_obj)
+        weekday_key = str(date_obj.weekday())
+        if weekday_key in schema:
+            return float(schema[weekday_key])
+        if date_obj.weekday() < 5:
+            return float(self.hours_per_day)
+        return 0.0
+
     def get_expected_hours_for_date(self, date_obj):
         from attendance.models import WorkDay
         db_day = WorkDay.objects.filter(employee=self, date=date_obj).first()
@@ -151,68 +166,18 @@ class Employee(AbstractUser):
         return 0.0
 
     def get_expected_hours_for_month(self, year: int, month: int) -> float:
+        """
+        Soll-Stunden des Monats = Summe der Schema-Stunden pro Kalendertag,
+        OHNE Abzug für Urlaub, Krankheit oder Feiertage. Einzige Ausnahme:
+        Tage vor dem Eintrittsdatum zählen nicht.
+        """
         _, num_days = calendar.monthrange(year, month)
-        start_date = date(year, month, 1)
-        end_date = date(year, month, num_days)
-
-        from attendance.models import WorkDay, LeaveRequest
-
-        db_days = {
-            wd.date: wd.day_type
-            for wd in WorkDay.objects.filter(employee=self, date__range=(start_date, end_date))
-        }
-
-        approved_leaves = LeaveRequest.objects.filter(
-            employee=self, status='approved',
-            leave_start__lte=end_date, leave_end__gte=start_date
-        )
-        absent_dates = set()
-        for leave in approved_leaves:
-            curr = max(leave.leave_start, start_date)
-            last = min(leave.leave_end, end_date)
-            while curr <= last:
-                absent_dates.add(curr)
-                curr += datetime.timedelta(days=1)
-
-        de_holidays = holidays.Germany(subdiv='BW', years=year)
-
-        schema_history = list(
-            self.time_histories.filter(valid_from__lte=end_date)
-            .order_by('valid_from')
-            .values_list('valid_from', 'work_days_schema')
-        )
-
-        def schema_for(d):
-            applicable = None
-            for valid_from, schema in schema_history:
-                if valid_from <= d:
-                    applicable = schema
-                else:
-                    break
-            
-            # FALLBACK-FIX: Falls d vor dem ersten Historien-Eintrag liegt
-            if applicable is None and schema_history:
-                applicable = schema_history[0][1]
-
-            return applicable or {}
-
         total_expected = 0.0
         for day in range(1, num_days + 1):
             date_obj = date(year, month, day)
             if date_obj < self.joined_at:
                 continue
-            if db_days.get(date_obj) in [WorkDay.DayType.VACATION, WorkDay.DayType.SICK]:
-                continue
-            if date_obj in de_holidays or date_obj in absent_dates:
-                continue
-
-            schema = schema_for(date_obj)
-            weekday_key = str(date_obj.weekday())
-            if weekday_key in schema:
-                total_expected += float(schema[weekday_key])
-            elif date_obj.weekday() < 5:
-                total_expected += float(self.hours_per_day)
-
+            total_expected += self.get_scheduled_hours_for_date(date_obj)
         return round(total_expected, 2)
 
     def save(self, *args, **kwargs):
@@ -246,30 +211,15 @@ class Employee(AbstractUser):
         super().save(*args, **kwargs)
 
     def get_hours_balance_for_month(self, year: int, month: int) -> dict:
-        """
-        Berechnet die Ist-Stunden, Soll-Stunden und die daraus resultierende
-        Differenz für einen spezifischen Monat.
-        """
         from attendance.models import WorkDay
-        import calendar
 
         if self.is_superuser:
             return {"worked": 0.0, "expected": 0.0, "balance": 0.0}
 
-        # Alle WorkDays dieses Monats holen
-        workdays = WorkDay.objects.filter(
-            employee=self,
-            date__year=year,
-            date__month=month
-        )
+        workdays = WorkDay.objects.filter(employee=self, date__year=year, date__month=month)
 
-        # 1. Ist-Stunden summen
-        total_worked = sum(day.total_hours for day in workdays)
-
-        # 2. Soll-Stunden berechnen (nutzt deine bestehende Methode)
+        total_worked = sum(day.get_credited_hours() for day in workdays)
         total_expected = self.get_expected_hours_for_month(year, month)
-
-        # 3. Differenz ermitteln
         balance = total_worked - total_expected
 
         return {

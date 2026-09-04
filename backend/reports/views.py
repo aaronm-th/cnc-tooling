@@ -188,6 +188,32 @@ class MonthlyReportDetailView(APIView):
         )
         return Response(serializer.data)
 
+    def _resolve_day_type_for_new_workday(self, employee, current_date):
+        """
+        Bestimmt den day_type für einen frisch anzulegenden WorkDay.
+
+        Basisannahme bleibt: Mo-Fr = Arbeitstag, Sa/So = Wochenende.
+        ABER: individuelle Arbeitszeitschemata haben Vorrang – Mitarbeiter,
+        die laut ihrem work_days_schema regulär samstags (oder sonntags)
+        arbeiten, bekommen für diese Tage WORK statt WEEKEND. Damit landen
+        sie korrekt als "Fehlzeit" statt fälschlich als "Wochenende", wenn
+        sie an so einem Tag nicht stempeln.
+
+        Werktage (Mo-Fr) bleiben bewusst immer WORK, unabhängig vom Schema –
+        Teilzeit-freie Wochentage sind ein separates Thema und hier nicht
+        Teil der Umstellung.
+        """
+        is_calendar_weekend = current_date.weekday() >= 5
+
+        if not is_calendar_weekend:
+            return WorkDay.DayType.WORK
+
+        scheduled_hours = 0.0
+        if hasattr(employee, 'get_scheduled_hours_for_date'):
+            scheduled_hours = employee.get_scheduled_hours_for_date(current_date) or 0.0
+
+        return WorkDay.DayType.WORK if scheduled_hours > 0 else WorkDay.DayType.WEEKEND
+
     def _ensure_workdays_exist_for_range(self, user, start_date, end_date):
         today = timezone.localdate()
         effective_end_date = min(end_date, today)
@@ -208,15 +234,10 @@ class MonthlyReportDetailView(APIView):
         while current_date <= effective_end_date:
             if current_date not in existing_dates:
                 temp_wd = WorkDay(employee=user, date=current_date)
-                if current_date.weekday() in [5, 6]:
-                    temp_wd.day_type = WorkDay.DayType.WEEKEND
-                else:
-                    temp_wd.day_type = WorkDay.DayType.WORK
+                temp_wd.day_type = self._resolve_day_type_for_new_workday(user, current_date)
                 new_workdays.append(temp_wd)
             
             current_date += timedelta(days=1)
 
         if new_workdays:
             WorkDay.objects.bulk_create(new_workdays)
-
-
