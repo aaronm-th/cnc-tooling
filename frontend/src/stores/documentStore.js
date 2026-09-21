@@ -96,8 +96,6 @@ export const useDocumentStore = defineStore('document', () => {
     return true
   }
 
-
-
   async function uploadEmployeeDocument(memberId, formData) {
     isUploading.value = true
     lastError.value = null

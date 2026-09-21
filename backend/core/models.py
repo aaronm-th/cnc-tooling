@@ -353,7 +353,6 @@ def first_locked_month(employee, start_date, end_date):
 
 
 class Notification(models.Model):
-    # Deine bestehenden Felder...
     recipient = models.ForeignKey('core.Employee', on_delete=models.CASCADE, related_name='notifications')
     title = models.CharField(max_length=255)
     message = models.TextField()
@@ -363,15 +362,11 @@ class Notification(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     # --- Die neuen Felder für Generic Foreign Keys ---
-    # 1. Zeigt auf die Tabelle (z.B. "WSChangeRequest" oder "Leave")
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, null=True, blank=True)
-    # 2. Speichert die ID des konkreten Antrags (z.B. 12)
     object_id = models.PositiveIntegerField(null=True, blank=True)
-    # 3. Das "virtuelle" Feld, das beides verbindet
     content_object = GenericForeignKey('content_type', 'object_id')
 
     class Meta:
-        # Ein Index beschleunigt das Suchen nach verknüpften Objekten enorm
         indexes = [
             models.Index(fields=["content_type", "object_id"]),
         ]

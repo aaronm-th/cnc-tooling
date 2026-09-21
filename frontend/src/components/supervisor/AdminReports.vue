@@ -66,13 +66,29 @@ const filteredMembers = computed(() => {
   })
 })
 
-// PDF Zeitnachweis herunterladen (öffnet Tab mit Download/Speichern-unter/Drucken-Toolbar)
+
 const handleDownloadPDF = async (member) => {
-  const newTab = window.open('', '_blank')
+  // 1. Tab SOFORT beim Klick öffnen, aber OHNE document.write
+  const newTab = window.open('about:blank', '_blank')
+
+  if (!newTab) {
+    alert('Bitte erlaube Pop-ups für diese Seite, um die PDF-Vorschau anzuzeigen.')
+    return
+  }
+
   try {
-    await documentStore.downloadAdminEmployeeReport(member.id, selectedMonth.value, selectedYear.value, newTab)
+    // 2. Store-Aktion aufrufen
+    await documentStore.downloadAdminEmployeeReport(
+      member.id, 
+      selectedMonth.value, 
+      selectedYear.value, 
+      newTab
+    )
   } catch (error) {
-    if (newTab) newTab.close()
+    console.error('Fehler bei PDF-Erstellung:', error)
+    if (newTab && !newTab.closed) {
+      newTab.close()
+    }
     alert(`Fehler beim Generieren des Zeitnachweises für ${member.name}`)
   }
 }

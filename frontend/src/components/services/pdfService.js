@@ -1,10 +1,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
-// ---------------------------------------------------------------------------
-// "Speichern unter" via File System Access API (nur Chromium + Secure Context)
-// Fällt automatisch auf klassischen Download zurück, wenn nicht verfügbar.
-// ---------------------------------------------------------------------------
+
 export const saveWorkingHoursPDFAs = async (pdfBlob, filename) => {
   if ('showSaveFilePicker' in window) {
     try {
@@ -36,12 +33,6 @@ export const saveWorkingHoursPDFAs = async (pdfBlob, filename) => {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Reine PDF-Erzeugung: baut das jsPDF-Dokument auf und gibt es zurück.
-// Wird sowohl von generateWorkingHoursPDF (Tab/Download) als auch von
-// printWorkingHoursPDF (Direktdruck) genutzt, damit die Layout-Logik nur
-// an einer Stelle gepflegt werden muss.
-// ---------------------------------------------------------------------------
 const buildWorkingHoursPDF = (data) => {
   const { monthName, year, userName, events, monthly_soll, monthly_ist, monthly_diff } = data
 
@@ -255,11 +246,6 @@ const buildWorkingHoursPDF = (data) => {
   return doc
 }
 
-// ---------------------------------------------------------------------------
-// Direktdruck: unabhängig vom Tab-Öffnen unten. Nutzt ein unsichtbares
-// iframe im aktuellen Fenster, keine Navigation, kein Download-Trigger ->
-// funktioniert auch unter HTTP, ohne Secure Context.
-// ---------------------------------------------------------------------------
 const printPdfBlob = (pdfBlob) => {
   const blobUrl = URL.createObjectURL(pdfBlob)
   const iframe = document.createElement('iframe')
@@ -294,27 +280,56 @@ export const printWorkingHoursPDF = (data) => {
   printPdfBlob(pdfBlob)
 }
 
-// ---------------------------------------------------------------------------
-// Generiert den Report und öffnet ihn direkt im übergebenen Tab-Fenster
-// (nativer Browser-PDF-Viewer, keine eigene Toolbar) oder lädt ihn,
-// falls kein Fenster übergeben wurde, klassisch herunter.
-// ---------------------------------------------------------------------------
 export const generateWorkingHoursPDF = async (data, targetWindow = null) => {
   const doc = buildWorkingHoursPDF(data)
   const { userName, monthName, year } = data
 
-  const employeeName = (userName).replace(/\s+/g, '_')
+  const employeeName = (userName || 'Mitarbeiter').replace(/\s+/g, '_')
   const suffix = data.is_locked ? '' : '_draft'
   const filename = `Zeitnachweis_${year}_${monthName}_${employeeName}${suffix}.pdf`
 
-  // Titel in den PDF-Metadaten setzen, damit der Tab im Browser sinnvoll benannt ist
+  // 1. PDF-Metadaten setzen (wichtig für den Drucken-Dialog)
   doc.setProperties({ title: filename })
 
   if (targetWindow && !targetWindow.closed) {
-    const pdfBlob = doc.output('blob')
-    const blobUrl = URL.createObjectURL(pdfBlob)
-    targetWindow.location.href = blobUrl
+    // 2. Erzeuge Data-URI als Base64
+    const pdfDataUri = doc.output('datauristring')
+
+    // 3. Tab-Titel und Embed-Viewer mit dem Data-Stream injizieren
+    targetWindow.document.open()
+    targetWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="de">
+        <head>
+          <meta charset="utf-8">
+          <title>${filename}</title>
+          <style>
+            html, body { 
+              margin: 0; 
+              padding: 0; 
+              width: 100vw; 
+              height: 100vh; 
+              overflow: hidden; 
+              background-color: #323639; 
+            }
+            object, embed { 
+              width: 100%; 
+              height: 100%; 
+              border: none; 
+            }
+          </style>
+        </head>
+        <body>
+          <object data="${pdfDataUri}" type="application/pdf" width="100%" height="100%">
+            <embed src="${pdfDataUri}" type="application/pdf" />
+          </object>
+        </body>
+      </html>
+    `)
+    targetWindow.document.close()
+
   } else {
+    // Fallback: Direkter Speichern-Unter-Dialog
     const pdfBlob = doc.output('blob')
     await saveWorkingHoursPDFAs(pdfBlob, filename)
   }
