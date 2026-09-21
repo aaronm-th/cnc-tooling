@@ -61,7 +61,7 @@ const buildWorkingHoursPDF = (data) => {
   // --- 1. Globalen Font auf Courier setzen (Schreibmaschine) ---
   doc.setFont('courier', 'normal')
 
-  // --- 2. Header (Altmodischer Stempel-Stil) ---
+  // --- 2. Header (Stempel-Stil) ---
   doc.setFontSize(16)
   doc.setFont('courier', 'bold')
   doc.setTextColor(0, 0, 0)
@@ -69,47 +69,32 @@ const buildWorkingHoursPDF = (data) => {
 
   doc.setFontSize(9)
   doc.setFont('courier', 'normal')
-  doc.text('Personalwesen / Arbeitszeiterfassung', 15, 25)
 
-  // Gestrichelte Trennlinie im Schreibmaschinen-Stil
+  // Ausstellungsdatum oben rechts, auf Höhe des Titels
+  const todayW = doc.getTextWidth(today)   // Breite im aktuellen Font (normal)
+  doc.text(today, 195, 20, { align: 'right' })
+  doc.text('erstellt am', 195 - todayW - 2, 20, { align: 'right' })
+
+  // Trennlinie
   doc.setLineWidth(0.2)
   doc.setDrawColor(0, 0, 0)
-  doc.line(15, 28, 195, 28)
+  doc.line(15, 24, 195, 24)
 
-  // --- 3. Info-Block Links (Mitarbeiterdaten) ---
+  // --- 3. Info-Block: eine Zeile, links Mitarbeiter, rechts Zeitraum ---
   doc.setFontSize(9)
 
   doc.setFont('courier', 'bold')
-  doc.text('MITARBEITER:', 15, 36)
+  doc.text('MITARBEITER:', 15, 34)
   doc.setFont('courier', 'normal')
-  doc.text(`${(userName || 'Mitarbeiter').toUpperCase()}`, 48, 36)
+  doc.text((userName || 'Mitarbeiter').toUpperCase(), 48, 34)
 
+  const periodText = `${(monthName || '').toUpperCase()} ${year}`
+  const periodW = doc.getTextWidth(periodText)
+  doc.text(periodText, 195, 34, { align: 'right' })
   doc.setFont('courier', 'bold')
-  doc.text('ZEITRAUM:', 15, 41)
-  doc.setFont('courier', 'normal')
-  doc.text(`${(monthName || '').toUpperCase()} ${year}`, 48, 41)
+  doc.text('ZEITRAUM:', 195 - periodW - 2, 34, { align: 'right' })
 
-  doc.setFont('courier', 'bold')
-  doc.text('AUSGESTELLT:', 15, 46)
-  doc.setFont('courier', 'normal')
-  doc.text(today, 48, 46)
-
-  doc.setFont('courier', 'bold')
-  doc.text('SOLL-MONAT:', 140, 36)
-  doc.setFont('courier', 'normal')
-  doc.text(`${parseFloat(monthly_soll || 0).toFixed(2)} h`, 172, 36)
-
-  doc.setFont('courier', 'bold')
-  doc.text('IST-MONAT:', 140, 41)
-  doc.setFont('courier', 'normal')
-  doc.text(`${parseFloat(monthly_ist || 0).toFixed(2)} h`, 172, 41)
-
-  doc.setFont('courier', 'bold')
-  doc.text('SALDO:', 140, 46)
-  doc.setFont('courier', 'normal')
-  const totalDiffNum = parseFloat(monthly_diff || 0)
-  const totalPrefix = totalDiffNum > 0 ? '+' : ''
-  doc.text(`${totalPrefix}${totalDiffNum.toFixed(2)} h`, 172, 46)
+  
 
   // --- 4. Datenaufbereitung für das Tabellen-Raster ---
   const tableData = (events || []).map(day => {
@@ -121,28 +106,27 @@ const buildWorkingHoursPDF = (data) => {
       month: '2-digit'
     }).replace('.', '')
 
-    // Tages-Saldo formatieren (Wenn > 0, ein "+" voranstellen)
     const dayDiffNum = parseFloat(day.diff || 0)
     let diffStr = '0.00 h'
     if (dayDiffNum > 0) {
       diffStr = `+${dayDiffNum.toFixed(2)} h`
     } else if (dayDiffNum < 0) {
-      diffStr = `${dayDiffNum.toFixed(2)} h` // Das Minuszeichen liefert toFixed automatisch
+      diffStr = `${dayDiffNum.toFixed(2)} h`
     }
 
     return [
       germanDate,
       day.day_type_display ? day.day_type_display.toUpperCase() : 'ARBEITSTAG',
-      day.soll_hours != null ? `${parseFloat(day.soll_hours).toFixed(2)} h` : '0.00 h',     // SOLL ZUERST
-      day.actual_hours != null ? `${parseFloat(day.actual_hours).toFixed(2)} h` : '0.00 h', // IST DANACH
-      diffStr, // Das berechnete Tages-Saldo (Abweichung von der Soll-Arbeitszeit)
+      day.soll_hours != null ? `${parseFloat(day.soll_hours).toFixed(2)} h` : '0.00 h',     
+      day.actual_hours != null ? `${parseFloat(day.actual_hours).toFixed(2)} h` : '0.00 h', 
+      diffStr,
       day.session_details || '-'
     ]
   })
 
   // --- 5. Tabelle im echten Schreibmaschinen-Gitterraster ---
   autoTable(doc, {
-    startY: 52,
+    startY: 44,
     margin: { left: 15, right: 15 },
     head: [['DATUM', 'STATUS / TYP', 'SOLL', 'IST', 'SALDO', 'DETAILS']],
     body: tableData,
@@ -208,32 +192,65 @@ const buildWorkingHoursPDF = (data) => {
     doc.setGState(normalState)
   }
 
-  // --- 6. Zusammenfassung & Abschluss ---
+   // --- 6. Summenblock unter der Tabelle ---
   doc.setTextColor(0, 0, 0)
-  const finalY = doc.lastAutoTable.finalY + 8
 
-  doc.setFontSize(10)
-  doc.setFont('courier', 'bold')
+  const sumHours = (types) =>
+    (events || [])
+      .filter(e => types.includes(e.day_type))
+      .reduce((s, e) => s + parseFloat(e.actual_hours || 0), 0)
 
-  // Formatierung des Gesamtsaldos (Basiert nun wasserdicht auf dem Backend-Wert)
-  const finalDiffNum = parseFloat(monthly_diff || 0)
-  const finalPrefix = finalDiffNum > 0 ? '+' : ''
-  const balanceText = `GESAMT-SALDO MONAT: ${finalPrefix}${finalDiffNum.toFixed(2)} h`
+  const ist = parseFloat(monthly_ist || 0)
+  const soll = parseFloat(monthly_soll || 0)
+  const diff = parseFloat(monthly_diff || 0)
+  const urlaub = sumHours(['vacation', 'leave'])
+  const krank = sumHours(['sick'])
+  const arbeit = ist - urlaub - krank
 
-  doc.text(balanceText, 195, finalY, { align: 'right' })
+  const fmt = (n) => `${n.toFixed(2)} h`
+  const summaryRows = [
+    ['SOLL', fmt(soll)],
+    ['IST', fmt(ist)],
+    ['  davon Arbeit', fmt(arbeit)],
+    ['  davon Urlaub', fmt(urlaub)],
+    ['  davon Krankheit', fmt(krank)],
+    ['SALDO', `${diff > 0 ? '+' : ''}${fmt(diff)}`]
+  ]
 
-  // --- 7. Unterschriftenbereich (weit unten platziert) ---
-  doc.setTextColor(0, 0, 0)
-  const sigY = 275 // Feste Position kurz vor dem unteren Seitenrand (A4 ist 297mm hoch)
+  let summaryY = doc.lastAutoTable.finalY + 6
+  const summaryHeight = summaryRows.length * 5.5
+  if (summaryY + summaryHeight > 285) {
+    doc.addPage()
+    summaryY = 20
+  }
 
-  doc.setLineWidth(0.1)
-  doc.line(15, sigY, 85, sigY)
-  doc.line(125, sigY, 195, sigY)
+    // Breite der DETAILS-Spalte (letzte Spalte) der Haupttabelle übernehmen
+  const pageW = doc.internal.pageSize.getWidth()
+  const detailsW = doc.lastAutoTable.columns[5].width
+  const valueW = 30
 
-  doc.setFontSize(8)
-  doc.setFont('courier', 'normal')
-  doc.text('Unterschrift Mitarbeiter/in', 15, sigY + 4)
-  doc.text('Bestätigt (Vorgesetzte/r / HR)', 125, sigY + 4)
+  autoTable(doc, {
+    startY: summaryY,
+    margin: { left: pageW - 15 - detailsW, right: 15 },
+    tableWidth: detailsW,
+    body: summaryRows,
+    theme: 'grid',
+    styles: {
+      font: 'courier',
+      fontSize: 8,
+      cellPadding: 1.2,
+      textColor: [0, 0, 0],
+      lineColor: [0, 0, 0],
+      lineWidth: 0.1
+    },
+    columnStyles: {
+      0: { cellWidth: detailsW - valueW },
+      1: { cellWidth: valueW, halign: 'right' }
+    },
+    didParseCell: (d) => {
+      if ([0, 1, 5].includes(d.row.index)) d.cell.styles.fontStyle = 'bold'
+    }
+  })
 
   return doc
 }
