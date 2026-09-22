@@ -64,6 +64,7 @@ class WorkSession(models.Model):
     work_day = models.ForeignKey(WorkDay, related_name='sessions', on_delete=models.CASCADE)
     check_in = models.DateTimeField()
     check_out = models.DateTimeField(null=True, blank=True)
+    is_auto_checkout = models.BooleanField(default=False, verbose_name="Automatischer Checkout")
 
     class Meta:
         verbose_name = "Work Session"

@@ -47,6 +47,7 @@ def auto_checkout():
     for session in overdue_sessions:
         # Setzt den Checkout exakt 2 Minuten nach dem Check-in
         session.check_out = session.check_in + MAX_SESSION_DURATION
+        session.is_auto_checkout = True
         session.save()
 
         session.refresh_from_db()

@@ -10,52 +10,53 @@ class CalendarEventSerializer(serializers.Serializer):
     status = serializers.CharField(required=False)
     isPending = serializers.BooleanField(default=False)
     isRequest = serializers.BooleanField(default=False)
+    
+    # NEU: Strukturierte Felder für das schlanke Tooltip
+    sessions = serializers.ListField(child=serializers.CharField(), required=False, allow_null=True)
+    totalHours = serializers.CharField(required=False, allow_null=True)
+    warning = serializers.CharField(required=False, allow_null=True)
 
     @staticmethod
     def from_workday(wd):
-        """Transformiert einen WorkDay in ein Kalender-Event."""
-        if wd.day_type == 'work':
-            
-            title = "Arbeitstag"
+        """Transformiert einen WorkDay in ein Kalender-Event mit strukturierten Tooltip-Daten."""
+        sessions_list = []
+        has_auto_checkout = False
 
-            # --- NEU: Chronologische Sortierung & Formatierung für das Tooltip ---
+        # Sessions nur verarbeiten, wenn es ein gewöhnlicher Arbeitstag ist oder Sessions existieren
+        if wd.sessions.exists():
             day_sessions = sorted(wd.sessions.all(), key=lambda s: s.check_in)
-            
-            session_strings = []
             for session in day_sessions:
                 in_time = localtime(session.check_in).strftime("%H:%M")
                 if session.check_out:
                     out_time = localtime(session.check_out).strftime("%H:%M")
-                    session_strings.append(f"{in_time} - {out_time}")
+                    auto_str = " (Auto-Checkout)" if getattr(session, 'is_auto_checkout', False) else ""
+                    sessions_list.append(f"{in_time} - {out_time}{auto_str}")
+                    
+                    if getattr(session, 'is_auto_checkout', False):
+                        has_auto_checkout = True
                 else:
-                    session_strings.append(f"{in_time} - (offen)")
+                    sessions_list.append(f"{in_time} - (offen)")
 
-            if session_strings:                
-                # Wenn im Admin eine zusätzliche Notiz eingetragen wurde
-                if wd.note:
-                    session_strings.append(f"{wd.note}")
-                
-                # Das 'TOTAL:'-Präfix für die Sonderbehandlung im Vue-Tooltip
-                session_strings.append(f"TOTAL:Gesamtzeit: {wd.total_hours} Std.")
-                
-                note = "|".join(session_strings)
-            else:
-                note = wd.note if wd.note else ""
-        
-        elif wd.day_type == 'vacation':
-            title = wd.get_day_type_display()
-            note = wd.note
-            
+        # Gesamtarbeitsstunden nur bei Arbeitstagen mitsenden (bei Urlaub/Krankheit None)
+        total_hours = None
+        if wd.day_type == 'work' or wd.sessions.exists():
+            total_hours = str(wd.total_hours)
+
+        # Titel bestimmen
+        if wd.day_type == 'work':
+            title = "Arbeitstag"
         else:
             title = wd.get_day_type_display()
-            note = wd.note if wd.note else ""
 
         return {
             "id": f"wd-{wd.id}",
             "date": wd.date,
             "type": wd.day_type,
             "title": title,
-            "note": note,
+            "note": wd.note if wd.note else None,
+            "sessions": sessions_list if sessions_list else None,
+            "totalHours": total_hours,
+            "warning": "Auto-Checkout erfolgt. Bitte Zeiten überprüfen!" if has_auto_checkout else None,
             "status": "approved",
             "isPending": False,
             "isRequest": False,
@@ -64,24 +65,32 @@ class CalendarEventSerializer(serializers.Serializer):
     @staticmethod
     def from_holiday(name, date):
         return {
+            "id": f"holiday-{date.isoformat()}",
             "title": name,
             "date": date.isoformat(),
-            "type": "holiday"
+            "type": "holiday",
+            "note": None,
+            "sessions": None,
+            "totalHours": None,
+            "warning": None
         }
 
     @staticmethod
     def from_leave_request(lr, current_date):
         """Transformiert einen Tag eines LeaveRequests in ein Event."""
         return {
-        "id": f"lr-{lr.id}-{current_date.isoformat()}",
-        "requestId": lr.id,         
-        "date": current_date,
-        "leave_start": lr.leave_start,   
-        "leave_end": lr.leave_end,       
-        "type": lr.leave_type,
-        "title": f"{lr.get_leave_type_display()} (offen)",
-        "note": lr.note or "",
-        "status": lr.status,
-        "isPending": lr.status == 'pending',
-        "isRequest": True
-    }
+            "id": f"lr-{lr.id}-{current_date.isoformat()}",
+            "requestId": lr.id,         
+            "date": current_date,
+            "leave_start": lr.leave_start,   
+            "leave_end": lr.leave_end,       
+            "type": lr.leave_type,
+            "title": f"{lr.get_leave_type_display()} (offen)",
+            "note": lr.note if lr.note else None,
+            "sessions": None,
+            "totalHours": None,
+            "warning": None,
+            "status": lr.status,
+            "isPending": lr.status == 'pending',
+            "isRequest": True
+        }

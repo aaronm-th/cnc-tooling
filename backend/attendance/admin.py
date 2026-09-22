@@ -9,7 +9,7 @@ from django.utils.html import format_html
 
 
 class WorkSessionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'employee', 'check_in', 'check_out')
+    list_display = ('id', 'employee', 'check_in', 'check_out', 'is_auto_checkout')
     list_filter = ('work_day__employee', 'check_in')
 
     def employee(self, obj):

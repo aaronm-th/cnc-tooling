@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.utils import timezone
 from core.models import Employee, VacationQuota
+from attendance.models import WorkDay
 from core.services.vacation_service import VacationService
 
 
@@ -203,6 +204,71 @@ class TeamMemberDetailSerializer(TeamMemberSummarySerializer):
 
         return instance
     
+
+class TeamWorkDayEventSerializer(serializers.ModelSerializer):
+    userName = serializers.CharField(source='employee.get_full_name', read_only=True)
+    title = serializers.CharField(source='get_day_type_display', read_only=True)
+    type = serializers.CharField(source='day_type', read_only=True)
+    
+    # Strukturierte Felder:
+    sessions = serializers.SerializerMethodField()
+    totalHours = serializers.SerializerMethodField()
+    warning = serializers.SerializerMethodField()
+    note = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WorkDay
+        fields = ['id', 'userName', 'date', 'type', 'title', 'note', 'sessions', 'totalHours', 'warning']
+
+    def get_totalHours(self, obj):
+        # Zeige Gesamtzeit nur bei normalen Arbeitstagen/Homeoffice an
+        # Bei reinen Urlaubstagen/Kranktagen ohne Sessions wird None geliefert
+        if obj.day_type in ['vacation', 'sick', 'leave'] and not obj.sessions.exists():
+            return None
+        
+        return str(obj.total_hours)
+
+    def get_id(self, obj):
+        return f"wd-{obj.id}"
+
+    def get_note(self, obj):
+        return obj.note if obj.note else None
+
+    def get_sessions(self, obj):
+        day_sessions = sorted(obj.sessions.all(), key=lambda s: s.check_in)
+        session_list = []
+        
+        for session in day_sessions:
+            in_time = session.check_in.astimezone().strftime("%H:%M")
+            if session.check_out:
+                out_time = session.check_out.astimezone().strftime("%H:%M")
+                auto_str = " (Auto-Checkout)" if getattr(session, 'is_auto_checkout', False) else ""
+                session_list.append(f"{in_time} - {out_time}{auto_str}")
+            else:
+                session_list.append(f"{in_time} - (offen)")
+                
+        return session_list
+
+    def get_warning(self, obj):
+        has_auto_checkout = any(
+            getattr(s, 'is_auto_checkout', False) 
+            for s in obj.sessions.all()
+        )
+        if has_auto_checkout:
+            return "Auto-Checkout erfolgt. Bitte Zeiten überprüfen!"
+        return None
+
+class TeamPendingLeaveSerializer(serializers.Serializer):
+    """
+    Serializer für Abwesenheitsanträge
+    """
+    id = serializers.CharField()
+    userName = serializers.CharField()
+    date = serializers.DateField()
+    type = serializers.CharField(default="pending")
+    title = serializers.CharField(default="Abwesenheitsantrag")
+    note = serializers.CharField(allow_null=True, required=False)
+
 
 class CreateEditEmployeeSerializer(serializers.Serializer):
 

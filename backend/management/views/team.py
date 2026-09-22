@@ -13,7 +13,7 @@ from rest_framework.generics import ListAPIView, RetrieveUpdateDestroyAPIView
 
 from attendance.models import LeaveRequest, WSChangeRequest, WorkDay
 from management.permissions import IsSupervisor
-from management.serializers import TeamMemberSummarySerializer, TeamMemberDetailSerializer, CreateEditEmployeeSerializer, MonthProcessSerializer
+from management.serializers import TeamMemberSummarySerializer, TeamMemberDetailSerializer, CreateEditEmployeeSerializer, MonthProcessSerializer, TeamWorkDayEventSerializer, TeamPendingLeaveSerializer
 from core.models import Employee, VacationQuota, MonthlyPayout
 
 from decimal import Decimal
@@ -106,6 +106,7 @@ class TeamCalendarEventsView(APIView):
     def get(self, request):
         subordinates = Employee.objects.filter(is_superuser=False, is_active=True)
 
+        # 1. WorkDay Events über ModelSerializer
         calendar_days = WorkDay.objects.filter(
             employee__in=subordinates,
         ).exclude(
@@ -114,59 +115,34 @@ class TeamCalendarEventsView(APIView):
             day_type='weekend', sessions__isnull=True
         ).select_related('employee').prefetch_related('sessions').distinct()
 
-        events_data = []
+        work_day_data = TeamWorkDayEventSerializer(calendar_days, many=True).data
 
-        # 1. Echte Arbeitszeiten & manuelle Einträge (z.B. 'work', 'sick')
-        for day in calendar_days:
-            day_sessions = sorted(day.sessions.all(), key=lambda s: s.check_in)
-            
-            session_strings = []
-            for session in day_sessions:
-                in_time = session.check_in.astimezone().strftime("%H:%M")
-                if session.check_out:
-                    out_time = session.check_out.astimezone().strftime("%H:%M")
-                    session_strings.append(f"{in_time} - {out_time}")
-                else:
-                    session_strings.append(f"{in_time} - (offen)")
-
-            if session_strings:
-                if day.note:
-                    session_strings.append(f"{day.note}")
-                session_strings.append(f"TOTAL:Gesamtzeit: {day.total_hours} Std.")
-                time_note = "|".join(session_strings)
-            else:
-                # Wichtig: Wenn keine Notiz existiert, None setzen (wird im JSON zu null)
-                time_note = day.note if day.note else None
-
-            events_data.append({
-                "id": f"wd-{day.id}",
-                "userName": day.employee.get_full_name(),
-                "date": day.date.isoformat(),
-                "type": day.day_type,
-                "title": day.get_day_type_display(),
-                "note": time_note  # Reicht null weiter, Tooltip blendet sich aus
-            })
-
-        # 2. Ausstehende Urlaubsanträge
+        # 2. LeaveRequest Events auflösen
         pending_leaves = LeaveRequest.objects.filter(
             employee__is_superuser=False, status='pending'
         ).select_related('employee')
 
+        leave_events = []
         for leave in pending_leaves:
             curr_date = leave.leave_start
+            user_name = leave.employee.get_full_name()
+            note = leave.note if leave.note else None
+            
             while curr_date <= leave.leave_end:
-                events_data.append({
+                leave_events.append({
                     "id": f"lr-{leave.id}-{curr_date.isoformat()}",
-                    "userName": leave.employee.get_full_name(),
-                    "date": curr_date.isoformat(),
+                    "userName": user_name,
+                    "date": curr_date,
                     "type": "pending",
                     "title": "Abwesenheitsantrag",
-                    "note": leave.note if leave.note else None
+                    "note": note
                 })
                 curr_date += timedelta(days=1)
 
-        return Response(events_data, status=status.HTTP_200_OK)
-    
+        leave_data = TeamPendingLeaveSerializer(leave_events, many=True).data
+
+        # Beide Listen zusammenführen
+        return Response(work_day_data + leave_data, status=status.HTTP_200_OK)
 
 class CreateEditEmployeeView(APIView):
     permission_classes = [IsSupervisor]
