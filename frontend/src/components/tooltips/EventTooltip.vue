@@ -47,7 +47,7 @@ const { getIconColorClass, getEventIcon } = useEventStyles()
         <div v-if="event.note" class="h-px bg-white/10 my-2"></div>
         
         <div v-if="event.note" class="max-h-40 overflow-y-auto custom-scrollbar pr-2 space-y-2">
-          <template v-if="event.type === 'work'">
+          <template v-if="event.note && event.note.includes('|')">
             <div 
               v-for="(line, sIdx) in (() => {
                 // 1. Text in ein echtes Array umwandeln, falls es noch keins ist

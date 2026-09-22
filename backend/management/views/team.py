@@ -107,11 +107,12 @@ class TeamCalendarEventsView(APIView):
         subordinates = Employee.objects.filter(is_superuser=False, is_active=True)
 
         calendar_days = WorkDay.objects.filter(
-            employee__in=subordinates, 
-            day_type__isnull=False
+            employee__in=subordinates,
         ).exclude(
-            day_type__in=['weekend', 'holiday'] # Ersetze die Strings mit deinen exakten Choice-Keys
-        ).select_related('employee').prefetch_related('sessions')
+            day_type='holiday'
+        ).exclude(
+            day_type='weekend', sessions__isnull=True
+        ).select_related('employee').prefetch_related('sessions').distinct()
 
         events_data = []
 
