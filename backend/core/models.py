@@ -55,13 +55,11 @@ class Employee(AbstractUser):
     @property
     def status(self) -> bool:
         from attendance.models import WorkSession
-        
-        # Holt die chronologisch letzte WorkSession des Mitarbeiters
+
         last_session = WorkSession.objects.filter(
             work_day__employee=self
-        ).order_by('-work_day').first() # Alternativ: '-work_day' oder '-check_in'
-        
-        # Wenn es eine Session gibt und check_out None ist, ist er aktiv
+        ).order_by('-check_in').first()
+
         return last_session is not None and last_session.check_out is None
 
 
