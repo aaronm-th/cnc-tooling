@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from attendance.models import WorkDay
+from attendance.models import WorkDay, WorkSession
 from .models import EmployeeDocument
 from core.models import Employee, MonthlyPayout
 from django.db.models import Sum
@@ -36,9 +36,17 @@ class AdminMonthlyReportOverviewSerializer(serializers.ModelSerializer):
     soll_hours = serializers.SerializerMethodField()
     is_processed = serializers.SerializerMethodField()
 
+    # --- NEU: Auto-Checkout Felder für das Frontend ---
+    auto_checkout_count = serializers.SerializerMethodField()
+    has_auto_checkout = serializers.SerializerMethodField()
+
     class Meta:
         model = Employee
-        fields = ['id', 'name', 'username', 'initials', 'avatar', 'ist_hours', 'soll_hours', 'is_processed']
+        fields = [
+            'id', 'name', 'username', 'initials', 'avatar', 
+            'ist_hours', 'soll_hours', 'is_processed',
+            'auto_checkout_count', 'has_auto_checkout' # <-- NEU HINZUGEFÜGT
+        ]
 
     def _get_payout(self, obj):
         """Hilfsmethode zur Vermeidung von Doppelabfragen pro Zeile."""
@@ -86,6 +94,29 @@ class AdminMonthlyReportOverviewSerializer(serializers.ModelSerializer):
         if obj.photo and request:
             return request.build_absolute_uri(obj.photo.url)
         return obj.get_photo_url() if hasattr(obj, 'get_photo_url') else None
+
+    # --- NEU: Ermittlung der Auto-Checkouts im aktuellen Monat ---
+    def get_auto_checkout_count(self, obj) -> int:
+        """
+        Zählt alle Sessions des Mitarbeiters im gewählten Monat/Jahr,
+        die vom System automatisch ausgecheckt (is_auto_checkout=True) wurden.
+        """
+        year = self.context.get('year')
+        month = self.context.get('month')
+
+        if not year or not month:
+            return 0
+
+        return WorkSession.objects.filter(
+            work_day__employee=obj,
+            work_day__date__year=year,
+            work_day__date__month=month,
+            is_auto_checkout=True
+        ).count()
+
+    def get_has_auto_checkout(self, obj) -> bool:
+        """Gibt True zurück, sobald mindestens 1 Auto-Checkout vorliegt."""
+        return self.get_auto_checkout_count(obj) > 0
 
 
 class WorkDayWithSessionsSerializer(serializers.ModelSerializer):
@@ -139,7 +170,14 @@ class WorkDayWithSessionsSerializer(serializers.ModelSerializer):
                 
                 in_str = local_in.strftime('%H:%M') if local_in else '??'
                 out_str = local_out.strftime('%H:%M') if local_out else '...'
-                formatted_sessions.append(f"{in_str} - {out_str}")
+
+                session_str = f"{in_str} - {out_str}"
+                
+                if getattr(s, 'is_auto_checkout', False):
+                    session_str += " [AUTO-CHECKOUT]"
+
+                formatted_sessions.append(session_str)
+
             return " | ".join(formatted_sessions)
 
         # 2. Wenn keine Sessions existieren, bestimmen wir den Text anhand des Typs und Datums
@@ -157,7 +195,7 @@ class WorkDayWithSessionsSerializer(serializers.ModelSerializer):
         if obj.date > today:
             return "Geplant"
 
-        return "Keine Einträge (Fehlzeit)"
+        return "Keine Einträge / FEHLZEIT"
 
 
 class EmployeeMonthlyReportDetailSerializer(serializers.ModelSerializer):

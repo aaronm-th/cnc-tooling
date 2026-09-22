@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useAdminStore } from '@/stores/adminStore'
 import { useEventStyles } from '@/composables/useEventStyles'
 import EventTooltip from '@/components/tooltips/EventTooltip.vue'
+import ManualEntryModal from '@/components/supervisor/modals/ManualEntryModal.vue' // <-- NEU: Modal-Import (Pfad ggf. anpassen)
 import { useHolidays } from '@/composables/useHolidays'
 
 import { useDateFormatter } from '@/composables/useDateFormatter'
@@ -13,7 +14,8 @@ import {
   Calendar,
   Calendar as CalendarIcon,
   Search,
-  User
+  User,
+  AlertTriangle
 } from 'lucide-vue-next'
 
 const adminStore = useAdminStore()
@@ -21,6 +23,11 @@ const { getEventClass } = useEventStyles()
 const { getHolidaysForYear } = useHolidays()
 
 const currentYear = new Date().getFullYear()
+
+// NEU: State für das Manual Entry Modal
+const isManualModalOpen = ref(false)
+const selectedMember = ref(null)
+const selectedDateStr = ref('')
 
 // NEU: Reaktive Variablen für die Dropdowns (Standard: aktueller Monat & aktuelles Jahr)
 const selectedMonth = ref(new Date().getMonth()) // 0 = Januar, 11 = Dezember
@@ -56,6 +63,36 @@ const months = [
 const viewDate = computed(() => {
   return new Date(selectedYear.value, selectedMonth.value, 1)
 })
+
+// Hilfsfunktion: Konvertiert ein Date-Objekt in das ISO-Format YYYY-MM-DD
+const formatDateToYYYYMMDD = (dateObj) => {
+  const year = dateObj.getFullYear()
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+  const day = String(dateObj.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// NEU: Modal zum Bearbeiten/Anlegen eines Tages öffnen
+const openManualEntryModal = (member, dayObj) => {
+  if (isBeforeJoinedDate(member, dayObj)) return
+
+  selectedMember.value = member
+  selectedDateStr.value = formatDateToYYYYMMDD(dayObj)
+  isManualModalOpen.value = true
+}
+
+const handleModalSaved = async () => {
+  // 1. Modal schließen
+  isManualModalOpen.value = false
+  
+  // 2. Kalenderevents / Warn-Icons im Kalender aktualisieren
+  await adminStore.fetchCalendarEvents()
+  
+  // 3. Berichtsübersicht (Reports) im Hintergrund aktualisieren, falls vorhanden
+  if (documentStore.fetchAdminReportsOverview) {
+    await documentStore.fetchAdminReportsOverview(selectedMonth.value, selectedYear.value)
+  }
+}
 
 // Prüft, ob der Mitarbeiter an diesem Tag bereits im Unternehmen war
 const isBeforeJoinedDate = (member, day) => {
@@ -142,8 +179,6 @@ const getEvents = (member, day) => {
 
   return []
 }
-
-// HINWEIS: prevMonth und nextMonth wurden entfernt, da sie durch die Dropdowns ersetzt wurden.
 
 const isToday = (date) => {
   const today = new Date()
@@ -303,51 +338,39 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
               </div>
             </div>
 
-            <!-- Rechter Block: Die Kalendertage im Grid -->
-            <div class="flex-1 flex min-w-0 relative">
-              
-              <!-- Intelligenter Info-Text -->
-              <div 
-                v-if="monthDays.filter(d => isBeforeJoinedDate(member, d)).length > 0"
-                class="absolute inset-y-0 left-0 z-10 select-none flex items-center justify-center px-4"
-                :style="{
-                  width: `${(monthDays.filter(d => isBeforeJoinedDate(member, d)).length / monthDays.length) * 100}%`
-                }"
-              >
-                <span 
-                  v-if="monthDays.filter(d => isBeforeJoinedDate(member, d)).length >= 4"
-                  :title="`Eintrittsdatum: ${formatDate(member.joined_at)}`"
-                  class="font-bold text-xs text-slate-500/80 tracking-wide truncate max-w-full text-center block px-2 pointer-events-auto cursor-help"
-                >
-                  Eintrittsdatum: {{ formatDate(member.joined_at) }}
-                </span>
-              </div>
-
-              <!-- Die einzelnen Tages-Zellen -->
-              <div 
-                v-for="day in monthDays" 
-                :key="day.getTime()"
-                class="flex-1 min-w-0 min-h-[64px] border-r border-slate-100 last:border-r-0 flex items-center justify-center relative p-1 transition-colors"
-                :class="[
-                  isBeforeJoinedDate(member, day) 
-                    ? 'bg-slate-200/50 cursor-not-allowed select-none' 
-                    : (isWeekend(day) ? 'bg-slate-50/60' : '')
-                ]"
-              >
-                <template v-if="!isBeforeJoinedDate(member, day)">
-                  <template v-if="getEvents(member, day).length > 0">
-                    <div 
-                      v-for="event in getEvents(member, day)"
-                      :key="event.id"
-                      class="w-full h-7 rounded-lg border flex items-center justify-center cursor-help transition-all hover:scale-105 hover:z-30 hover:shadow-md"
-                      :class="getEventClass(event.type)"
-                      @mouseenter="handleMouseEnter(event, $event)"
-                      @mouseleave="handleMouseLeave"
+            <!-- Rechter Block: Die einzelnen Tages-Zellen (per Klick öffnet sich das Modal) -->
+            <div 
+              v-for="day in monthDays" 
+              :key="day.getTime()"
+              @click="openManualEntryModal(member, day)"
+              class="flex-1 min-w-0 min-h-[64px] border-r border-slate-100 last:border-r-0 flex items-center justify-center relative p-1 transition-colors"
+              :class="[
+                isBeforeJoinedDate(member, day) 
+                  ? 'bg-slate-200/50 cursor-not-allowed select-none' 
+                  : (isWeekend(day) ? 'bg-slate-50/60 hover:bg-blue-50/50 cursor-pointer' : 'hover:bg-blue-50/50 cursor-pointer')
+              ]"
+            >
+              <template v-if="!isBeforeJoinedDate(member, day)">
+                <!-- Schleife über alle Events des Tages -->
+                <template v-if="getEvents(member, day).length > 0">
+                  <div 
+                    v-for="item in getEvents(member, day)"
+                    :key="item.id"
+                    class="w-full h-7 rounded-lg border flex items-center justify-center cursor-pointer transition-all hover:scale-105 hover:z-30 hover:shadow-md relative"
+                    :class="getEventClass(item.type)"
+                    @mouseenter="handleMouseEnter(item, $event)"
+                    @mouseleave="handleMouseLeave"
+                  >
+                    <!-- Warndreieck: Greift sicher auf 'item.warning' aus dem v-for zu -->
+                    <AlertTriangle 
+                      v-if="item.warning" 
+                      class="w-3.5 h-3.5 fill-amber-400 text-slate-900 shrink-0 drop-shadow-sm" 
                     />
-                  </template>
+                  </div>
                 </template>
-              </div>
+              </template>
             </div>
+
           </div>
 
           <!-- Empty State -->
@@ -392,6 +415,14 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
       :event="hoveredEvent"
       :styles="tooltipStyles"
       :arrow-style="arrowStyles"
+    />
+
+    <ManualEntryModal
+      :is-open="isManualModalOpen"
+      :member="selectedMember"
+      :initial-date="selectedDateStr"
+      @close="isManualModalOpen = false"
+      @success="handleModalSaved"
     />
   </div>
 </template>

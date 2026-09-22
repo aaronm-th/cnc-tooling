@@ -44,22 +44,38 @@ class ManualEntriesView(APIView):
                 employee=employee, date=date_str
             )
         except WorkDay.DoesNotExist:
-            return Response({"exists": False, "day_type": None, "sessions": []})
+            return Response({"exists": False, "day_type": None, "sessions": [], "warning": None})
 
         sessions = [
             {
                 "id": s.id,
                 "check_in": timezone.localtime(s.check_in).strftime("%H:%M"),
                 "check_out": timezone.localtime(s.check_out).strftime("%H:%M") if s.check_out else None,
+                "is_auto_checkout": getattr(s, 'is_auto_checkout', False),
             }
             for s in sorted(work_day.sessions.all(), key=lambda s: s.check_in)
         ]
 
+        # --- WARNUNG ERMITTELN ---
+        # Passe die Bedingung unten an dein 'WorkDay'- bzw. 'WorkSession'-Modell an:
+        warning_msg = None
+        
+        # Variante A: Auslesen aus einem Eigenschafts-Feld / Property deines Models
+        if getattr(work_day, 'has_auto_checkout', False):
+            warning_msg = "Automatische Ausstempelung registriert. Bitte Arbeitszeiten überprüfen."
+        elif getattr(work_day, 'warning', None):
+            warning_msg = work_day.warning
+
+        # Variante B: Prüfung der WorkSessions auf Auto-Checkout / offenes Checkout
+        elif any(getattr(s, 'is_auto_checkout', False) for s in work_day.sessions.all()):
+            warning_msg = "Auto-Checkout wurde für diesen Tag durchgeführt."
+        
         return Response({
             "exists": True,
             "day_type": work_day.day_type,
             "day_type_display": work_day.get_day_type_display(),
             "sessions": sessions,
+            "warning": warning_msg,  # <-- NEU: Wird jetzt an das Frontend übergeben
         })
 
 

@@ -11,6 +11,11 @@ const props = defineProps({
   member: {
     type: Object,
     default: null
+  },
+  // WICHTIG: Erwartet das angeklickte Datum als String (z.B. "2026-09-15")
+  initialDate: {
+    type: String,
+    default: ''
   }
 })
 
@@ -18,7 +23,7 @@ const emit = defineEmits(['close', 'success'])
 const adminStore = useAdminStore()
 
 const entryType = ref('')
-const date = ref(new Date().toISOString().split('T')[0])
+const date = ref('')
 const note = ref('')
 const errorMessage = ref('')
 const isSubmitting = ref(false)
@@ -27,47 +32,41 @@ const isDeleting = ref(false)
 const showDeleteConfirm = ref(false)
 const deleteError = ref('')
 
-// Info über einen ggf. bereits bestehenden Tag (für den Warnhinweis)
-const existingDayType = ref(null)          // Rohwert, z.B. 'work', 'vacation', 'sick'
-const existingDayTypeDisplay = ref(null)   // Anzeigetext, z.B. "Arbeitstag"
+// Info über einen ggf. bereits bestehenden Tag
+const existingDayType = ref(null)          
+const existingDayTypeDisplay = ref(null)   
 const existingSessionCount = ref(0)
+const existingWarning = ref(null)
 
-// Zeigt den neutralen "Zeiten geladen"-Hinweis nur, wenn es tatsächlich etwas zu bearbeiten gibt
 const showLoadedInfo = computed(() =>
   entryType.value === 'work' &&
   existingDayType.value === 'work' &&
   existingSessionCount.value > 0
 )
 
-// Zeigt die Überschreibungs-Warnung nur, wenn beim Speichern wirklich etwas verloren geht,
-// also der bestehende Tagestyp vom neu gewählten Typ abweicht (z.B. Arbeit -> Krank).
-// Ein leerer WorkDay vom selben Typ (z.B. "work" ohne Sessions) ist keine Datenlöschung.
 const showOverwriteWarning = computed(() =>
   existingDayType.value !== null &&
+  entryType.value !== '' &&
   existingDayType.value !== entryType.value
 )
 
-// Löschen ist nur sinnvoll, wenn der Nutzer bereits eine "Art des Eintrags"
-// gewählt hat UND für diesen Tag tatsächlich schon ein Eintrag existiert
-// (nicht während des Ladens, sonst könnte man versehentlich einen Tag
-// löschen, dessen Zustand noch gar nicht feststeht)
 const canDelete = computed(() =>
   entryType.value !== '' &&
   existingDayType.value !== null &&
   !isLoadingDay.value
 )
 
-// Jede Session: { _key, id (null = neu), check_in, check_out }
 let sessionKeyCounter = 0
+
 const makeSession = (data = {}) => ({
   _key: sessionKeyCounter++,
   id: data.id ?? null,
   check_in: data.check_in ?? '',
-  check_out: data.check_out ?? ''
+  check_out: data.check_out ?? '',
+  is_auto_checkout: data.is_auto_checkout ?? false
 })
 
 const sessions = ref([makeSession()])
-// IDs von Sessions, die der Supervisor im Modal aktiv entfernt hat -> werden beim Speichern gelöscht
 const deletedSessionIds = ref([])
 
 const ENTRY_TYPES = [
@@ -76,9 +75,11 @@ const ENTRY_TYPES = [
   { value: 'work', label: 'Stempelzeit nachbuchen (Kommen/Gehen)' }
 ]
 
+// Setzt das Formular zurück, übernimmt aber das angeklickte Datum
 function resetForm() {
   entryType.value = ''
-  date.value = new Date().toISOString().split('T')[0]  
+  // 1. Datum auf das im Kalender angeklickte Datum setzen (Falls leer -> Fallback auf Heute)
+  date.value = props.initialDate || new Date().toISOString().split('T')[0]
   note.value = ''
   errorMessage.value = ''
   isSubmitting.value = false
@@ -91,23 +92,33 @@ function resetForm() {
   existingDayType.value = null
   existingDayTypeDisplay.value = null
   existingSessionCount.value = 0
+  existingWarning.value = null
 
+  // 2. Sofort prüfen, was an dem Tag im Backend vorliegt
   loadExistingDay()
 }
 
-// Reset bei Sichtbarkeitswechsel
+// Watcher für das Öffnen des Modals UND Änderungen des Datums
 watch(() => props.isOpen, (newVal) => {
-  if (newVal) resetForm()
+  if (newVal) {
+    resetForm()
+  }
 })
 
-// Sobald Datum (und Mitglied) feststehen: bestehenden Tag laden.
-// So werden vorhandene Stempelzeiten zum Bearbeiten vorbefüllt, statt sie
-// beim Speichern blind zu überschreiben.
+// Wenn sich das Datum aus den Props ändert, während das Modal bereits gerendert ist
+watch(() => props.initialDate, (newDate) => {
+  if (newDate) {
+    date.value = newDate
+    loadExistingDay()
+  }
+})
+
 async function loadExistingDay() {
   if (!date.value || !props.member?.id) {
     existingDayType.value = null
     existingDayTypeDisplay.value = null
     existingSessionCount.value = 0
+    existingWarning.value = null
     return
   }
 
@@ -120,9 +131,20 @@ async function loadExistingDay() {
       existingDayType.value = data.day_type
       existingDayTypeDisplay.value = data.day_type_display || data.day_type
       existingSessionCount.value = data.sessions?.length || 0
+      existingWarning.value = data.warning || null
 
-      if (data.sessions?.length) {
+      // AUTOMATISCH TYP VORBEFÜLLEN
+      entryType.value = data.day_type
+
+      if (data.day_type === 'work' && data.sessions?.length) {
         sessions.value = data.sessions.map(s => makeSession(s))
+        
+        // --- NEU: Prüfen, ob eine der Sessions ein Auto-Checkout war ---
+        const hasAutoCheckoutSession = data.sessions.some(s => s.is_auto_checkout)
+        
+        if (hasAutoCheckoutSession && !note.value) {
+          note.value = 'Korrektur Auto-Checkout'
+        }
       } else {
         sessions.value = [makeSession()]
       }
@@ -130,6 +152,7 @@ async function loadExistingDay() {
       existingDayType.value = null
       existingDayTypeDisplay.value = null
       existingSessionCount.value = 0
+      existingWarning.value = null
       sessions.value = [makeSession()]
     }
   } catch (error) {
@@ -139,9 +162,18 @@ async function loadExistingDay() {
   }
 }
 
-watch(date, () => {
-  loadExistingDay()
+watch(date, (newVal, oldVal) => {
+  if (newVal && newVal !== oldVal && props.isOpen) {
+    loadExistingDay()
+  }
 })
+
+watch(sessions, (newSessions) => {
+  const hasAutoCheckout = newSessions.some(s => s.is_auto_checkout)
+  if (hasAutoCheckout && !note.value) {
+    note.value = 'Korrektur Auto-Checkout'
+  }
+}, { deep: true })
 
 function addSession() {
   sessions.value.push(makeSession())
@@ -149,7 +181,6 @@ function addSession() {
 
 function removeSession(index) {
   const session = sessions.value[index]
-  // Nur bestehende (gespeicherte) Sessions müssen dem Backend explizit als "löschen" mitgeteilt werden
   if (session.id) {
     deletedSessionIds.value.push(session.id)
   }
@@ -196,15 +227,13 @@ const handleSubmit = async () => {
 
   try {
     await adminStore.createManualEntry(payload)
-    emit('success')
+    emit('success', { memberId: props.member.id, date: date.value })
     emit('close')
   } catch (error) {
     console.error("Fehler beim manuellen Eintrag:", error)
-    
     const responseData = error.response?.data
     
     if (responseData) {
-      // Hilfsfunktion, um rekursiv den ersten String aus dem DRF-Fehlerobjekt zu extrahieren
       const extractFirstError = (obj) => {
         if (typeof obj === 'string') return obj;
         if (Array.isArray(obj)) {
@@ -221,7 +250,6 @@ const handleSubmit = async () => {
         return null;
       };
 
-      // Erst nach "detail" suchen (Standard bei API-Ausnahmen), sonst das gesamte Objekt durchwühlen
       if (responseData.detail) {
         if (typeof responseData.detail === 'string') {
           errorMessage.value = responseData.detail;
@@ -231,7 +259,6 @@ const handleSubmit = async () => {
       } else {
         errorMessage.value = extractFirstError(responseData) || 'Validierungsfehler aufgetreten.';
       }
-
     } else {
       errorMessage.value = 'Fehler beim Speichern des Eintrags. Bitte Serververbindung prüfen.';
     }
@@ -291,7 +318,6 @@ const handleDelete = async () => {
           </div>
           
           <!-- FORMULAR MIT SCROLL-BEREICH -->
-          <!-- flex-1 und overflow-y-auto lassen nur diesen Teil scrollen -->
           <form @submit.prevent="handleSubmit" class="flex flex-col flex-1 min-h-0">
             
             <div class="p-6 space-y-6 overflow-y-auto flex-1 chunk-scroll-area">
@@ -312,10 +338,8 @@ const handleDelete = async () => {
                     </option>
                   </select>
                 </div>
-
-                <div v-if="entryType" class="space-y-4 animate-in fade-in duration-300">
-                  
-                  <div class="space-y-2">
+                
+                <div class="space-y-2">
                     <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Datum</label>
                     <input 
                       v-model="date" 
@@ -324,8 +348,25 @@ const handleDelete = async () => {
                       :disabled="isSubmitting" 
                       class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
                     />
+                </div>
+
+                <div v-if="entryType" class="space-y-4 animate-in fade-in duration-300">
+                  
+                  <!-- SYSTEM-WARNUNG (Auto-Checkout etc.) -->
+                  <div 
+                    v-if="existingWarning && !isLoadingDay" 
+                    class="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3"
+                  >
+                    <AlertTriangle class="w-5 h-5 fill-amber-400 text-slate-900 shrink-0 mt-0.5" />
+                    <div>
+                      <p class="text-xs text-amber-900 font-bold leading-tight">System-Warnung für diesen Tag</p>
+                      <p class="text-[11px] text-amber-800 mt-1 leading-relaxed font-medium">
+                        {{ existingWarning }}
+                      </p>
+                    </div>
                   </div>
 
+                  <!-- HINWEISE ZUM TAG (Gefiltert/Ablauf-Hinweise) -->
                   <Transition
                     enter-active-class="transition duration-200 ease-out"
                     enter-from-class="opacity-0 -translate-y-2"
@@ -390,42 +431,63 @@ const handleDelete = async () => {
                   </Transition>
 
                   <div v-if="entryType === 'work'" class="space-y-3 animate-in fade-in duration-200">
-                    <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Erfasste Stempelzeiten</label>
+                    <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">
+                      Erfasste Stempelzeiten
+                    </label>
 
                     <div 
                       v-for="(session, index) in sessions" 
                       :key="session._key" 
-                      class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end"
+                      class="p-2 rounded-2xl transition-all relative"
+                      :class="[
+                        session.is_auto_checkout 
+                          ? 'bg-amber-500/10 border border-amber-300/60 shadow-sm' 
+                          : ''
+                      ]"
                     >
-                      <div class="space-y-1 min-w-0">
-                        <label class="text-[9px] font-bold uppercase tracking-widest text-slate-400 ml-1">Kommen</label>
-                        <input 
-                          v-model="session.check_in" 
-                          type="time" 
-                          required
-                          :disabled="isSubmitting" 
-                          class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
-                        />
-                      </div>
-                      <div class="space-y-1 min-w-0">
-                        <label class="text-[9px] font-bold uppercase tracking-widest text-slate-400 ml-1">Gehen</label>
-                        <input 
-                          v-model="session.check_out" 
-                          type="time" 
-                          required
-                          :disabled="isSubmitting" 
-                          class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
-                        />
-                      </div>
-                      <button 
-                        type="button"
-                        @click="removeSession(index)"
-                        :disabled="isSubmitting"
-                        class="p-3 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                        title="Diese Zeit entfernen"
+                      <!-- Kleine Warn-Badge direkt über der betroffenen Zeile -->
+                      <div 
+                        v-if="session.is_auto_checkout" 
+                        class="flex items-center gap-1.5 mb-1.5 ml-1 text-amber-800 text-[10px] font-bold"
                       >
-                        <Trash2 class="w-4 h-4" />
-                      </button>
+                        <AlertTriangle class="w-3.5 h-3.5 fill-amber-400 text-slate-900 shrink-0" />
+                        <span>Automatische Ausstempelung / Korrekturbedarf</span>
+                      </div>
+
+                      <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end">
+                        <div class="space-y-1 min-w-0">
+                          <label class="text-[9px] font-bold uppercase tracking-widest text-slate-400 ml-1">Kommen</label>
+                          <input 
+                            v-model="session.check_in" 
+                            type="time" 
+                            required
+                            :disabled="isSubmitting" 
+                            class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                          />
+                        </div>
+
+                        <div class="space-y-1 min-w-0">
+                          <label class="text-[9px] font-bold uppercase tracking-widest text-slate-400 ml-1">Gehen</label>
+                          <input 
+                            v-model="session.check_out" 
+                            type="time" 
+                            required
+                            :disabled="isSubmitting" 
+                            class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium"
+                            :class="{ 'border-amber-400 font-bold text-amber-900': session.is_auto_checkout }" 
+                          />
+                        </div>
+
+                        <button 
+                          type="button"
+                          @click="removeSession(index)"
+                          :disabled="isSubmitting"
+                          class="p-3 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                          title="Diese Zeit entfernen"
+                        >
+                          <Trash2 class="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
                     <button 
@@ -462,7 +524,6 @@ const handleDelete = async () => {
             </div>
 
             <!-- FIXIERTER FOOTER -->
-            <!-- Durch die Platzierung außerhalb der Scroll-Zone bleiben die Buttons immer unten stehen -->
             <div class="p-6 border-t border-slate-100 bg-slate-50/50 flex flex-col gap-3 shrink-0">
               <div v-if="deleteError" class="p-3 bg-rose-50 border border-rose-100 rounded-xl flex items-start gap-2">
                 <AlertCircle class="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
@@ -508,7 +569,7 @@ const handleDelete = async () => {
           </form>
         </div>
 
-        <!-- LÖSCH-BESTÄTIGUNG (eigenes Overlay über dem Modal) -->
+        <!-- LÖSCH-BESTÄTIGUNG -->
         <Transition
           enter-active-class="transition duration-200 ease-out"
           enter-from-class="opacity-0"

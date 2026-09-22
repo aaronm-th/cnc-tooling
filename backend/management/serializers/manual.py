@@ -101,6 +101,10 @@ class ManualEntrySerializer(serializers.Serializer):
                 if session:
                     session.check_in = aware_check_in
                     session.check_out = aware_check_out
+
+                    if hasattr(session, 'is_auto_checkout'):
+                        session.is_auto_checkout = False
+
                     session.save()
                 else:
                     WorkSession.objects.create(work_day=work_day, check_in=aware_check_in, check_out=aware_check_out)

@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useDocumentStore } from '@/stores/documentStore'
-import { useAdminStore } from '@/stores/adminStore' // Neu importiert für die Sperr-Logik
+import { useAdminStore } from '@/stores/adminStore'
+import { useAppStore } from '@/stores/appStore'
 import { storeToRefs } from 'pinia'
 import { 
   FileText, 
@@ -13,19 +14,21 @@ import {
   Lock,
   Unlock,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Clock
 } from 'lucide-vue-next'
 
 const documentStore = useDocumentStore()
-const adminStore = useAdminStore() // Instanziiert
+const adminStore = useAdminStore()
+const appStore = useAppStore()
 
 const { adminReportsOverview, isAdminFetching, isGenerating } = storeToRefs(documentStore)
 
 const searchQuery = ref('')
 const selectedMonth = ref(new Date().getMonth() + 1)
 const selectedYear = ref(new Date().getFullYear())
-const isProcessingAction = ref(false) // Lokaler Lade-State für Lock/Unlock
-const printingMemberId = ref(null) // Lokaler Lade-State für den Druck-Button pro Zeile
+const isProcessingAction = ref(false)
+const printingMemberId = ref(null)
 
 const months = [
   { value: 1, name: 'Januar' },
@@ -45,7 +48,6 @@ const months = [
 const currentYear = new Date().getFullYear()
 const years = [currentYear - 1, currentYear, currentYear + 1]
 
-// Lädt die Übersicht (wird getriggert bei Mount & Filter-Wechsel)
 const loadReportOverview = async () => {
   await documentStore.fetchAdminReportsOverview(selectedMonth.value, selectedYear.value)
 }
@@ -66,9 +68,12 @@ const filteredMembers = computed(() => {
   })
 })
 
+// Hilfsfunktion: Prüft, ob bei einem Mitarbeiter unkorrigierte Auto-Checkouts vorliegen
+const hasAutoCheckouts = (member) => {
+  return !member.is_processed && ((member.auto_checkout_count ?? 0) > 0 || !!member.has_auto_checkout)
+}
 
 const handleDownloadPDF = async (member) => {
-  // 1. Tab SOFORT beim Klick öffnen, aber OHNE document.write
   const newTab = window.open('about:blank', '_blank')
 
   if (!newTab) {
@@ -77,7 +82,6 @@ const handleDownloadPDF = async (member) => {
   }
 
   try {
-    // 2. Store-Aktion aufrufen
     await documentStore.downloadAdminEmployeeReport(
       member.id, 
       selectedMonth.value, 
@@ -93,7 +97,6 @@ const handleDownloadPDF = async (member) => {
   }
 }
 
-// PDF Zeitnachweis direkt drucken (kein Tab, kein Download-Trigger)
 const handlePrintPDF = async (member) => {
   printingMemberId.value = member.id
   try {
@@ -105,20 +108,24 @@ const handlePrintPDF = async (member) => {
   }
 }
 
-
 // EINZELNEN MITARBEITER ABRECHNEN ODER WIEDER ÖFFNEN
 const handleToggleEmployeeLock = async (member) => {
+  // Sicherheitsnetz: Falls die Schaltfläche trotz Sperre geklickt wird
+  if (hasAutoCheckouts(member)) return
+
   isProcessingAction.value = true
   try {
     if (member.is_processed) {
-      // Wenn bereits abgerechnet: Wieder öffnen (Admin-Override)
-      const confirmed = confirm(`Achtung: Du öffnest den Monat für ${member.name} erneut. Bereits exportierte Payout-Daten werden zurückgesetzt. Fortfahren?`)
+      // Monat wieder öffnen
+      const confirmed = confirm(
+        `Achtung: Du öffnest den Monat für ${member.name} erneut. Bereits exportierte Payout-Daten werden zurückgesetzt. Fortfahren?`
+      )
       if (!confirmed) return
       
       await adminStore.reopenEmployeeMonth(member.id, selectedMonth.value, selectedYear.value)
       alert(`Monat für ${member.name} wieder geöffnet.`)
     } else {
-      // Wenn offen: Abrechnen & Fixieren
+      // Abrechnen & Fixieren
       await adminStore.closeEmployeeMonth(member.id, selectedMonth.value, selectedYear.value)
       alert(`Monat für ${member.name} erfolgreich abgerechnet.`)
     }
@@ -129,6 +136,11 @@ const handleToggleEmployeeLock = async (member) => {
     isProcessingAction.value = false
   }
 }
+
+const goToCalendar = (member) => {  
+  appStore.setTab('admin-calendar') 
+}
+
 </script>
 
 <template>
@@ -239,6 +251,7 @@ const handleToggleEmployeeLock = async (member) => {
                 </td>
 
                 <td class="px-6 py-4 whitespace-nowrap">
+                  <!-- STATUS: ABGERECHNET -->
                   <span 
                     v-if="member.is_processed" 
                     class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg"
@@ -246,6 +259,27 @@ const handleToggleEmployeeLock = async (member) => {
                     <CheckCircle2 class="w-3.5 h-3.5 text-emerald-600" />
                     Abgerechnet & Fixiert
                   </span>
+
+                  <!-- STATUS: SESSIONS MIT AUTO-CHECKOUT (GESPERRT) -->
+                  <div v-else-if="hasAutoCheckouts(member)" class="flex flex-col gap-1 items-start">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 rounded-lg">
+                      <AlertTriangle class="w-3.5 h-3.5 text-rose-600" />
+                      {{ member.auto_checkout_count }} Auto-Checkout(s) erkannt
+                    </span>
+                    <span class="text-[10px] text-slate-500 font-medium ml-0.5">
+                      Bitte im 
+                      <button 
+                        type="button"
+                        @click="goToCalendar(member)"
+                        class="text-blue-600 underline font-semibold hover:text-blue-800 transition-colors cursor-pointer inline p-0 bg-transparent border-none"
+                      >
+                        Kalender
+                      </button> 
+                      prüfen & korrigieren
+                    </span>
+                  </div>
+
+                  <!-- STATUS: REGULÄR OFFEN -->
                   <span 
                     v-else 
                     class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 rounded-lg"
@@ -260,12 +294,15 @@ const handleToggleEmployeeLock = async (member) => {
                     
                     <button 
                       @click="handleToggleEmployeeLock(member)"
-                      :disabled="isProcessingAction"
+                      :disabled="isProcessingAction || hasAutoCheckouts(member)"
+                      :title="hasAutoCheckouts(member) ? 'Korrektur im Kalender erforderlich bevor abgeschlossen werden kann' : ''"
                       :class="[
-                        'inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg font-medium text-xs border transition-all cursor-pointer',
+                        'inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg font-medium text-xs border transition-all',
                         member.is_processed 
-                          ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white' 
-                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white cursor-pointer' 
+                          : hasAutoCheckouts(member)
+                            ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer'
                       ]"
                     >
                       <template v-if="member.is_processed">
@@ -273,7 +310,7 @@ const handleToggleEmployeeLock = async (member) => {
                         <span>Öffnen</span>
                       </template>
                       <template v-else>
-                        <Lock class="w-3 h-3" />
+                        <Lock class="w-3 h-3 text-slate-500" />
                         <span>Abschließen</span>
                       </template>
                     </button>

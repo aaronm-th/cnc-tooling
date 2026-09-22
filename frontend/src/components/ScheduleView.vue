@@ -2,7 +2,7 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { 
-  Plus, Clock, Calendar as CalendarIcon, User
+  Plus, Clock, Calendar as CalendarIcon, AlertTriangle
 } from 'lucide-vue-next'
 
 // --- STORES ---
@@ -364,9 +364,18 @@ watch(calendarDays, (newDays) => {
               >
                 <div v-if="event.hasPendingRequest" class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-white" />
                 
-                <div class="flex items-center gap-1 font-bold">
-                  <component :is="getEventIcon(event.type)" class="w-3.5 h-3.5" />
-                  <span class="truncate">{{ event.title }}</span>
+                  <div class="flex items-center justify-between gap-1 font-bold w-full">
+                    <div class="flex items-center gap-1 truncate">
+                      <component :is="getEventIcon(event.type)" class="w-3.5 h-3.5 shrink-0" />
+                      <span class="truncate">{{ event.title }}</span>
+                    </div>
+
+                    <!-- Warndreieck anzeigen, wenn warning vorhanden ist -->
+                    <AlertTriangle 
+                      v-if="event.warning" 
+                      class="w-3.5 h-3.5 fill-amber-400 text-slate-900 shrink-0 drop-shadow-sm" 
+                      title="Achtung: Prüfbedarf"
+                    />
                 </div>
               </div>
             </div>
