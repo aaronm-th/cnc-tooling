@@ -61,7 +61,8 @@ class TerminalToggleStatusView(APIView):
         # 1. WorkDay sicherstellen
         actual_work_day, _ = WorkDay.objects.get_or_create(
             employee=employee, 
-            date=today
+            date=today,
+            defaults={'day_type': 'work'}
         )
 
         # 2. Letzte Session für Timer-Check holen
@@ -91,6 +92,11 @@ class TerminalToggleStatusView(APIView):
 
         # 5. Toggle Logik
         if active_session is None or active_session.check_out is not None:
+            # NEU: Tag-Typ sofort auf 'work' setzen, falls er z.B. noch auf 'weekend' stand!
+            if actual_work_day.day_type != 'work':
+                actual_work_day.day_type = 'work'
+                actual_work_day.save(update_fields=['day_type'])
+
             WorkSession.objects.create(work_day=actual_work_day, check_in=timezone.localtime())
             new_status = "Anwesend"
             msg_prefix = "Viel Erfolg"

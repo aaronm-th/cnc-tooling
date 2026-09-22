@@ -207,18 +207,33 @@ class TeamMemberDetailSerializer(TeamMemberSummarySerializer):
 
 class TeamWorkDayEventSerializer(serializers.ModelSerializer):
     userName = serializers.CharField(source='employee.get_full_name', read_only=True)
-    title = serializers.CharField(source='get_day_type_display', read_only=True)
-    type = serializers.CharField(source='day_type', read_only=True)
+    title = serializers.SerializerMethodField()
+    type = serializers.SerializerMethodField()
     
     # Strukturierte Felder:
     sessions = serializers.SerializerMethodField()
     totalHours = serializers.SerializerMethodField()
     warning = serializers.SerializerMethodField()
     note = serializers.SerializerMethodField()
+    has_auto_checkout = serializers.SerializerMethodField()
 
     class Meta:
         model = WorkDay
-        fields = ['id', 'userName', 'date', 'type', 'title', 'note', 'sessions', 'totalHours', 'warning']
+        fields = ['id', 'userName', 'date', 'type', 'title', 'note', 'sessions', 'totalHours', 'warning', 'has_auto_checkout']
+
+    def get_type(self, obj) -> str:
+        # Wenn Sessions existieren (auch Auto-Checkouts am Wochenende), ist es ein Arbeitstag
+        if obj.sessions.exists():
+            return 'work'
+        return obj.day_type
+
+    def get_title(self, obj) -> str:
+        if obj.sessions.exists():
+            # Wenn es ursprünglich ein Wochenende war, kennzeichnen wir es deutlich
+            if obj.day_type == 'weekend':
+                return "Arbeit an Wochenendtag"
+            return "Arbeitstag"
+        return obj.get_day_type_display()
 
     def get_totalHours(self, obj):
         # Zeige Gesamtzeit nur bei normalen Arbeitstagen/Homeoffice an
@@ -257,6 +272,13 @@ class TeamWorkDayEventSerializer(serializers.ModelSerializer):
         if has_auto_checkout:
             return "Auto-Checkout erfolgt. Bitte Zeiten überprüfen!"
         return None
+
+    def get_has_auto_checkout(self, obj) -> bool:
+        """Prüft direkt, ob mindestens ein Auto-Checkout vorliegt."""
+        return any(
+            getattr(s, 'is_auto_checkout', False) 
+            for s in obj.sessions.all()
+        )
 
 class TeamPendingLeaveSerializer(serializers.Serializer):
     """
