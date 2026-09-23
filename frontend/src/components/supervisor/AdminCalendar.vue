@@ -64,6 +64,10 @@ const viewDate = computed(() => {
   return new Date(selectedYear.value, selectedMonth.value, 1)
 })
 
+const getShortDayName = (date) => {
+  return date.toLocaleDateString('de-DE', { weekday: 'short' })
+}
+
 // Hilfsfunktion: Konvertiert ein Date-Objekt in das ISO-Format YYYY-MM-DD
 const formatDateToYYYYMMDD = (dateObj) => {
   const year = dateObj.getFullYear()
@@ -305,6 +309,11 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
                 isToday(day) ? 'text-blue-600 bg-blue-50/20' : (isWeekend(day) ? 'text-slate-400 bg-slate-100/40' : 'text-slate-500')
               ]"
             >
+
+              <span class="text-[10px] font-medium uppercase tracking-wider">
+                {{ getShortDayName(day) }}
+              </span>
+
               <span 
                 class="flex items-center justify-center w-6 h-6 rounded-full text-[11px] transition-all"
                 :class="isToday(day) ? 'bg-blue-600 text-white font-bold' : ''"
