@@ -12,7 +12,7 @@ const props = defineProps({
     type: Object,
     default: null
   },
-  // WICHTIG: Erwartet das angeklickte Datum als String (z.B. "2026-09-15")
+  // Erwartet das angeklickte Datum als String (z.B. "2026-09-15")
   initialDate: {
     type: String,
     default: ''
@@ -23,7 +23,9 @@ const emit = defineEmits(['close', 'success'])
 const adminStore = useAdminStore()
 
 const entryType = ref('')
-const date = ref('')
+const date = ref('')             // Für Typ 'work' (Einzeltag)
+const startDate = ref('')        // Für Typ 'vacation' / 'sick'
+const endDate = ref('')          // Für Typ 'vacation' / 'sick'
 const note = ref('')
 const errorMessage = ref('')
 const isSubmitting = ref(false)
@@ -37,6 +39,8 @@ const existingDayType = ref(null)
 const existingDayTypeDisplay = ref(null)   
 const existingSessionCount = ref(0)
 const existingWarning = ref(null)
+
+const isRangeType = computed(() => ['vacation', 'sick'].includes(entryType.value))
 
 const showLoadedInfo = computed(() =>
   entryType.value === 'work' &&
@@ -75,11 +79,13 @@ const ENTRY_TYPES = [
   { value: 'work', label: 'Stempelzeit nachbuchen (Kommen/Gehen)' }
 ]
 
-// Setzt das Formular zurück, übernimmt aber das angeklickte Datum
+// Setzt das Formular zurück
 function resetForm() {
   entryType.value = ''
-  // 1. Datum auf das im Kalender angeklickte Datum setzen (Falls leer -> Fallback auf Heute)
-  date.value = props.initialDate || new Date().toISOString().split('T')[0]
+  const initial = props.initialDate || new Date().toISOString().split('T')[0]
+  date.value = initial
+  startDate.value = initial
+  endDate.value = initial
   note.value = ''
   errorMessage.value = ''
   isSubmitting.value = false
@@ -94,27 +100,30 @@ function resetForm() {
   existingSessionCount.value = 0
   existingWarning.value = null
 
-  // 2. Sofort prüfen, was an dem Tag im Backend vorliegt
   loadExistingDay()
 }
 
-// Watcher für das Öffnen des Modals UND Änderungen des Datums
+// Watcher für das Öffnen des Modals
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
     resetForm()
   }
 })
 
-// Wenn sich das Datum aus den Props ändert, während das Modal bereits gerendert ist
+// Wenn sich das Datum aus den Props ändert
 watch(() => props.initialDate, (newDate) => {
   if (newDate) {
     date.value = newDate
+    startDate.value = newDate
+    endDate.value = newDate
     loadExistingDay()
   }
 })
 
 async function loadExistingDay() {
-  if (!date.value || !props.member?.id) {
+  const targetDate = isRangeType.value ? startDate.value : date.value
+
+  if (!targetDate || !props.member?.id) {
     existingDayType.value = null
     existingDayTypeDisplay.value = null
     existingSessionCount.value = 0
@@ -124,7 +133,7 @@ async function loadExistingDay() {
 
   isLoadingDay.value = true
   try {
-    const data = await adminStore.fetchWorkDayDetail(props.member.id, date.value)
+    const data = await adminStore.fetchWorkDayDetail(props.member.id, targetDate)
     deletedSessionIds.value = []
 
     if (data.exists) {
@@ -133,13 +142,10 @@ async function loadExistingDay() {
       existingSessionCount.value = data.sessions?.length || 0
       existingWarning.value = data.warning || null
 
-      // AUTOMATISCH TYP VORBEFÜLLEN
       entryType.value = data.day_type
 
       if (data.day_type === 'work' && data.sessions?.length) {
         sessions.value = data.sessions.map(s => makeSession(s))
-        
-        // --- NEU: Prüfen, ob eine der Sessions ein Auto-Checkout war ---
         const hasAutoCheckoutSession = data.sessions.some(s => s.is_auto_checkout)
         
         if (hasAutoCheckoutSession && !note.value) {
@@ -162,9 +168,11 @@ async function loadExistingDay() {
   }
 }
 
-watch(date, (newVal, oldVal) => {
-  if (newVal && newVal !== oldVal && props.isOpen) {
-    loadExistingDay()
+watch([date, startDate], ([newDate, newStart], [oldDate, oldStart]) => {
+  if (props.isOpen) {
+    if ((newDate && newDate !== oldDate) || (newStart && newStart !== oldStart)) {
+      loadExistingDay()
+    }
   }
 })
 
@@ -191,9 +199,16 @@ function removeSession(index) {
 }
 
 const isFormValid = () => {
-  if (!entryType.value || !date.value || !note.value || !props.member?.id) return false
-  if (entryType.value === 'work') {
-    return sessions.value.every(s => s.check_in && s.check_out)
+  if (!entryType.value || !note.value || !props.member?.id) return false
+  
+  if (isRangeType.value) {
+    if (!startDate.value || !endDate.value) return false
+    if (startDate.value > endDate.value) return false
+  } else {
+    if (!date.value) return false
+    if (entryType.value === 'work') {
+      return sessions.value.every(s => s.check_in && s.check_out)
+    }
   }
   return true
 }
@@ -213,21 +228,30 @@ const handleSubmit = async () => {
   const payload = {
     member_id: props.member.id,
     type: entryType.value,
-    date: date.value,
     note: note.value,
-    ...(entryType.value === 'work' && {
-      sessions: sessions.value.map(s => ({
-        ...(s.id ? { id: s.id } : {}),
-        check_in: s.check_in,
-        check_out: s.check_out
-      })),
-      deleted_session_ids: deletedSessionIds.value
+    ...(isRangeType.value ? {
+      start_date: startDate.value,
+      end_date: endDate.value,
+      date: startDate.value // Fallback für APIs, die ein Hauptdatum erwarten
+    } : {
+      date: date.value,
+      ...(entryType.value === 'work' && {
+        sessions: sessions.value.map(s => ({
+          ...(s.id ? { id: s.id } : {}),
+          check_in: s.check_in,
+          check_out: s.check_out
+        })),
+        deleted_session_ids: deletedSessionIds.value
+      })
     })
   }
 
   try {
     await adminStore.createManualEntry(payload)
-    emit('success', { memberId: props.member.id, date: date.value })
+    emit('success', { 
+      memberId: props.member.id, 
+      date: isRangeType.value ? startDate.value : date.value 
+    })
     emit('close')
   } catch (error) {
     console.error("Fehler beim manuellen Eintrag:", error)
@@ -271,8 +295,10 @@ const handleDelete = async () => {
   isDeleting.value = true
   deleteError.value = ''
 
+  const targetDate = isRangeType.value ? startDate.value : date.value
+
   try {
-    await adminStore.deleteManualEntry(props.member.id, date.value)
+    await adminStore.deleteManualEntry(props.member.id, targetDate)
     emit('success')
     emit('close')
   } catch (error) {
@@ -298,7 +324,6 @@ const handleDelete = async () => {
       <div v-if="isOpen" class="fixed inset-0 z-[10000] flex items-center justify-center p-4">
         <div @click="!isSubmitting && $emit('close')" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
         
-        <!-- flex flex-col und max-h-full stellt sicher, dass das Modal nie größer als der Bildschirm wird -->
         <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300">
           
           <!-- FIXIERTER HEADER -->
@@ -323,6 +348,7 @@ const handleDelete = async () => {
             <div class="p-6 space-y-6 overflow-y-auto flex-1 chunk-scroll-area">
 
               <div class="space-y-4">
+                <!-- TYPE SELECT -->
                 <div class="space-y-2">
                   <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Art des Eintrags</label>
                   <select 
@@ -339,17 +365,43 @@ const handleDelete = async () => {
                   </select>
                 </div>
                 
-                <div class="space-y-2">
-                    <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Datum</label>
+                <!-- DATUMS-FELDER: DYNAMISCH ZWISCHEN SPANNE UND EINZELTAG -->
+                <div v-if="isRangeType" class="grid grid-cols-2 gap-3">
+                  <div class="space-y-2">
+                    <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Von</label>
                     <input 
-                      v-model="date" 
+                      v-model="startDate" 
                       type="date" 
                       required
                       :disabled="isSubmitting" 
-                      class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                      class="w-full min-w-0 px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
                     />
+                  </div>
+                  <div class="space-y-2">
+                    <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Bis (inkl.)</label>
+                    <input 
+                      v-model="endDate" 
+                      type="date" 
+                      required
+                      :min="startDate"
+                      :disabled="isSubmitting" 
+                      class="w-full min-w-0 px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                    />
+                  </div>
                 </div>
 
+                <div v-else class="space-y-2">
+                  <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Datum</label>
+                  <input 
+                    v-model="date" 
+                    type="date" 
+                    required
+                    :disabled="isSubmitting" 
+                    class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                  />
+                </div>
+
+                <!-- DYNAMISCHER BEREICH NCH TYP -->
                 <div v-if="entryType" class="space-y-4 animate-in fade-in duration-300">
                   
                   <!-- SYSTEM-WARNUNG (Auto-Checkout etc.) -->
@@ -366,7 +418,7 @@ const handleDelete = async () => {
                     </div>
                   </div>
 
-                  <!-- HINWEISE ZUM TAG (Gefiltert/Ablauf-Hinweise) -->
+                  <!-- HINWEISE ZUM TAG -->
                   <Transition
                     enter-active-class="transition duration-200 ease-out"
                     enter-from-class="opacity-0 -translate-y-2"
@@ -430,6 +482,7 @@ const handleDelete = async () => {
                     </div>
                   </Transition>
 
+                  <!-- STAMPING ZEITEN (NUR BEI 'WORK') -->
                   <div v-if="entryType === 'work'" class="space-y-3 animate-in fade-in duration-200">
                     <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">
                       Erfasste Stempelzeiten
@@ -445,7 +498,6 @@ const handleDelete = async () => {
                           : ''
                       ]"
                     >
-                      <!-- Kleine Warn-Badge direkt über der betroffenen Zeile -->
                       <div 
                         v-if="session.is_auto_checkout" 
                         class="flex items-center gap-1.5 mb-1.5 ml-1 text-amber-800 text-[10px] font-bold"
@@ -501,6 +553,7 @@ const handleDelete = async () => {
                     </button>
                   </div>
 
+                  <!-- BEGRÜNDUNG -->
                   <div class="space-y-2">
                     <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Begründung für System-Korrektur</label>
                     <textarea 
@@ -509,7 +562,7 @@ const handleDelete = async () => {
                       required
                       :disabled="isSubmitting" 
                       class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none resize-none" 
-                      placeholder="z.B. Server-Ausfall am Terminal, Mitarbeiter war regulär im Dienst..."
+                      placeholder="z.B. Erholungsurlaub genehmigt, AU eingereicht..."
                     ></textarea>
                   </div>
                 </div>
@@ -589,7 +642,7 @@ const handleDelete = async () => {
                   <h3 class="text-sm font-bold text-slate-900">Eintrag wirklich löschen?</h3>
                   <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
                     Der komplette Eintrag ("{{ existingDayTypeDisplay }}") für {{ member?.name }} am
-                    {{ date }} inklusive aller erfassten Zeiten wird unwiderruflich entfernt.
+                    {{ isRangeType ? startDate : date }} inklusive aller erfassten Zeiten wird unwiderruflich entfernt.
                   </p>
                 </div>
               </div>
