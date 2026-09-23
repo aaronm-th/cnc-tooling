@@ -291,66 +291,73 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
         </div>
       </div>
 
-      <!-- Kalender-Grid-Bereich -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        
-        <!-- Tabellen-Header (Tage 1-31) -->
-        <div class="flex border-b border-slate-100 bg-slate-50/50 sticky top-0 z-20">
-          <div class="w-52 shrink-0 p-3 font-bold text-[10px] text-slate-400 uppercase tracking-widest border-r border-slate-100 bg-slate-50 flex items-center">
-            Mitarbeiter
-          </div>
 
-          <div class="flex-1 flex min-w-0">
-            <div 
-              v-for="day in monthDays" 
-              :key="day.getTime()"
-              class="flex-1 min-w-0 min-h-[44px] border-r border-slate-100 last:border-r-0 flex flex-col items-center justify-center relative p-1 text-xs font-semibold"
-              :class="[
-                isToday(day) ? 'text-blue-600 bg-blue-50/20' : (isWeekend(day) ? 'text-slate-400 bg-slate-100/40' : 'text-slate-500')
-              ]"
-            >
-
-              <span class="text-[10px] font-medium uppercase tracking-wider">
-                {{ getShortDayName(day) }}
-              </span>
-
-              <span 
-                class="flex items-center justify-center w-6 h-6 rounded-full text-[11px] transition-all"
-                :class="isToday(day) ? 'bg-blue-600 text-white font-bold' : ''"
-              >
-                {{ day.getDate() }}
-              </span>
-            </div>
-          </div>
+<!-- Kalender-Grid-Bereich -->
+<div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+  
+  <!-- Scroll-Container für Responsive-Darstellung -->
+  <div class="overflow-x-auto">
+    <div class="flex flex-col">
+      
+      <!-- Tabellen-Header (Tage 1-31) -->
+      <div class="flex border-b border-slate-100 bg-slate-50/50 sticky top-0 z-30">
+        <!-- Mitarbeiter Header (sowohl vertikal als auch horizontal fixiert) -->
+        <div class="w-52 shrink-0 p-3 font-bold text-[10px] text-slate-400 uppercase tracking-widest border-r border-slate-100 bg-slate-50 flex items-center sticky left-0 z-30 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
+          Mitarbeiter
         </div>
 
-        <!-- Tabellen-Body (Mitarbeiter Zeilen) -->
-        <div class="flex-1 overflow-y-auto">
+        <div class="flex-1 flex min-w-0">
           <div 
-            v-for="member in teamMembers" 
-            :key="member.id"
-            class="flex border-b border-slate-100 hover:bg-slate-50/30 transition-colors group min-h-[64px] relative"
+            v-for="day in monthDays" 
+            :key="day.getTime()"
+            class="flex-1 min-w-[28px] min-h-[52px] border-r border-slate-100 last:border-r-0 flex flex-col items-center justify-center relative p-1 text-xs font-semibold gap-0.5"
+            :class="[
+              isToday(day) ? 'text-blue-600 bg-blue-50/20' : (isWeekend(day) ? 'text-slate-400 bg-slate-100/40' : 'text-slate-500')
+            ]"
           >
-            <!-- Linker Block: Mitarbeiter Info (Sticky) -->
-            <div class="w-52 shrink-0 p-3 border-r border-slate-100 bg-white sticky left-0 z-10 flex items-center gap-3 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
-              <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors shrink-0">
-                <div v-if="member.avatar" class="w-10 h-10 rounded-full overflow-hidden border border-slate-200 shrink-0">
-                  <img :src="member.avatar" class="w-full h-full object-cover" />
-                </div>
-                <div v-else class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold shrink-0 text-sm">
-                  {{ member.initials || '??' }}
-                </div>
+            <!-- Wochentag (z. B. MO, DI) -->
+            <span class="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+              {{ getShortDayName(day) }}
+            </span>
+
+            <!-- Tageszahl -->
+            <span 
+              class="flex items-center justify-center w-6 h-6 rounded-full text-[11px] transition-all"
+              :class="isToday(day) ? 'bg-blue-600 text-white font-bold' : ''"
+            >
+              {{ day.getDate() }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabellen-Body (Mitarbeiter-Zeilen) -->
+      <div class="flex-1">
+        <div 
+          v-for="member in teamMembers" 
+          :key="member.id"
+          class="flex border-b border-slate-100 hover:bg-slate-50/30 transition-colors group min-h-[64px] relative"
+        >
+          <!-- Linker Block: Mitarbeiter Info (Sticky beim horizontalen Scrollen) -->
+          <div class="w-52 shrink-0 p-3 border-r border-slate-100 bg-white sticky left-0 z-20 flex items-center gap-3 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
+            <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors shrink-0">
+              <div v-if="member.avatar" class="w-10 h-10 rounded-full overflow-hidden border border-slate-200 shrink-0">
+                <img :src="member.avatar" class="w-full h-full object-cover" />
               </div>
-              <div class="min-w-0 flex-1">
-                <div class="text-xs font-bold text-slate-900 truncate">{{ member.name }}</div>
-                <div class="text-[10px] text-slate-400 truncate">{{ member.username }}</div>
+              <div v-else class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold shrink-0 text-sm">
+                {{ member.initials || '??' }}
               </div>
             </div>
+            <div class="min-w-0 flex-1">
+              <div class="text-xs font-bold text-slate-900 truncate">{{ member.name }}</div>
+              <div class="text-[10px] text-slate-400 truncate">{{ member.username }}</div>
+            </div>
+          </div>
 
-<!-- Rechter Block: Die Kalendertage im Grid -->
+          <!-- Rechter Block: Die Kalendertage im Grid -->
           <div class="flex-1 flex min-w-0 relative">
             
-            <!-- Overlay-Text über den gesamten ausgegrauten Bereich -->
+            <!-- Overlay-Text über den gesamten ausgegrauten Bereich (Eintrittsdatum) -->
             <div 
               v-if="monthDays.filter(d => isBeforeJoinedDate(member, d)).length > 0"
               class="absolute inset-y-0 left-0 z-10 select-none flex items-center justify-center px-4 pointer-events-none"
@@ -372,7 +379,7 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
               v-for="day in monthDays" 
               :key="day.getTime()"
               @click="openManualEntryModal(member, day)"
-              class="flex-1 min-w-0 min-h-[64px] border-r border-slate-100 last:border-r-0 flex items-center justify-center relative p-1 transition-colors"
+              class="flex-1 min-w-[28px] min-h-[64px] border-r border-slate-100 last:border-r-0 flex items-center justify-center relative p-1 transition-colors"
               :class="[
                 isBeforeJoinedDate(member, day) 
                   ? 'bg-slate-200/50 cursor-not-allowed select-none' 
@@ -399,24 +406,27 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
             </div>
 
           </div>
-
-          </div>
-
-          <!-- Empty State -->
-          <div 
-            v-if="teamMembers?.length === 0" 
-            class="flex flex-col items-center justify-center p-20 text-center"
-          >
-            <div class="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mb-4 border border-slate-100">
-              <User class="w-10 h-10 text-slate-200" />
-            </div>
-            <h3 class="text-slate-900 font-bold text-lg">Keine Mitarbeiter gefunden</h3>
-            <p class="text-slate-500 text-sm max-w-xs mx-auto">
-              Es konnten keine Teammitglieder gefunden werden, die den Suchkriterien entsprechen.
-            </p>
-          </div>
         </div>
       </div>
+
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div 
+    v-if="teamMembers?.length === 0" 
+    class="flex flex-col items-center justify-center p-20 text-center"
+  >
+    <div class="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mb-4 border border-slate-100">
+      <User class="w-10 h-10 text-slate-200" />
+    </div>
+    <h3 class="text-slate-900 font-bold text-lg">Keine Mitarbeiter gefunden</h3>
+    <p class="text-slate-500 text-sm max-w-xs mx-auto">
+      Es konnten keine Teammitglieder gefunden werden, die den Suchkriterien entsprechen.
+    </p>
+  </div>
+
+</div>
 
       <!-- Legend / Footer -->
       <div class="flex items-center justify-center gap-8 py-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
