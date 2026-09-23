@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch, computed, onUnmounted } from 'vue'
-import { X, Clock, MessageSquare, AlertCircle, CheckCircle2, RotateCcw, Trash2, Plus, FileText, HelpCircle } from 'lucide-vue-next'
+import { X, Clock, AlertTriangle, AlertCircle, CheckCircle2, RotateCcw, Trash2, Plus, FileText, HelpCircle } from 'lucide-vue-next'
 import { useDateFormatter } from '@/composables/useDateFormatter'
 
 const props = defineProps({
@@ -50,6 +50,9 @@ watch(() => props.isOpen, (isOpen) => {
         const defaultCheckIn = session.check_in || '08:00'
         const defaultCheckOut = session.check_out || '16:00'
 
+        // NEU: Auto-Checkout Status ermitteln
+        const isAutoCheckout = Boolean(session.is_auto_checkout)
+
         return {
           id: session.id,
           change_request_id: pendingData?.id || null,
@@ -57,9 +60,11 @@ watch(() => props.isOpen, (isOpen) => {
           check_out: formatTimeForInput(pendingData?.requested_check_out || defaultCheckOut),
           orig_check_in: session.check_in ? formatTimeForInput(session.check_in) : null,
           orig_check_out: session.check_out ? formatTimeForInput(session.check_out) : null,
-          note: pendingData?.employee_note || '',
+          // NEU: Bei Auto-Checkout direkt Vorbefüllung der Notiz anbieten (falls noch leer)
+          note: pendingData?.employee_note || (isAutoCheckout ? 'Korrektur Auto-Checkout' : ''),
           isPending: hasPending,
-          error: null, // <-- NEU: Hier speichern wir den Backend-Fehler für diese Session
+          isAutoCheckout: isAutoCheckout, // <-- NEU
+          error: null,
           pending_details: hasPending ? {
             check_in: formatTimeForInput(pendingData.requested_check_in),
             check_out: formatTimeForInput(pendingData.requested_check_out)
@@ -217,7 +222,7 @@ defineExpose({ isSubmitted })
                     <span class="text-[9px] font-black uppercase tracking-wider text-slate-400">
                       {{ session.id ? `Eintrag #${index + 1}` : 'Nachträgliche Meldung' }}
                     </span>
-                    
+
                     <div class="flex items-center gap-3">
                       <button 
                         v-if="session.check_in !== session.orig_check_in || session.check_out !== session.orig_check_out"
@@ -234,6 +239,16 @@ defineExpose({ isSubmitted })
                     </div>
                   </div>
 
+
+                  <div v-if="session.isAutoCheckout && !session.isPending" class="p-2.5 bg-orange-50/80 rounded-xl border border-orange-200/60 flex items-start gap-2 text-[10px] text-orange-900">
+                    <AlertTriangle class="w-3.5 h-3.5 text-orange-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span class="font-bold">Auto-Checkout: </span> 
+                      <span>Diese Session wurde automatisch beendet. Bitte korrigiere die Uhrzeiten und sende den Antrag ab.</span>
+                    </div>
+                  </div>
+
+
                   <div v-if="session.isPending && session.pending_details" class="p-2.5 bg-amber-50 rounded-xl border border-amber-100/70 flex items-start gap-2 text-[10px] text-amber-800">
                     <HelpCircle class="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
                     <div>
@@ -249,9 +264,25 @@ defineExpose({ isSubmitted })
                         <label class="text-[9px] font-bold uppercase text-slate-400">{{ type === 'in' ? 'Beginn' : 'Ende' }}</label>
                         <span v-if="session.id" class="text-[9px] text-slate-400 tabular-nums">Original: {{ type === 'in' ? session.orig_check_in : session.orig_check_out }}</span>
                       </div>
-                      <input type="time" v-model="localSessions[index][type === 'in' ? 'check_in' : 'check_out']" :disabled="isLoading" 
-                        class="w-full px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/10 outline-none"
-                        :class="{ 'text-blue-600 font-bold border-blue-200 bg-blue-50/30': localSessions[index][type === 'in' ? 'check_in' : 'check_out'] !== (type === 'in' ? session.orig_check_in : session.orig_check_out) }">
+                      <input 
+                        type="time" 
+                        v-model="localSessions[index][type === 'in' ? 'check_in' : 'check_out']" 
+                        :disabled="isLoading" 
+                        class="w-full px-3 py-1.5 bg-slate-50 border rounded-xl text-sm outline-none transition-all"
+                        :class="{ 
+                          // 1. Standard-Hervorhebung bei abgeänderten Werten (blau)
+                          'text-blue-600 font-bold border-blue-200 bg-blue-50/30 focus:ring-2 focus:ring-blue-500/10': 
+                            localSessions[index][type === 'in' ? 'check_in' : 'check_out'] !== (type === 'in' ? session.orig_check_in : session.orig_check_out) && !(type === 'out' && session.isAutoCheckout),
+                          
+                          // 2. Spezielle Markierung für Checkout-Zeit bei Auto-Checkout (orange/amber)
+                          'border-orange-300 bg-orange-50/50 text-orange-900 font-bold focus:ring-2 focus:ring-orange-500/20': 
+                            type === 'out' && session.isAutoCheckout && localSessions[index].check_out === session.orig_check_out,
+                          
+                          // Standard Rahmen
+                          'border-slate-100 focus:ring-2 focus:ring-blue-500/10': 
+                            !session.isAutoCheckout && localSessions[index][type === 'in' ? 'check_in' : 'check_out'] === (type === 'in' ? session.orig_check_in : session.orig_check_out)
+                        }"
+                      >
                     </div>
                   </div>
 

@@ -217,6 +217,7 @@ class WorkSessionDetailSerializer(serializers.ModelSerializer):
     pending_requests = serializers.SerializerMethodField()
     date = serializers.DateField(source='work_day.date', read_only=True)
     duration = serializers.ReadOnlyField(source='duration_str')
+    is_auto_checkout = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = WorkSession
@@ -226,7 +227,8 @@ class WorkSessionDetailSerializer(serializers.ModelSerializer):
             'check_out', 
             'duration', 
             'pending_requests', 
-            'date'
+            'date',
+            'is_auto_checkout',
         ]
 
     def get_pending_requests(self, obj):
