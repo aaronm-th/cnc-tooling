@@ -338,7 +338,27 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
               </div>
             </div>
 
-            <!-- Rechter Block: Die einzelnen Tages-Zellen (per Klick öffnet sich das Modal) -->
+<!-- Rechter Block: Die Kalendertage im Grid -->
+          <div class="flex-1 flex min-w-0 relative">
+            
+            <!-- Overlay-Text über den gesamten ausgegrauten Bereich -->
+            <div 
+              v-if="monthDays.filter(d => isBeforeJoinedDate(member, d)).length > 0"
+              class="absolute inset-y-0 left-0 z-10 select-none flex items-center justify-center px-4 pointer-events-none"
+              :style="{
+                width: `${(monthDays.filter(d => isBeforeJoinedDate(member, d)).length / monthDays.length) * 100}%`
+              }"
+            >
+              <span 
+                v-if="monthDays.filter(d => isBeforeJoinedDate(member, d)).length >= 4"
+                :title="`Eintrittsdatum: ${formatDate(member.joined_at)}`"
+                class="font-bold text-xs text-slate-500/80 tracking-wide truncate max-w-full text-center block px-2 pointer-events-auto cursor-help"
+              >
+                Eintrittsdatum: {{ formatDate(member.joined_at) }}
+              </span>
+            </div>
+
+            <!-- Die einzelnen Tages-Zellen -->
             <div 
               v-for="day in monthDays" 
               :key="day.getTime()"
@@ -351,7 +371,6 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
               ]"
             >
               <template v-if="!isBeforeJoinedDate(member, day)">
-                <!-- Schleife über alle Events des Tages -->
                 <template v-if="getEvents(member, day).length > 0">
                   <div 
                     v-for="item in getEvents(member, day)"
@@ -361,7 +380,6 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
                     @mouseenter="handleMouseEnter(item, $event)"
                     @mouseleave="handleMouseLeave"
                   >
-                    <!-- Warndreieck: Greift sicher auf 'item.warning' aus dem v-for zu -->
                     <AlertTriangle 
                       v-if="item.warning" 
                       class="w-3.5 h-3.5 fill-amber-400 text-slate-900 shrink-0 drop-shadow-sm" 
@@ -370,6 +388,8 @@ const handleMouseLeave = () => { hoveredEvent.value = null }
                 </template>
               </template>
             </div>
+
+          </div>
 
           </div>
 
