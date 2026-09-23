@@ -297,6 +297,9 @@ class WSChangeRequest(models.Model):
             # Zeiten direkt überschreiben (In-Place)
             session.check_in = self.requested_check_in
             session.check_out = self.requested_check_out
+
+            session.is_auto_checkout = False
+
             session.full_clean()
             session.save()
 

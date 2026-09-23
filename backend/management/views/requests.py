@@ -113,9 +113,6 @@ class HandleChangeRequestView(APIView):
 
         if action == 'approve':
             try:
-                # change_req.approve() prüft die Monatssperre bereits selbst
-                # (siehe attendance/models.py) und wirft bei Bedarf eine
-                # ValidationError - hier nur sauber als 400 abfangen.
                 change_req.approve(reviewer=request.user)
             except ValidationError as e:
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
