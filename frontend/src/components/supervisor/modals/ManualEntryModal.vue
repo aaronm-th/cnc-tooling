@@ -517,7 +517,8 @@ const handleDelete = async () => {
                             type="time" 
                             required
                             :disabled="isSubmitting" 
-                            class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                            style="-webkit-appearance: none; -moz-appearance: none;"
+                            class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium appearance-none" 
                           />
                         </div>
 
@@ -528,7 +529,8 @@ const handleDelete = async () => {
                             type="time" 
                             required
                             :disabled="isSubmitting" 
-                            class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium"
+                            style="-webkit-appearance: none; -moz-appearance: none;"
+                            class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium appearance-none"
                             :class="{ 'border-amber-400 font-bold text-amber-900': session.is_auto_checkout }" 
                           />
                         </div>
