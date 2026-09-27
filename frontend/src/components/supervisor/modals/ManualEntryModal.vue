@@ -366,7 +366,7 @@ const handleDelete = async () => {
                 </div>
                 
                 <!-- DATUMS-FELDER: DYNAMISCH ZWISCHEN SPANNE UND EINZELTAG -->
-                <div v-if="isRangeType" class="grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-3">
+                <div v-if="isRangeType" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div class="space-y-2 min-w-0">
                     <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Von</label>
                     <input 
@@ -374,7 +374,7 @@ const handleDelete = async () => {
                       type="date" 
                       required
                       :disabled="isSubmitting" 
-                      class="w-full min-w-0 px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                      class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
                     />
                   </div>
                   <div class="space-y-2 min-w-0">
@@ -385,7 +385,7 @@ const handleDelete = async () => {
                       required
                       :min="startDate"
                       :disabled="isSubmitting" 
-                      class="w-full min-w-0 px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                      class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
                     />
                   </div>
                 </div>
