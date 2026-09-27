@@ -374,7 +374,8 @@ const handleDelete = async () => {
                       type="date" 
                       required
                       :disabled="isSubmitting" 
-                      class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                      style="-webkit-appearance: none; -moz-appearance: none;"
+                      class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium appearance-none" 
                     />
                   </div>
                   <div class="space-y-2 min-w-0">
@@ -385,7 +386,8 @@ const handleDelete = async () => {
                       required
                       :min="startDate"
                       :disabled="isSubmitting" 
-                      class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                      style="-webkit-appearance: none; -moz-appearance: none;"
+                      class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium appearance-none" 
                     />
                   </div>
                 </div>
@@ -397,7 +399,8 @@ const handleDelete = async () => {
                     type="date" 
                     required
                     :disabled="isSubmitting" 
-                    class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
+                    style="-webkit-appearance: none; -moz-appearance: none;"
+                    class="w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium appearance-none" 
                   />
                 </div>
 
