@@ -366,8 +366,8 @@ const handleDelete = async () => {
                 </div>
                 
                 <!-- DATUMS-FELDER: DYNAMISCH ZWISCHEN SPANNE UND EINZELTAG -->
-                <div v-if="isRangeType" class="grid grid-cols-2 gap-3">
-                  <div class="space-y-2">
+                <div v-if="isRangeType" class="grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-3">
+                  <div class="space-y-2 min-w-0">
                     <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Von</label>
                     <input 
                       v-model="startDate" 
@@ -377,7 +377,7 @@ const handleDelete = async () => {
                       class="w-full min-w-0 px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none font-medium" 
                     />
                   </div>
-                  <div class="space-y-2">
+                  <div class="space-y-2 min-w-0">
                     <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Bis (inkl.)</label>
                     <input 
                       v-model="endDate" 
@@ -506,7 +506,7 @@ const handleDelete = async () => {
                         <span>Automatische Ausstempelung / Korrekturbedarf</span>
                       </div>
 
-                      <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end">
+                      <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end">
                         <div class="space-y-1 min-w-0">
                           <label class="text-[9px] font-bold uppercase tracking-widest text-slate-400 ml-1">Kommen</label>
                           <input 
