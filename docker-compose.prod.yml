@@ -21,20 +21,7 @@ services:
     depends_on:
       - db
 
-  celery_worker:
-    restart: always
-    env_file:
-      - .env.prod
-    depends_on:
-      - db
 
-  celery_beat:
-      restart: always
-      env_file:
-        - .env.prod
-      command: celery -A config beat -l info -s /tmp/celerybeat-schedule
-      depends_on:
-        - db
 
   frontend:
     build:

@@ -3,7 +3,6 @@
 from pathlib import Path
 import os
 from datetime import timedelta
-from celery.schedules import crontab
 
 
 
@@ -23,12 +22,8 @@ CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "http://localhost"
 # --------------------
 
 INSTALLED_APPS = [
-    'event_calendar.apps.EventCalendarConfig',
-    'management.apps.ManagementConfig',
-    'attendance.apps.AttendanceConfig',
+    
     'core.apps.CoreConfig',
-    'reports.apps.ReportsConfig',
-    'terminal.apps.TerminalConfig',
 
     'django.contrib.admin',
     'django.contrib.auth',
@@ -37,7 +32,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    'django_celery_beat',
     'django_filters',
     'rest_framework',
     'rest_framework_simplejwt',
@@ -222,25 +216,3 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
 }
-
-# --------------------
-# Celery
-# --------------------
-
-CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
-CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/0")
-CELERY_TIMEZONE = 'Europe/Berlin'
-
-broker_connection_retry_on_startup = True
-
-CELERY_BEAT_SCHEDULE = {
-    'auto-checkout-every-5-minutes': {
-        'task': 'attendance.tasks.auto_checkout',
-        'schedule': timedelta(minutes=5),
-    },
-    'create-workdays-at-midnight': {
-        'task': 'attendance.tasks.daily_workday_generation',
-        'schedule': crontab(hour=0, minute=5),
-    }
-}
-

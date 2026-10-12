@@ -6,7 +6,6 @@ class RestrictAdminToTailscaleMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        # Im Entwicklungsmodus (DEBUG = True) überspringen wir die Prüfung komplett
         if settings.DEBUG:
             return self.get_response(request)
 

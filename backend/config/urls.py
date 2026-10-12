@@ -13,7 +13,6 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from django.views.generic import RedirectView
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -23,11 +22,6 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, Spec
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('core.urls')),
-    path('', include('reports.urls')),
-    path('', include('attendance.urls')),
-    path('', include('event_calendar.urls')),
-    path('', include('management.urls')),
-    path('', include('terminal.urls')),
 
     # Diese URL nutzt Vue für den Login
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

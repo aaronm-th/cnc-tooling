@@ -1,49 +1,21 @@
 services:
-  redis:
-    image: redis:7-alpine
-    container_name: timestamper_redis
-    restart: always
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: timestamper_backend
+    container_name: backend
     volumes:
       - ./backend:/app
       - ./backend/data:/app/data
-    depends_on:
-      - redis
 
-  celery_worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: timestamper_celery_worker
-    command: celery -A config worker -l info
-    volumes:
-      - ./backend:/app
-      - ./backend/data:/app/data
-    depends_on:
-      - redis
 
-  celery_beat:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: timestamper_celery_beat
-    command: celery -A config beat -l info
-    volumes:
-      - ./backend:/app
-      - ./backend/data:/app/data
-    depends_on:
-      - redis
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: timestamper_frontend
+    container_name: frontend
     volumes:
       - ./frontend:/app
       - /app/node_modules
