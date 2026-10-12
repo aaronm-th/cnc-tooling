@@ -9,9 +9,7 @@
 **/__pycache__/
 *.py[cod]
 *$py.class
-backend/local_settings.py
-backend/db.sqlite3
-backend/db.sqlite3-journal
+
 backend/staticfiles/
 backend/data/
 backend/media/employee_documents
