@@ -16,6 +16,9 @@ export default defineConfig(({ command }) => {
         usePolling: true,
       },
     },
+    build: {
+      target: 'esnext'
+    },
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url))

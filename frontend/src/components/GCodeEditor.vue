@@ -19,10 +19,27 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue';
 import * as monaco from 'monaco-editor';
 
+self.MonacoEnvironment = {
+  getWorker() {
+    return new Worker(
+      URL.createObjectURL(
+        new Blob(
+          [`self.onmessage = function () { postMessage({ id: 0, result: true }); };`],
+          { type: 'text/javascript' }
+        )
+      )
+    );
+  }
+};
+
 const props = defineProps({
   modelValue: {
     type: String,
     default: ''
+  },
+  activeLine: {
+    type: Number,
+    default: -1
   }
 });
 
@@ -30,11 +47,12 @@ const emit = defineEmits(['update:modelValue', 'cursorChange']);
 
 const editorContainer = ref(null);
 let editorInstance = null;
+let lineDecorations = [];
 
 // Einfache Syntax-Highlighting Regeln für G-Code registrieren
 const registerGCodeLanguage = () => {
   if (monaco.languages.getLanguages().some(lang => lang.id === 'gcode')) {
-    return; // Bereits registriert
+    return;
   }
 
   monaco.languages.register({ id: 'gcode' });
@@ -44,26 +62,16 @@ const registerGCodeLanguage = () => {
     ignoreCase: true,
     tokenizer: {
       root: [
-        // Kommentare (in Klammern) oder mit Semikolon
         [/\(.*\)/, 'comment'],
         [/;.*$/, 'comment'],
-
-        // Eilgang & Arbeitsgang (G0, G1, G2, G3, G71 etc.)
         [/G\d+/, 'keyword'],
-
-        // M-Befehle (M3, M4, M5, M8, M30 etc.)
         [/M\d+/, 'keyword.control'],
-
-        // Achsen-Koordinaten (X, Y, Z, C, U, W, R, F, S, T)
         [/[XYZCURFST]-?\d+(\.\d+)?/, 'type'],
-
-        // Zahlen / Parameter
         [/\d+(\.\d+)?/, 'number'],
       ]
     }
   });
 
-  // Eigenes dunkles Farbschema definieren
   monaco.editor.defineTheme('gcodeTheme', {
     base: 'vs-dark',
     inherit: true,
@@ -88,7 +96,6 @@ onMounted(() => {
 
   registerGCodeLanguage();
 
-  // Monaco Instanz erzeugen
   editorInstance = monaco.editor.create(editorContainer.value, {
     value: props.modelValue,
     language: 'gcode',
@@ -96,20 +103,18 @@ onMounted(() => {
     automaticLayout: true,
     fontSize: 13,
     fontFamily: 'JetBrains Mono, Fira Code, Consolas, monospace',
-    minimap: { enabled: false }, // Minimap deaktiviert für schlankes Layout
+    minimap: { enabled: false },
     scrollBeyondLastLine: false,
     lineNumbers: 'on',
     renderLineHighlight: 'all',
     tabSize: 2,
   });
 
-  // Event bei Textänderung im Editor
   editorInstance.onDidChangeModelContent(() => {
     const value = editorInstance.getValue();
     emit('update:modelValue', value);
   });
 
-  // Event bei Cursor-Bewegung (Wichtig, um die 3D-Ansicht zur aktuellen Zeile zu synchronisieren!)
   editorInstance.onDidChangeCursorPosition((e) => {
     emit('cursorChange', {
       lineNumber: e.position.lineNumber,
@@ -118,7 +123,28 @@ onMounted(() => {
   });
 });
 
-// Sync wenn props.modelValue sich von außen ändert
+// Gelbes Highlighting auf der aktiven Zeile setzen
+watch(() => props.activeLine, (newLine) => {
+  if (!editorInstance) return;
+
+  if (newLine < 1) {
+    lineDecorations = editorInstance.deltaDecorations(lineDecorations, []);
+    return;
+  }
+
+  editorInstance.revealLineInCenter(newLine);
+
+  lineDecorations = editorInstance.deltaDecorations(lineDecorations, [
+    {
+      range: new monaco.Range(newLine, 1, newLine, 1),
+      options: {
+        isWholeLine: true,
+        className: 'bg-yellow-500/20 border-l-4 border-yellow-400'
+      }
+    }
+  ]);
+});
+
 watch(() => props.modelValue, (newValue) => {
   if (editorInstance && newValue !== editorInstance.getValue()) {
     editorInstance.setValue(newValue);

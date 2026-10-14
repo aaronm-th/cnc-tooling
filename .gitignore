@@ -1,46 +1,53 @@
-# --- System / IDE ---
-.DS_Store
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# --- Python / Django (Backend) ---
-**/__pycache__/
-*.py[cod]
-*$py.class
-
-backend/staticfiles/
-backend/data/
-backend/media/employee_documents
-backend/media/profile_pics
-celerybeat-schedule
-*.log
-
-# --- Virtual Environments (Lokal) ---
-env/
-venv/
-ENV/
-.venv/
-
-# --- Node.js / Vue (Frontend) ---
-frontend/node_modules/
-frontend/dist/
+# ==========================================
+# 1. Node.js & Vite / Frontend (Vue 3)
+# ==========================================
+node_modules/
 npm-debug.log*
+yarn-debug.log*
 yarn-error.log*
-.eslintcache
+pnpm-debug.log*
 
-# --- Docker ---
-.dockerignore
-# Wir ignorieren .env Dateien NICHT pauschal, 
-# da du .env.demo und .env.dev aktiv im Repo nutzt.
-# Aber: Private .env (falls du sie hast) sollten hier rein:
-.env.prod
+# Build Output
+dist/
+dist-ssr/
+*.local
 
-# --- Verschiedenes ---
-data/
-.cache
-tmp/
+# Editor / Temp Files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
+# ==========================================
+# 2. Rust & Cargo Engine
+# ==========================================
+# Kompilierte Rust-Artefakte (oft mehrere GB groß!)
+/target/
+/**/target/
 
-docker-compose.override.yml
+# Cargo Lock-Dateien bei Binaries/WASM (optional keep Cargo.lock if top-level)
+# Cargo.lock
+
+# ==========================================
+# 3. WASM /wasm-pack Output
+# ==========================================
+# Vom wasm-pack generierte JS/WASM-Dateien, wenn sie im Build erzeugt werden
+# (Falls du pkg/ direkt im Repo brauchst, passe den Pfad an)
+/pkg/
+/**/pkg/
+
+# ==========================================
+# 4. OS / System-Dateien
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

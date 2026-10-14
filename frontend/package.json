@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "build:wasm": "wasm-pack build /calculator_engine --target web --out-dir /app/src/wasm",
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview"
